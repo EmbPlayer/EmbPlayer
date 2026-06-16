@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en" data-bs-theme="auto">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <script src="Bootstrap.js"></script>
+        <link rel="stylesheet" href="Bootstrap.css">
+        <style>
+            html,body{height:100%;width:100%}
+            .scrollable-menu{height:auto;width:auto;max-height:250px;max-width:350px;overflow-x:hidden}
+        </style>
+    </head>
+    <body hidden>
+<div class="d-flex align-items-center justify-content-center" style="height: 100%;">
+<div class="px-3" style="width: 100%; max-width: 1000px;">
+    
+    <div id='outputbox' class='d-flex justify-content-around align-items-center mb-3'><h1 id='outputpanel' class='display-1'>...</h1></div>
+    
+    
+    <div id='inputbox' class = 'input-group input-group-lg mb-3'>
+        <span class = 'input-group-text' id = 'inputGroup-sizing-lg'>Youtube</span>
+        <input id='inputpanel' type='url' class='form-control' aria-label='Sizing example input' aria-describedby='inputGroup-sizing-lg' required>
+        <button type="button" class="btn btn-light border-secondary-subtle videoSettingsButton" data-bs-toggle="modal" data-bs-target="#videoSettingsPop" onclick="loadSettingsVideo()">⚙</button>
+    </div>    
+    
+    <div class= "d-flex justify-content-around align-items-center mb-3" style= "width:100%">
+        <button id= "youtubeSend" class= "btn btn-primary "onclick= "sendLink() ">&nbsp;&nbsp;&nbsp;Send&nbsp;&nbsp;&nbsp;</button>
+        <div style= "width:100%" class= "mx-3 ">
+            <label for= "volumeEdit" class= "form-label ">Volume</label>
+            <input type= "range" class= "form-range" min= "0" max= "0" value= "0" id= 'volumeEdit'  >
+        </div>
+        <button id='loop' class= "btn me-2" onclick= "sendLoop()">↺</button>
+        <button id='startStopSetUp' class= "btn btn-primary "onclick= "startStop()"  > </button>
+    </div>
+    <div class= "d-flex justify-content-around align-items-center" style = "width:100%">
+        <button class= "btn btn-primary" onclick= "buttonStoper(-5)"><<</button>
+        <div style= "width:100%" class= "mx-3 ">
+            <label for= "rangeElement" class= "form-label ">Player</label>
+            <input type= "range" class= "form-range" min= "0" max= "0" value= "0" id= "rangeElement"  >
+        </div>
+        <button class= "btn btn-primary" onclick= "buttonStoper(5)">>></button>
+    </div>
+</div>
+</div>
+
+
+  <!-- Modal (Vertically Centered & Scrollable) -->
+  <div class="modal fade" id="videoSettingsPop" tabindex="-1" aria-labelledby="videoSettingsPopLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        
+        <!-- Modal Header -->
+        <div class="modal-header">
+          <h5 class="modal-title" id="videoSettingsPopLabel">Video Settings</h5>
+          <button type="button" class="btn-close videoSettingsButton" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        
+        <!-- Modal Body (Scrollable content) -->
+        <div class="modal-body">
+
+            <div class="container text-start">
+                <!-- Columns are always 50% wide, on mobile and desktop -->
+                <div class="row">
+
+                    
+                    <div class="card mb-3 px-4 py-1">
+                        <div class="row d-flex align-items-center">
+                            <div class="col fs-3 d-flex align-items-center">Language</div>
+                            <div class="col-auto fs-3 px-0 d-flex align-items-center">:</div>
+                            <div class="col d-flex align-items-center justify-content-center">  <!-- Added justify-content-center -->
+                                <select class="form-select form-select-lg" aria-label=".form-select-lg example" id="languagesList" onchange="sendLanguage(this.value)" style="width: auto; max-width: 100%;">
+                                    <option selected>EN</option>
+                                    <option value="1">TR</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    
+                    <div class="card mb-3 px-4 py-1">
+                        <div class="row d-flex align-items-center">
+                            <div class="col fs-3 d-flex align-items-center">Hardware</div>
+                            <div class="col-auto fs-3 px-0 d-flex align-items-center">:</div>
+                            <div class="col d-flex align-items-center justify-content-center">
+                                <button id='hardware' class="btn btn-lg fs-4" onclick="sendHardware()">Decoding</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-3">
+                        <div class="fs-3 card-header">
+                            Quality
+                        </div>
+                        <div class="card-body">
+                            <blockquote class="blockquote mb-0">
+                            <div class="list-group" id="videoQualityList">
+                                <a href="#" class="list-group-item list-group-item-action active" aria-current="true">
+                                    The current link item</a>
+                                <a href="#" class="list-group-item list-group-item-action">A third link item</a>
+                            </div>
+                            <!--<footer class="blockquote-footer">Someone famous in <cite title="Source Title">Source Title</cite></footer>-->
+                            </blockquote>
+
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="fs-3 card-header">
+                            Resolution
+                        </div>
+                        <div class="card-body">
+                            <blockquote class="blockquote mb-0">
+                            <div class="list-group" id="videoResolutionList">
+                                <a href="#" class="list-group-item list-group-item-action active" aria-current="true">
+                                    The current link item</a>
+                                <a href="#" class="list-group-item list-group-item-action">A second link item</a>
+                            </div>
+                            <!--<footer class="blockquote-footer">Someone famous in <cite title="Source Title">Source Title</cite></footer>-->
+                            </blockquote>
+
+                        </div>
+                    </div>
+                  </div>
+              </div>
+        </div>
+
+        <!-- Modal Footer
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary">Save changes</button>
+        </div> -->
+      </div>
+    </div>
+  </div>
+
+<script src="index.js"></script>
+</body>
+</html>
+
+
+

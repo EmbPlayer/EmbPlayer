@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Legacy-Compatible Media Player — Full Patched</title>
+    <style>
+        * { box-sizing: border-box; margin:0; padding:0; }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            background: linear-gradient(135deg,#f5f7fa 0%,#c3cfe2 100%);
+            padding:20px; min-height:100vh; color:#222;
+        }
+        .container {
+            max-width:980px; margin:0 auto;
+            background:#fff; border-radius:10px; overflow:hidden;
+            box-shadow:0 6px 24px rgba(0,0,0,0.08);
+        }
+        header { background:#3498db; color:white; padding:18px; text-align:center; }
+        header h1 { font-size:20px; margin-bottom:6px; }
+        .player-container { padding:18px; }
+        .display { background:#f8f9fa; padding:12px; border-radius:6px; text-align:center; font-family:monospace; font-size:20px; border:1px solid #eee; }
+        .input-group { margin:12px 0; }
+        input[type="text"], input[type="url"] { width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:16px; }
+        input[type="range"] { width:100%; margin:8px 0; }
+        .btn { display:inline-block; padding:8px 12px; margin:6px 6px 0 0; border-radius:6px; border:none; cursor:pointer; font-size:14px; background:#3498db; color:#fff; }
+        .btn:hover { opacity:0.95; }
+        .btn-primary { background:#3498db; }
+        .btn-success { background:#27ae60; }
+        .btn-secondary { background:#6c757d; }
+        .btn-danger { background:#e74c3c; }
+        .button-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:8px; }
+        .top-right-button, .top-left-button {
+            position:fixed; top:18px; z-index:1050; padding:8px 14px; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.12);
+            font-weight:500; cursor:pointer; background:#3498db; color:#fff; border:none;
+        }
+        .top-right-button { right:18px; }
+        .top-left-button { left:18px; }
+
+        .compatibility-note { background:#ffeaa7; padding:12px; border-radius:6px; margin:12px 0; text-align:center; }
+
+        /* Collections */
+        .collection-list { list-style:none; padding:0; margin:0; }
+        .collection-item { padding:10px 12px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+        .collection-item:hover { background:#f8f9fa; }
+        .collection-item .meta { font-size:13px; color:#666; }
+
+        /* Modal */
+        .modal { position:fixed; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:none; align-items:center; justify-content:center; z-index:1100; }
+        .modal-content { background:#fff; border-radius:8px; width:92%; max-width:760px; max-height:86vh; overflow-y:auto; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,0.2); }
+        .modal-header { display:flex; justify-content:space-between; align-items:center; padding-bottom:8px; border-bottom:1px solid #eee; margin-bottom:10px; }
+        .close { font-size:20px; cursor:pointer; padding:6px; }
+        .card { border:1px solid #eee; border-radius:8px; padding:10px; margin:8px 0; }
+        .list-group { list-style:none; padding:0; margin:0; }
+        .list-group-item { padding:8px 10px; border-bottom:1px solid #eee; cursor:pointer; }
+        .list-group-item:last-child { border-bottom:none; }
+
+        footer { padding:12px; text-align:center; color:#6b6b6b; font-size:13px; }
+
+        /* small responsive */
+        @media (max-width:700px) {
+            .button-row { flex-direction:column; align-items:stretch; }
+        }
+        
+        .hidden { display: none; }
+    </style>
+</head>
+<body style="visibility:hidden;">
+
+    <!-- Top buttons -->
+    <button id="playersButton" class="top-right-button" onclick="openModal('playersModal'); loadDevices();">Players</button>
+    <button id="linksButton" class="top-left-button" onclick="openModal('linksModal'); loadLinkCollections();">Links</button>
+
+    <div class="container">
+        <header>
+            <h1>Legacy-Compatible Media Player — Full</h1>
+            <div style="font-size:13px">Fallback XHR + Vanilla JS (supports old Android 2012 browsers)</div>
+        </header>
+
+        <div class="player-container">
+            <div class="compatibility-note">This player aims to work across legacy and modern browsers — UI contains full features in legacy-safe code.</div>
+
+            <!-- Input box -->
+            <div id="inputbox" class="control-group">
+                <h3>Media URL</h3>
+                <div class="input-group">
+                    <input id="inputpanel" type="url" placeholder="Enter YouTube or direct video URL" />
+                </div>
+                <div class="button-row">
+                    <button id="youtubeSend" class="btn btn-primary" onclick="sendLink()">Play</button>
+                    <button id="urlTypeToggle" class="btn" onclick="sendTypeUrl()">YouTube</button>
+                    <button id="videoSettingsBtn" class="btn btn-secondary" onclick="openModal('videoSettingsModal'); loadSettingsVideo();">⚙ Settings</button>
+                </div>
+            </div>
+
+            <!-- Output / controls -->
+            <div id="outputbox" class="control-group hidden" style="margin-top:12px;">
+                <h3>Playback</h3>
+                <div class="display"><span id="outputpanel">0S</span></div>
+
+                <label for="rangeElement">Seek</label>
+                <input id="rangeElement" type="range" min="0" max="0" value="0" />
+
+                <label for="volumeEdit">Volume</label>
+                <input id="volumeEdit" type="range" min="0" max="100" value="50" />
+
+                <div class="button-row" style="margin-top:6px;">
+                    <button id="startStopSetUp" class="btn btn-primary" onclick="startStop()">▷</button>
+                    <button id="loop" class="btn btn-primary" onclick="sendLoop()">↺</button>
+                    <button class="btn" onclick="buttonStoper(-10)">-10s</button>
+                    <button class="btn" onclick="buttonStoper(10)">+10s</button>
+                </div>
+
+                <!-- Playlist controls -->
+                <div class="button-row" style="margin-top:8px;">
+                    <button class="btn playlistButtons" onclick="sendPlaylist(-1)">&lt;|</button>
+                    <button class="btn playlistButtons" onclick="sendPlaylist(1)">|&gt;</button>
+                    <button id="loopPlaylist" class="btn playlistButtons btn-primary" onclick="playlistLoop()">↺↺</button>
+                    <button class="btn btn-success" onclick="openModal('saveModal')">Save Video</button>
+                    <button id="closeVideoBtn" class="btn btn-danger" onclick="closeVideo()">Close Video</button>
+                </div>
+            </div>
+
+        </div>
+
+        <footer>
+            Universal Media Player &copy; full patched — legacy compatible
+        </footer>
+    </div>
+
+    <!-- Players Modal -->
+    <div id="playersModal" class="modal" onclick="modalBackgroundClick(event,'playersModal')">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Player Collections</h3>
+                <span class="close" onclick="closeModal('playersModal')">&times;</span>
+            </div>
+            <div>
+                <div class="card">
+                    <ul id="devicesList" class="collection-list">
+                        <li class="collection-item" data-url="http://example:8080" onclick="loadPage(this)">
+                            <div>
+                                <div><strong>Example Player</strong></div>
+                                <div class="meta">http://example:8080</div>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Links Modal -->
+    <div id="linksModal" class="modal" onclick="modalBackgroundClick(event,'linksModal')">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Links Collections</h3>
+                <span class="close" onclick="closeModal('linksModal')">&times;</span>
+            </div>
+            <div id="LinksCollections">
+                <!-- Collections loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Video Modal -->
+    <div id="saveModal" class="modal" onclick="modalBackgroundClick(event,'saveModal')">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Save Video</h3>
+                <span class="close" onclick="closeModal('saveModal')">&times;</span>
+            </div>
+            <div>
+                <div style="margin-bottom:8px;">
+                    <input id="sendVideoInput" type="text" placeholder="Enter name to save (optional)" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px;" />
+                </div>
+                <div style="text-align:right;">
+                    <button class="btn btn-success" onclick="saveVideo()">Save</button>
+                    <button class="btn btn-danger" onclick="closeModal('saveModal')">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Settings Modal -->
+    <div id="videoSettingsModal" class="modal" onclick="modalBackgroundClick(event,'videoSettingsModal')">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Video Settings</h3>
+                <span class="close" onclick="closeModal('videoSettingsModal')">&times;</span>
+            </div>
+            <div>
+                <div class="card">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div><strong>Language</strong></div>
+                        <div>
+                            <select id="languagesList" onchange="sendLanguage(this.value)" style="padding:6px; border-radius:6px; border:1px solid #ddd;"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div style="display:flex; align-items:center; justify-content:space-between;">
+                        <div><strong>Hardware decoding</strong></div>
+                        <div><button id="hardware" class="btn" onclick="sendHardware()">Toggle</button></div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div><strong>Quality</strong></div>
+                    <ul id="videoQualityList" class="list-group">
+                        <!-- populated -->
+                    </ul>
+                </div>
+
+                <div class="card">
+                    <div><strong>Resolution</strong></div>
+                    <ul id="videoResolutionList" class="list-group">
+                        <!-- populated -->
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+/* -------------------------
+   Legacy XHR helper + core
+   ------------------------- */
+
+if (!window.console) {
+    window.console = { log:function(){}, error:function(){} };
+}
+
+/* Lightweight XHR wrapper that mimics the earlier version */
+function httpRequest(url, options) {
+    options = options || {};
+    var method = options.method || 'GET';
+    var data = options.data || null;
+    var headers = options.headers || {};
+    var callback = options.callback || function(){};
+
+    try {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, url, true);
+
+        for (var h in headers) {
+            if (headers.hasOwnProperty(h)) {
+                xhr.setRequestHeader(h, headers[h]);
+            }
+        }
+
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    var text = xhr.responseText;
+                    try {
+                        var json = JSON.parse(text);
+                        callback(null, json);
+                    } catch (e) {
+                        // Return raw text if not JSON
+                        callback(null, text);
+                    }
+                } else {
+                    callback(new Error('Request failed: ' + xhr.status), null);
+                }
+            }
+        };
+
+        if (data && typeof data === 'object') {
+            xhr.setRequestHeader('Content-Type', 'application/json; charset=UTF-8');
+            xhr.send(JSON.stringify(data));
+        } else {
+            xhr.send(data);
+        }
+    } catch (err) {
+        callback(err, null);
+    }
+}
+
+/* -------------------------
+   State, constants & globals
+   ------------------------- */
+
+var input = null;
+var inputvalue = null;
+var urlTypeToggle = null;
+var volumeInput = null;
+var sendSaveVideoInput = null;
+
+var sendURL = 0;
+var sendValuee = 1;
+var stopStart = 2;
+var sendVolumee = 3;
+var sendLoopp = 4;
+var sendVideoResolutionn = 5;
+var sendVideoQualityy = 6;
+var sendLanguagee = 7;
+var sendHardwaree = 8;
+var sendYoutbee = 9;
+var sendPlaylistt = 10;
+var sendSaveVideoo = 11;
+var sendDeleteSavedVideoo = 12;
+var sendSendSavedVideoo = 13;
+var sendSendLoopPlaylistt = 14;
+var sendCloseVideo = 0; // New constant for closing video
+
+var volumeMax = 100;
+var volumePosition = 0;
+var seekMax = 0;
+var seekPosion = 0;
+var timer = false;
+var setUpOn = false;
+var loopOn = false;
+var hardwareOn = false;
+var youtbeOn = true;
+var playlistOn = false;
+var loopPlaylist = false;
+var timerStoped = true;
+var timerState = false;
+
+var buttonsList = [];
+var inputList = [];
+
+/* -------------------------
+   Helper utilities
+   ------------------------- */
+
+function intParser(a) {
+    return parseInt(a, 10) || 0;
+}
+function fixVisual(x) {
+    return (x < 10) ? ("0" + x) : ("" + x);
+}
+function DisableAll(c) {
+    var b = document.getElementsByTagName("button");
+    var f = document.getElementsByTagName("input");
+    for (var a = 0; a < b.length; a++) { try { b[a].disabled = c; } catch(e){} }
+    for (var aa = 0; aa < f.length; aa++) { try { f[aa].disabled = c; } catch(e){} }
+}
+function DisableButtonsByClass(on, text) {
+    var elements = document.getElementsByClassName(text);
+    for (var a = 0; a < elements.length; a++) { try { elements[a].disabled = on; } catch(e){} }
+}
+function HideElementsByClass(on, text) {
+    var elements = document.getElementsByClassName(text);
+    for (var a = 0; a < elements.length; a++) {
+        try { elements[a].style.display = on ? 'none' : ''; } catch(e) {}
+    }
+}
+
+/* Button visual toggles (use className changes for legacy browsers) */
+function ButtonSetup(idKey, on) {
+    var element = document.getElementById(idKey);
+    if (!element) return;
+    var cls = element.className || "";
+    if (on) {
+        if (cls.indexOf('btn-success') === -1) {
+            element.className = cls.replace('btn-primary','') + ' btn-success';
+        }
+    } else {
+        element.className = cls.replace('btn-success','') + ' btn-primary';
+    }
+}
+
+/* -------------------------
+   Server communication
+   ------------------------- */
+
+function SendRequestOn(page, value) {
+    return [page, value];
+}
+function SendRequestOff(page) {
+    return [page];
+}
+function SendRequestBool(on, page, value) {
+    return on ? SendRequestOn(page, value) : SendRequestOff(page);
+}
+function SendRequest(value, callback) {
+    httpRequest("Data", {
+        method: 'POST',
+        headers: { 'Content-type': 'application/json; charset=UTF-8' },
+        data: value,
+        callback: function(err, data) {
+            if (err) {
+                console.error('Error sending request:', err);
+            }
+            if (callback) callback(err, data);
+        }
+    });
+}
+function ServerOk(callback) {
+    httpRequest("Ok", { callback: function(err, data){
+        if (err) { console.error('Server check failed:',err); }
+        if (callback) callback(!err);
+    }});
+}
+
+/* -------------------------
+   Load initial state from server
+   ------------------------- */
+
+function dataGet(v) {
+    return v != 0;
+}
+function loadData(callback) {
+    httpRequest("Data", { callback: function(err, data) {
+        if (err) {
+            console.error('Error loading Data:', err);
+            if (callback) callback(err);
+            return;
+        }
+        try {
+            // server expected to return array: [volumePosition, seekMax, seekPosion, timerFlag, setUpOn, loopOn, youtbeOn, playlistOn, loopPlaylist]
+            volumePosition = intParser(data[0]);
+            seekMax = intParser(data[1]);
+            seekPosion = intParser(data[2]);
+
+            if (input) { input.max = seekMax; input.value = seekPosion; }
+            if (volumeInput) { volumeInput.max = volumeMax; volumeInput.value = volumePosition; }
+
+            timer = dataGet(data[3]);
+            setUpOn = dataGet(data[4]);
+            loopOn = dataGet(data[5]);
+            youtbeOn = dataGet(data[6]);
+            playlistOn = dataGet(data[7]);
+            loopPlaylist = dataGet(data[8]);
+        } catch(e) {
+            console.error('Malformed Data response:', e);
+        }
+        if (callback) callback(null, data);
+    }});
+}
+
+/* -------------------------
+   UI state & main flows
+   ------------------------- */
+
+function setSliderValue() {
+    if (!inputvalue || !input) return;
+    var total = intParser(input.value);
+    var hours = Math.floor(total / 3600);
+    var minutes = Math.floor((total % 3600) / 60);
+    var seconds = total % 60;
+    if (hours > 0) {
+        inputvalue.innerHTML = hours + ":" + fixVisual(minutes) + ":" + fixVisual(seconds);
+    } else if (minutes > 0) {
+        inputvalue.innerHTML = minutes + ":" + fixVisual(seconds);
+    } else {
+        inputvalue.innerHTML = seconds + "s";
+    }
+}
+
+function sliderLoopStarter() {
+    if (timerStoped) {
+        timerStoped = false;
+        sliderLoop();
+    }
+}
+function sliderLoop() {
+    setTimeout(function(){
+        if (timer && input) {
+            input.value = intParser(input.value) + 1;
+            setSliderValue();
+            if (intParser(input.max) === intParser(input.value)) {
+                if (loopPlaylist) {
+                    SetUp();
+                } else if (loopOn) {
+                    input.value = 0;
+                }
+            }
+            sliderLoop();
+        } else {
+            timerStoped = true;
+        }
+    }, 1000);
+}
+
+function Timer() {
+    var element = document.getElementById("startStopSetUp");
+    if (element) {
+        element.innerHTML = timer ? "❚❚" : "▷";
+    }
+    if (timer) {
+        sliderLoopStarter();
+    }
+}
+
+function SetUp() {
+    loadData(function() {
+        var outputbox = document.getElementById("outputbox");
+        var inputbox = document.getElementById("inputbox");
+
+        if (setUpOn) {
+            DisableAll(false);
+            inputvalue = document.getElementById("outputpanel");
+            if (outputbox) { outputbox.style.display = 'block'; outputbox.className = outputbox.className.replace('hidden',''); }
+            // hide inputbox
+            if (inputbox) { inputbox.style.display = 'none'; }
+            setSliderValue();
+            if (playlistOn) {
+                HideElementsByClass(false, 'playlistButtons');
+            } else {
+                HideElementsByClass(true, 'playlistButtons');
+            }
+        } else {
+            // show inputbox
+            if (inputbox) { inputbox.style.display = 'block'; }
+            urlTypeToggle = document.getElementById('urlTypeToggle');
+            if (urlTypeToggle) urlTypeToggle.disabled = false;
+            DisableButtonsByClass(false, "videoSettingsButton");
+            inputvalue = document.getElementById("inputpanel");
+            urlTypeLoad(youtbeOn);
+            if (outputbox) { outputbox.style.display = 'none'; }
+            if (inputvalue) inputvalue.disabled = false;
+            if (volumeInput) volumeInput.disabled = false;
+            var youtubeSend = document.getElementById('youtubeSend');
+            if (youtubeSend) youtubeSend.disabled = false;
+            HideElementsByClass(true, 'playlistButtons');
+        }
+
+        DisableButtonsByClass(false, "Devices");
+        Timer();
+        ButtonSetup("loop", loopOn);
+        ButtonSetup("loopPlaylist", loopPlaylist);
+        ButtonSetup("hardware", hardwareOn);
+    });
+}
+
+function PageOpen() {
+    DisableAll(true);
+    SetUp();
+    document.body.style.visibility = 'visible';
+}
+
+/* -------------------------
+   Request flows
+   ------------------------- */
+
+function sendLink() {
+    DisableAll(true);
+    // inputvalue is either inputpanel (URL entry) when setUpOn=false, or outputpanel when setUpOn=true
+    var value = (inputvalue && inputvalue.value !== undefined) ? inputvalue.value : document.getElementById('inputpanel').value;
+    SendRequest(SendRequestBool(!setUpOn, sendURL, value), function() {
+        ServerOk(function() { SetUp(); });
+    });
+}
+
+// NEW FUNCTION: Close video and return to input screen
+function closeVideo() {
+    WaitOn();
+    SendRequest(SendRequestOff(sendCloseVideo), function() {
+        setUpOn = false;
+        timer = false;
+        WaitOff();
+        SetUp();
+    });
+}
+
+function startStop() {
+    WaitOn();
+    if (input) seekPosion = input.value;
+    SendRequest(SendRequestBool(timerState, stopStart, seekPosion), function() {
+        timerState = !timerState;
+        WaitOff();
+    });
+}
+
+function sendValue() {
+    WaitOn();
+    if (input) seekPosion = input.value;
+    SendRequest(SendRequestOn(sendValuee, seekPosion), function() {
+        WaitOff();
+    });
+}
+
+function sendVolume() {
+    WaitOn();
+    if (volumeInput) volumePosition = volumeInput.value;
+    if (input) seekPosion = input.value;
+    SendRequest(SendRequestOn(sendVolumee, volumePosition), function() {
+        WaitOff();
+    });
+}
+
+function sendPlaylist(change) {
+    WaitOn();
+    SendRequest(SendRequestOn(sendPlaylistt, change), function() {
+        WaitOff();
+        SetUp();
+    });
+}
+
+function sendLoop() {
+    WaitOn();
+    if (input) seekPosion = input.value;
+    SendRequest(SendRequestOff(sendLoopp), function() {
+        loopOn = !loopOn;
+        WaitOff();
+        SetUp();
+    });
+}
+
+function playlistLoop() {
+    WaitOn();
+    if (input) seekPosion = input.value;
+    SendRequest(SendRequestOff(sendSendLoopPlaylistt), function() {
+        loopPlaylist = !loopPlaylist;
+        WaitOff();
+        SetUp();
+    });
+}
+
+/* -------------------------
+   Save / collection operations
+   ------------------------- */
+
+function saveVideo() {
+    var k = '';
+    var el = document.getElementById('sendVideoInput');
+    if (el) k = el.value;
+    var sendName = (k !== '');
+    WaitOn();
+    SendRequest(SendRequestBool(sendName, sendSaveVideoo, k), function() {
+        WaitOff();
+        closeModal('saveModal');
+        SetUp();
+    });
+}
+
+function startFromCollection(collectionName, id) {
+    WaitOn();
+    SendRequest([sendSendSavedVideoo, collectionName, id], function() {
+        WaitOff();
+        SetUp();
+        closeModal('linksModal');
+    });
+}
+
+function deleteFromCollection(collectionName, id) {
+    WaitOn();
+    SendRequest([sendDeleteSavedVideoo, collectionName, id], function() {
+        WaitOff();
+        SetUp();
+    });
+}
+
+/* -------------------------
+   Settings: quality/resolution/language/hardware
+   ------------------------- */
+
+function sendVideoBase(functionName, functioId, valueId) {
+    WaitOn();
+    var saved = document.getElementById(functionName + "Saved");
+    try { saved.textContent = document.getElementById(functionName + "Sel" + valueId).textContent; } catch(e) {}
+    SendRequest(SendRequestOn(functioId, valueId), function() {
+        WaitOff();
+    });
+}
+function sendVideoResolution(valueId) { sendVideoBase('sendVideoResolution', sendVideoResolutionn, valueId); }
+function sendVideoQuality(valueId) { sendVideoBase('sendVideoQuality', sendVideoQualityy, valueId); }
+
+function setList(functionName, listEl, selectedItem, collection) {
+    try {
+        var html = '';
+        html += "<li id='" + functionName + "Saved' class='list-group-item'><strong>" + collection[selectedItem] + "</strong></li>";
+        for (var i = 0; i < collection.length; i++) {
+            html += "<li id='" + functionName + "Sel" + i + "' class='list-group-item' onclick='" + functionName + "(" + i + ")'>" + collection[i] + "</li>";
+        }
+        listEl.innerHTML = html;
+    } catch (e) { console.error('setList error', e); }
+}
+
+function sendLanguage(valueId) {
+    WaitOn();
+    SendRequest(SendRequestOn(sendLanguagee, valueId), function() { WaitOff(); });
+}
+
+function urlTypeLoad(isYoutube) {
+    var btn = document.getElementById('urlTypeToggle');
+    var ip = document.getElementById('inputpanel');
+    if (!btn || !ip) return;
+    if (isYoutube) {
+        btn.textContent = 'YouTube';
+        btn.title = 'Click to switch to URL mode';
+        ip.placeholder = 'Enter YouTube URL';
+        ip.type = 'url';
+    } else {
+        btn.textContent = 'URL';
+        btn.title = 'Click to switch to YouTube mode';
+        ip.placeholder = 'Enter any video URL';
+        ip.type = 'text';
+    }
+}
+
+function sendTypeUrl() {
+    WaitOn();
+    youtbeOn = !youtbeOn;
+    urlTypeLoad(youtbeOn);
+    SendRequest(SendRequestOff(sendYoutbee), function() {
+        WaitOff();
+    });
+}
+
+function setListBox(listEl, selectedItem, collection) {
+    try {
+        var html = "<option selected>" + collection[selectedItem] + "</option>";
+        for (var i = 0; i < collection.length; i++) {
+            html += "<option value='" + i + "'>" + collection[i] + "</option>";
+        }
+        listEl.innerHTML = html;
+    } catch (e) { console.error('setListBox error', e); }
+}
+
+function loadSettingsVideo() {
+    WaitOn();
+    var resolu = document.getElementById("videoResolutionList");
+    var quality = document.getElementById("videoQualityList");
+    var language = document.getElementById("languagesList");
+
+    if (resolu) resolu.innerHTML = '';
+    if (quality) quality.innerHTML = '';
+    if (language) language.innerHTML = '';
+
+    httpRequest("Quality", {
+        callback: function(err, data) {
+            if (err) {
+                console.error('Error loading Quality:', err);
+                if (resolu) resolu.innerHTML = "<li class='list-group-item'>Error</li>";
+                if (quality) quality.innerHTML = "<li class='list-group-item'>Error</li>";
+                if (language) language.innerHTML = "<option>Error</option>";
+                WaitOff();
+                return;
+            }
+            try {
+                var selectedOptions = data[0] || [0,0,0,0];
+                var allResolutions = data[1] || [];
+                var allQualityTypes = data[2] || [];
+                var allLanguages = data[3] || [];
+
+                if (resolu) setList('sendVideoResolution', resolu, selectedOptions[0], allResolutions);
+                if (quality) setList('sendVideoQuality', quality, selectedOptions[1], allQualityTypes);
+                if (language) setListBox(language, selectedOptions[2], allLanguages);
+
+                hardwareOn = (selectedOptions[3] == 1);
+                ButtonSetup("hardware", hardwareOn);
+            } catch (e) {
+                console.error('Malformed Quality response', e);
+            }
+            WaitOff();
+        }
+    });
+}
+
+/* -------------------------
+   Devices & Links loading
+   ------------------------- */
+
+function loadDevices() {
+    WaitOn();
+    var deviceslist = document.getElementById("devicesList");
+    if (deviceslist) deviceslist.innerHTML = "<li class='collection-item'>Loading...</li>";
+    httpRequest("Devices", {
+        callback: function(err, data) {
+            if (err) {
+                console.error('Error loading devices:', err);
+                if (deviceslist) deviceslist.innerHTML = "<li class='collection-item'>Error loading devices</li>";
+                WaitOff();
+                return;
+            }
+            try {
+                var output = "";
+                for (var i = 0; i < data.length; i++) {
+                    var deviceName = data[i][0];
+                    var urlLink = data[i][1];
+                    output += "<li class='collection-item' data-url='" + urlLink + "' onclick='loadPage(this)'><div><div><strong>" + deviceName + "</strong></div><div class=\"meta\">" + urlLink + "</div></div></li>";
+                }
+                if (deviceslist) deviceslist.innerHTML = output;
+            } catch (e) {
+                console.error('Devices parsing error', e);
+                if (deviceslist) deviceslist.innerHTML = "<li class='collection-item'>Error processing devices</li>";
+            }
+            WaitOff();
+        }
+    });
+}
+
+function loadLinkCollections() {
+    WaitOn();
+    var modal = document.getElementById("LinksCollections");
+    if (modal) modal.innerHTML = "<div class='card'>Loading...</div>";
+    httpRequest("Tables", {
+        callback: function(err, datad) {
+            if (err) {
+                console.error('Error loading Tables:', err);
+                if (modal) modal.innerHTML = "<div class='card'>Error loading collections</div>";
+                WaitOff();
+                return;
+            }
+            try {
+                var output = "";
+                for (var i = 0; i < datad.length; i++) {
+                    var id = datad[i][0];
+                    var value = datad[i][1];
+                    output += "<div class='card'><button class='btn btn-secondary' onclick='OnOff(\"" + i + "\",\"" + id + "\")'>" + value + "</button>";
+                    output += "<ul id='" + id + "' class='collection-list' style='display:none'></ul></div>";
+                }
+                if (modal) modal.innerHTML = output;
+            } catch (e) {
+                console.error('Tables parsing error', e);
+                if (modal) modal.innerHTML = "<div class='card'>Error processing collections</div>";
+            }
+            WaitOff();
+        }
+    });
+}
+
+function OnOff(id, collectionName) {
+    var element = document.getElementById(collectionName);
+    if (!element) return;
+    if (element.style.display === 'none' || element.style.display === '') {
+        // open -> load links
+        loadLinks(id, collectionName, element);
+        element.style.display = 'block';
+    } else {
+        element.style.display = 'none';
+    }
+}
+
+function loadLinks(collectionId, collectionName, element) {
+    if (!element) return;
+    if (element.getAttribute('data-loaded') === 'true') return; // avoid re-loading
+
+    element.innerHTML = "<li class='collection-item'>Loading...</li>";
+
+    httpRequest(collectionName, {
+        callback: function(err, data) {
+            if (err) {
+                console.error('Error loading links for', collectionName, err);
+                element.innerHTML = "<li class='collection-item'>Error loading content</li>";
+                return;
+            }
+            try {
+                var output = "";
+                for (var i = 0; i < data.length; i++) {
+                    var id = data[i][0];
+                    var name = data[i][1] || data[i][2];
+                    var link = data[i][2];
+                    output += "<li class='collection-item'><div style='flex:1;cursor:pointer;' onclick='startFromCollection(" + collectionId + "," + id + ")'><div><strong>" + name + "</strong></div><div class=\"meta\">" + link + "</div></div>";
+                    output += "<button class='btn btn-danger' style='margin-left:8px;' onclick='deleteFromCollection(" + collectionId + "," + id + ");event.stopPropagation();'>X</button></li>";
+                }
+                element.innerHTML = output;
+                element.setAttribute('data-loaded', 'true');
+            } catch (e) {
+                console.error('Error parsing links data', e);
+                element.innerHTML = "<li class='collection-item'>Parse error</li>";
+            }
+        }
+    });
+}
+
+function loadPage(element) {
+    var url = element.getAttribute('data-url');
+    if (url) {
+        try { window.open(url, '_blank'); } catch(e) { console.error('open failed', e); }
+    }
+}
+
+/* -------------------------
+   Hardware / language toggle
+   ------------------------- */
+
+function sendHardware() {
+    WaitOn();
+    SendRequest(SendRequestOff(sendHardwaree), function() {
+        hardwareOn = !hardwareOn;
+        ButtonSetup("hardware", hardwareOn);
+        WaitOff();
+    });
+}
+
+/* -------------------------
+   Wait UI (disable/enable)
+   ------------------------- */
+
+function WaitOn() {
+    timerState = timer;
+    timer = false;
+
+    buttonsList = [];
+    inputList = [];
+
+    var b = document.getElementsByTagName("button");
+    var f = document.getElementsByTagName("input");
+    for (var a = 0; a < b.length; a++) {
+        try {
+            if (!b[a].disabled) {
+                b[a].disabled = true;
+                buttonsList.push(b[a]);
+            }
+        } catch(e){}
+    }
+    for (var aa = 0; aa < f.length; aa++) {
+        try {
+            if (!f[aa].disabled) {
+                f[aa].disabled = true;
+                inputList.push(f[aa]);
+            }
+        } catch(e){}
+    }
+}
+
+function WaitOff() {
+    for (var a = 0; a < buttonsList.length; a++) {
+        try { buttonsList[a].disabled = false; } catch(e) {}
+    }
+    for (var aa = 0; aa < inputList.length; aa++) {
+        try { inputList[aa].disabled = false; } catch(e) {}
+    }
+    timer = timerState;
+    ServerOk(function() {
+        Timer();
+    });
+}
+
+/* -------------------------
+   Modals handling
+   ------------------------- */
+
+function openModal(id) {
+    var m = document.getElementById(id);
+    if (m) m.style.display = 'flex';
+}
+function closeModal(id) {
+    var m = document.getElementById(id);
+    if (m) m.style.display = 'none';
+}
+function modalBackgroundClick(ev, id) {
+    if (ev.target && ev.target.id === id) { closeModal(id); }
+}
+
+/* -------------------------
+   Initialization and events
+   ------------------------- */
+
+function initEventHandlers() {
+    input = document.getElementById("rangeElement");
+    inputvalue = document.getElementById("inputpanel"); // initially the input panel (changed by SetUp)
+    urlTypeToggle = document.getElementById('urlTypeToggle');
+    volumeInput = document.getElementById("volumeEdit");
+    sendSaveVideoInput = document.getElementById("sendVideoInput");
+
+    if (input) {
+        input.oninput = function() { setSliderValue(); };
+        input.onchange = function() { sendValue(); };
+    }
+    if (volumeInput) {
+        volumeInput.onchange = function() { sendVolume(); };
+    }
+
+    var playersBtn = document.getElementById('playersButton');
+    if (playersBtn) { playersBtn.onclick = function(){ openModal('playersModal'); loadDevices(); }; }
+
+    var linksBtn = document.getElementById('linksButton');
+    if (linksBtn) { linksBtn.onclick = function(){ openModal('linksModal'); loadLinkCollections(); }; }
+}
+
+/* Start when page loaded */
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function(){
+        initEventHandlers();
+        PageOpen();
+    });
+} else {
+    initEventHandlers();
+    PageOpen();
+}
+</script>
+</body>
+</html>

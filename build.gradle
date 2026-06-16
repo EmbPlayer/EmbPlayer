@@ -1,0 +1,49 @@
+buildscript {
+    ext.kotlinVersion = '1.6.21'
+    repositories {
+        google()
+        //jcenter()
+        mavenCentral()
+        //gradlePluginPortal()
+        maven { url "https://jitpack.io" } // for lib extractor
+        maven { url 'https://groovy.jfrog.io/artifactory/plugins-release/' } // for lib extractor
+        maven {
+            url "https://repo.gradle.org/ui/native/jcenter-backup/"
+        }
+        maven {
+            url "https://artifactory.appodeal.com/appodeal-public/"
+        }
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.9.1'
+        //classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion"
+        classpath 'de.mannodermaus.gradle.plugins:android-junit5:1.8.2.1'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.20'
+        classpath 'org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.0.20'
+
+        // Byte Buddy for the build-time rewriter
+        //classpath 'net.bytebuddy:byte-buddy:1.18.4'
+        //classpath 'com.panaxeo:shadow-aar:0.1.1'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        //jcenter()
+        mavenCentral()
+        gradlePluginPortal()
+        maven { url "https://jitpack.io" }
+        maven { url 'https://groovy.jfrog.io/artifactory/plugins-release/' }
+        maven {
+            url "https://repo.gradle.org/ui/native/jcenter-backup/"
+        }
+        maven {
+            url "https://artifactory.appodeal.com/appodeal-public/"
+        }
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}
