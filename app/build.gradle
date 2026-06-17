@@ -233,12 +233,12 @@ dependencies {
 
     if(allTasksForFlavor("M21"))
     {
-        implementation("com.github.libre-tube:NewPipeExtractor:0c7e95b")
+        implementation("com.github.teamnewpipe:newpipeextractor:v0.26.3")
         implementation fileTree(dir: 'libs/ijkplayer/libsLegacy/arm64', include: ['*.aar', '*.jar'], exclude: [])
     }
     else if(allTasksForFlavor("M21V"))
     {
-        implementation("com.github.libre-tube:NewPipeExtractor:0c7e95b")
+        implementation("com.github.teamnewpipe:newpipeextractor:v0.26.3")
         implementation fileTree(dir: 'libs/ijkplayer/libsLegacy/arm64', include: ['*.aar', '*.jar'], exclude: [])
         vlc = true;
     }
@@ -258,7 +258,7 @@ dependencies {
     }
     else{
         vlc = true
-        implementation("com.github.libre-tube:NewPipeExtractor:0c7e95b")
+        implementation("com.github.teamnewpipe:newpipeextractor:v0.26.3")
     }
 
     if(exo)

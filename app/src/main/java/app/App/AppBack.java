@@ -946,13 +946,13 @@ public class AppBack extends AppWeb {
                 seekPosition((int)(recovered.getSeek()/1000));
                 loadDataWithoutChecking(recovered.getURL(),recovered.getProviderID(),recovered.getName());
 
-                cleaningInBackground.addStartAfterTimeout(750,()->{
-                    if(!mediaPlayer.isCreated()/* && !mediaPlayer.SecondBufferingStarted()*/)
+                /*cleaningInBackground.addStartAfterTimeout(750,()->{
+                    if(!mediaPlayer.isCreated()*//* && !mediaPlayer.SecondBufferingStarted()*//*)
                     {
                         mediaPlayer.dispose();
                         errorHandel.recover();
                     }
-                },()->{},forkJoinPool,"fistTrigger");
+                },()->{},forkJoinPool,"fistTrigger");*/
             }
             return true;
         },()->"Loading-Error");

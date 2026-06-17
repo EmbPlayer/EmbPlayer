@@ -128,7 +128,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:gravity="center_horizontal"
-                    android:text="Please set the required port and ensure no other device (like embplayer) is using it on the same port on network to avoid conflicts."
+                    android:text="Please set the required port and ensure no other local services or apps are using the same port to avoid conflicts."
                     android:textColor="#070707"
                     android:textSize="24sp" />
             </LinearLayout>

@@ -39,7 +39,7 @@ public class QrCodePage {
     public String qrMessage()
     {
         return String.join(System.lineSeparator()+System.lineSeparator(),
-                "For the controlling the audio player in another device.",
+                "For the controlling the media player in another device.",
                 MessageFormat.format("Open link in browser:{0}{1}",System.lineSeparator(), withHostname),
                 "Or scan the QR code:");
     }
