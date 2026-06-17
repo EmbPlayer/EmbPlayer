@@ -41,3 +41,24 @@ Instead of controlling the app directly on the device, EmbPlayer lets **any devi
 > **⚠️ Note:** Both the host and the controlling device must be connected to the **same local network** (Wi-Fi/Ethernet).
 
 ---
+
+## 📦 Available Versions (Build Variants)
+
+EmbPlayer is built in multiple flavours to support a wide range of Android devices. Each variant targets a different minimum Android version and includes a specific set of playback engines.
+
+**Choose the APK that matches your host device's Android version** – the app will automatically use the most suitable engine for your media.
+
+| Variant  | Android Min Version | Engines Available             |
+|:---------| :--- |:------------------------------|
+| **M21V** | 5.0+ (API 21) | ijkplayer, OEM, ExoPlayer,VLC |
+| **M21**  | 5.0+ (API 21) | ijkplayer, OEM, ExoPlayer     |
+| **L16V** | 4.4+ (API 17) | ijkplayer, OEM, ExoPlayer,VLC |
+| **L16**  | 4.1+ (API 16) | ijkplayer, OEM, ExoPlayer     |
+| **L14**  | 4.0+ (API 14) | ijkplayer, OEM                |
+
+**Why so many variants?**
+- **Android compatibility** – Older Android versions (e.g., 4.0–4.4) cannot run apps built for modern SDKs. These variants ensure EmbPlayer works on everything from legacy tablets to the latest smartphones.
+- **Engine availability** – VLC and ExoPlayer require newer Android features and are not available (or stable) on very old systems, hence the `L14` variant sticks to ijkplayer + OEM.
+- **Performance** – Even when multiple engines are present, the app uses build-specific default priorities to give you the best out‑of‑box experience.
+
+---
