@@ -41,22 +41,3 @@ Instead of controlling the app directly on the device, EmbPlayer lets **any devi
 > **⚠️ Note:** Both the host and the controlling device must be connected to the **same local network** (Wi-Fi/Ethernet).
 
 ---
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-| Device | Role | What It Needs |
-| :--- | :--- | :--- |
-| **Your Android Smartphone or Tablet** | **Host (Media Player)** | Android 7.0 (API 24) or higher with EmbPlayer installed. |
-| **Any Device with a Modern Browser** | **Control (Remote)** | A web browser with QR scanning capability (built-in camera scanner, Google Lens, or a QR reader app). **No EmbPlayer installation needed.** |
-
-> 💡 **Example:** Install EmbPlayer on your living room Android tablet. Then use your phone, laptop, or any other browser-equipped device to scan the QR and control what plays on the tablet. The remote device never needs the app.
-
-### Installation (Host Only)
-
-#### From Source
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/EmbPlayer.git
-   cd EmbPlayer
