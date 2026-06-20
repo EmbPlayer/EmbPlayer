@@ -18,8 +18,6 @@
 
 package app.tools;
 
-import com.jakewharton.processphoenix.ProcessPhoenix;
-
 import java.util.concurrent.Callable;
 
 import io.reactivex.rxjava3.functions.Consumer;
