@@ -8,7 +8,7 @@ EmbPlayer is built on a carefully selected stack of libraries and frameworks tha
 
 - **Media Playback Engines (`ijkplayer`, `ExoPlayer`, `VLC`)** – EmbPlayer supports multiple playback engines under the hood, each with its own strengths:
   - **`ijkplayer`** – A lightweight, cross-platform media player based on FFmpeg. It is the default for older Android versions (API 14+) and handles a wide range of formats with solid live‑stream support, offering a great balance between performance and compatibility for legacy devices.
-  - **`ExoPlayer`** – Google's modern, customizable media player for Android. It excels at adaptive streaming and is the preferred engine on newer devices (API 16+), delivering superior performance, smooth live playback, and advanced features like dynamic bitrate adaptation.
+  - **`ExoPlayer`** – Google's modern, customizable media player for Android. It excels at adaptive streaming and is the preferred engine on newer devices (API 16+), delivering superior performance, smooth live playback, and advanced features like dynamic bitrate adaptation. To ensure stability, EmbPlayer includes a custom build of ExoPlayer (located in the `media-X.X.X` folder) with the "different thread triggered rotation exception" disabled, preventing crashes during orientation changes.
   - **`VLC (libVLC)`** – A feature-rich engine based on the popular VLC media player. It provides the broadest codec support and is especially robust for tricky formats and network streams. Available on API 17+ variants.
   
   The app automatically selects the most suitable engine for each media source and Android version, ensuring reliable playback—including live streams—across the broadest possible device range.
