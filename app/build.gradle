@@ -1,0 +1,358 @@
+plugins {
+    id 'com.android.application'
+}
+
+def isAssembleModule(String flavor, String buildType) {
+    def taskNames = gradle.startParameter.taskNames
+    def targetTask = 'assemble' + flavor + buildType
+
+    return taskNames.any { task ->
+        task.contains(targetTask) &&
+                (task.contains(project.name) || task == targetTask)
+    }
+}
+
+def allTasksForFlavor(String flavor) {
+    return isAssembleModule(flavor, "Debug") || isAssembleModule(flavor, "Release")
+}
+
+boolean vlc = false
+boolean exo = true
+boolean battery = true;
+
+android {
+    compileSdkVersion 35
+    buildToolsVersion '33.0.0'
+    namespace 'com.emb.player'
+
+    sourceSets {
+        /*main {
+            java.srcDirs += 'src/battery/on/java'
+
+            //java.srcDirs += 'src/players/ijk/create/java'
+            //java.srcDirs += 'src/players/exo/create/java'
+            java.srcDirs += 'src/players/vlc/create/java'
+
+            java.srcDirs += 'src/players/ijk/player/java'
+            java.srcDirs += 'src/players/exo/player/java'
+            java.srcDirs += 'src/players/vlc/player/java'
+        }*/
+        m21{
+            java.srcDirs += 'src/battery/on/java'
+
+            //java.srcDirs += 'src/players/ijk/create/java'
+            java.srcDirs += 'src/players/exo/create/java'
+            //java.srcDirs += 'src/players/vlc/create/java'
+
+            java.srcDirs += 'src/players/ijk/player/java'
+            java.srcDirs += 'src/players/exo/player/java'
+            //java.srcDirs += 'src/players/vlc/player/java'
+        }
+        m21V{
+            java.srcDirs += 'src/battery/on/java'
+
+            //java.srcDirs += 'src/players/ijk/create/java'
+            //java.srcDirs += 'src/players/exo/create/java'
+            java.srcDirs += 'src/players/vlc/create/java'
+
+            java.srcDirs += 'src/players/ijk/player/java'
+            java.srcDirs += 'src/players/exo/player/java'
+            java.srcDirs += 'src/players/vlc/player/java'
+        }
+        l16{
+            java.srcDirs += 'src/battery/on/java'
+
+            //java.srcDirs += 'src/players/ijk/create/java'
+            java.srcDirs += 'src/players/exo/create/java'
+            //java.srcDirs += 'src/players/vlc/create/java'
+
+            java.srcDirs += 'src/players/ijk/player/java'
+            java.srcDirs += 'src/players/exo/player/java'
+            //java.srcDirs += 'src/players/vlc/player/java'
+        }
+        l16V{
+            java.srcDirs += 'src/battery/on/java'
+
+            //java.srcDirs += 'src/players/ijk/create/java'
+            //java.srcDirs += 'src/players/exo/create/java'
+            java.srcDirs += 'src/players/vlc/create/java'
+
+            java.srcDirs += 'src/players/ijk/player/java'
+            java.srcDirs += 'src/players/exo/player/java'
+            java.srcDirs += 'src/players/vlc/player/java'
+        }
+        l14{
+            java.srcDirs += 'src/battery/off/java'
+
+            java.srcDirs += 'src/players/ijk/create/java'
+            //java.srcDirs += 'src/players/exo/create/java'
+            //java.srcDirs += 'src/players/vlc/create/java'
+
+            java.srcDirs += 'src/players/ijk/player/java'
+            //java.srcDirs += 'src/players/exo/player/java'
+            //java.srcDirs += 'src/players/vlc/player/java'
+        }
+    }
+
+    defaultConfig {
+        applicationId "com.emb.player.app"
+        minSdkVersion 21
+
+        resValue "bool", "VLC", "false"
+        resValue "bool", "EXO", "true"
+
+        resValue "bool", "HardwareDecoding", "true"
+
+        resValue "bool", "ExoYoutubeCaching", "true"
+        resValue "bool", "ExoURLCaching", "true"
+
+        resValue "bool", "OemLegacyPlayer", "false"
+
+        resValue "integer", "IjkColorFormatsID", "2"
+
+        resValue "integer", "ResolutionID", "6"
+        resValue "integer", "ResolutionIDLive", "6"
+
+        resValue "integer", "RadioMediaEngineID", "1"
+        resValue "integer", "LiveMediaEngineID", "2"
+        resValue "integer", "URLMediaEngineID", "2"
+
+        resValue "integer", "YoutubeAudioEngineID", "2"
+        resValue "integer", "YoutubeVideoEngineID", "2"
+
+        versionName "1"    // digits of the *fractional part* shall NOT be > than "9"
+        versionCode 48
+        vectorDrawables.useSupportLibrary true
+        multiDexEnabled true    // as we have over 65536 lines of code...
+    }
+    buildTypes {
+        release {
+            minifyEnabled true
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    flavorDimensions "embplayer"
+    productFlavors {
+        extra {
+            resValue "string", "app_name", "EmbPlayer"
+            dimension "embplayer"
+        }
+
+        // Flavor for devices with SDK ≥ 21 (includes AAR/JAR)
+        m21V{
+            initWith extra
+            targetSdkVersion 35
+            minSdkVersion 21
+            resValue "bool", "VLC", "true"
+        }
+
+        m21{
+            initWith extra
+            targetSdkVersion 35
+            minSdkVersion 21
+        }
+
+        l16V{
+            initWith extra
+            targetSdkVersion 20
+            minSdkVersion 17
+            resValue "bool", "VLC", "true"
+
+            resValue "integer", "ResolutionID", "5"
+            resValue "integer", "ResolutionIDLive", "5"
+
+            resValue "integer", "RadioMediaEngineID", "1"
+            resValue "integer", "LiveMediaEngineID", "1"
+            resValue "integer", "URLMediaEngineID", "2"
+
+            resValue "integer", "YoutubeAudioEngineID", "1"
+            resValue "integer", "YoutubeVideoEngineID", "2"
+        }
+
+        l16{
+            initWith extra
+            targetSdkVersion 20
+            minSdkVersion 16
+
+            resValue "integer", "ResolutionID", "5"
+            resValue "integer", "ResolutionIDLive", "5"
+
+            resValue "integer", "RadioMediaEngineID", "1"
+            resValue "integer", "LiveMediaEngineID", "1"
+            resValue "integer", "URLMediaEngineID", "2"
+
+            resValue "integer", "YoutubeAudioEngineID", "1"
+            resValue "integer", "YoutubeVideoEngineID", "2"
+        }
+
+        l14 {
+            initWith extra
+            targetSdkVersion 15
+            minSdkVersion 14
+
+            resValue "bool", "EXO", "false"
+
+            resValue "bool", "OemLegacyPlayer", "true"
+
+            resValue "integer", "ResolutionID", "3"
+            resValue "integer", "ResolutionIDLive", "3"
+
+            resValue "integer", "RadioMediaEngineID", "1"
+            resValue "integer", "LiveMediaEngineID", "1"
+            resValue "integer", "URLMediaEngineID", "1"
+
+            resValue "integer", "YoutubeAudioEngineID", "1"
+            resValue "integer", "YoutubeVideoEngineID", "1"
+        }
+    }
+    // Generate APK filenames as follows:  <App Name>-<Flavor><Version>
+    applicationVariants.all { variant ->
+        outputs.all { output ->
+            outputFileName = "${parent.name}-${productFlavors[0].name.capitalize()}-${versionName}.apk"
+        }
+    }
+    // Ignore missing translations
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+
+        coreLibraryDesugaringEnabled true
+    }
+    packagingOptions {
+        exclude "/META-INF/**"
+    }
+    buildFeatures {
+        viewBinding true
+    }
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    // includes jars and aars in libs
+    implementation fileTree(dir: 'libs/', include: ['*.aar', '*.jar'], exclude: [])
+    // includes jars and aars in libs/jetty and all subfolders
+    implementation fileTree(dir: 'libs/jetty', include: ['**/*.jar', '**/*.aar'])
+
+/** MediaPlayer engines **/
+
+    // includes jars and aars in libs/ijkplayer/libsLegacy
+    implementation fileTree(dir: 'libs/ijkplayer/libsLegacy', include: ['*.aar', '*.jar'], exclude: [])
+
+    if(allTasksForFlavor("M21"))
+    {
+        implementation("com.github.teamnewpipe:newpipeextractor:v0.26.3")
+        implementation fileTree(dir: 'libs/ijkplayer/libsLegacy/arm64', include: ['*.aar', '*.jar'], exclude: [])
+    }
+    else if(allTasksForFlavor("M21V"))
+    {
+        implementation("com.github.teamnewpipe:newpipeextractor:v0.26.3")
+        implementation fileTree(dir: 'libs/ijkplayer/libsLegacy/arm64', include: ['*.aar', '*.jar'], exclude: [])
+        vlc = true;
+    }
+    else if(allTasksForFlavor("L16V"))
+    {
+        implementation 'com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-05-24'
+        vlc = true;
+    }
+    else if(allTasksForFlavor("L16")){
+        implementation 'com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-05-24'
+    }
+    else if(allTasksForFlavor("L14"))
+    {
+        battery = false;
+        implementation 'com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-05-24'
+        exo = false
+    }
+    else{
+        vlc = true
+        implementation("com.github.teamnewpipe:newpipeextractor:v0.26.3")
+    }
+
+    if(exo)
+    {
+        implementation project(':media-lib-exoplayer')
+        implementation project(':media-lib-exoplayer-dash')
+        implementation project(':media-lib-exoplayer-hls')
+        implementation project(':media-lib-exoplayer-smoothstreaming')
+        implementation project(':media-lib-exoplayer-rtsp')
+    }
+
+    if(vlc)
+    {
+        implementation 'org.videolan.android:libvlc-all:3.6.5'
+    }
+
+    if(battery){
+        // Source: https://mvnrepository.com/artifact/dev.doubledot.doki/library
+        implementation 'dev.doubledot.doki:library:0.0.1'
+    }
+
+/** Kotlin **/
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlinVersion"
+
+/** AndroidX **/
+    implementation 'androidx.appcompat:appcompat:1.3.1'
+    implementation 'androidx.cardview:cardview:1.0.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.1'
+    implementation 'androidx.core:core:1.6.0'
+    implementation 'androidx.media:media:1.3.1'
+    implementation 'androidx.multidex:multidex:2.0.1' // as we have over 65536 methods...
+    implementation 'androidx.preference:preference:1.1.1'
+    implementation 'androidx.recyclerview:recyclerview:1.2.1'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    implementation 'com.google.android.material:material:1.4.0'
+
+/**** Backend logic ****/
+
+    // YouTube modules
+    implementation 'com.github.SkyTubeTeam.google-http-java-client:google-http-client-android:e726c5718d'
+
+    implementation('com.google.apis:google-api-services-youtube:v3-rev20200423-1.30.9') {
+        exclude group: 'com.google.http-client', module: 'google-http-client'
+        exclude group: 'com.google.http-client', module: 'google-http-client-jackson2'
+    }
+
+    //debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.14'
+
+    // https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp
+    implementation 'com.squareup.okhttp3:okhttp:3.12.13'
+    implementation 'org.conscrypt:conscrypt-android:2.5.2'
+    implementation 'io.apisense:rhino-android:1.1.1'
+    implementation 'commons-net:commons-net:3.8.0'
+
+    // Reactive extensions for Java VM
+    implementation 'com.github.SkyTubeTeam:RxAndroid:3.0.1.SkyTubeTeam'
+
+    // RxJava 3.1 needs API 21
+    implementation 'io.reactivex.rxjava3:rxjava:3.0.13'
+
+    //ForkJoinPool library for missing devices
+    // Source: https://mvnrepository.com/artifact/org.glassfish.jersey.bundles.repackaged/jersey-jsr166e
+    implementation 'org.glassfish.jersey.bundles.repackaged:jersey-jsr166e:2.25.1'
+
+    /** Desugaring **/
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.0.2'
+
+    //implementation 'com.github.judemanutd:autostarter:1.1.0'
+    //implementation 'com.guolindev.permissionx:permissionx:1.8.1'
+    //implementation 'com.jakewharton:process-phoenix:3.0.0'
+    // ZeRXconf for mDNS
+    //implementation 'com.github.Ennova-IT:ZeRXconf:1.0.3' // Use the latest version
+    // https://mvnrepository.com/artifact/org.jmdns/jmdns
+    //implementation 'org.jmdns:jmdns:3.6.1'
+
+    // https://mvnrepository.com/artifact/com.github.andriydruk/dnssd
+    //implementation 'com.github.andriydruk:dnssd:0.9.17'
+    // https://mvnrepository.com/artifact/com.github.andriydruk/rx2dnssd
+    //implementation 'com.github.andriydruk:rx2dnssd:0.9.17'
+    // https://mvnrepository.com/artifact/javax.jmdns/jmdns
+    //implementation 'javax.jmdns:jmdns:3.4.1'
+    //implementation 'com.github.posicks:mdnsjava:mdnsjava_2.1.5'
+}

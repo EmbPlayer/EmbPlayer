@@ -1,0 +1,1499 @@
+<!doctype html>
+<html lang="mul" data-bs-theme="auto">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <script src="Bootstrap.js"></script>
+        <link rel="stylesheet" href="Bootstrap.css">
+        
+        
+        <style>
+            /* SETTINGS ROW CARD */
+            .modal-body .settings-row-card {
+                background: #ffffff;
+                border: 1px solid #e0e0e0;
+                border-radius: 10px;
+                transition: all 0.2s ease;
+            }
+            
+            .modal-body .settings-row-card:hover {
+                border-color: #bdbdbd;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            }
+            
+            /* SETTING LABEL */
+            .modal-body .setting-label {
+                min-width: 80px;
+            }
+            
+            .modal-body .setting-title {
+                font-size: 0.95rem;
+                font-weight: 600;
+                color: #333;
+                line-height: 1.2;
+            }
+            
+            .modal-body .setting-subtitle {
+                font-size: 0.75rem;
+                color: #666;
+                line-height: 1.2;
+                margin-top: 1px;
+            }
+            
+            /* FIX: CENTER SELECTED LANGUAGE TEXT */
+            .modal-body .select-container {
+                position: relative;
+                width: 100%;
+            }
+            
+            .modal-body .setting-select {
+                border: 1.5px solid #e0e0e0;
+                border-radius: 8px;
+                padding: 0 40px 0 16px; /* Right padding for arrow, left for text */
+                font-size: 0.95rem;
+                color: #333;
+                background: #fff;
+                transition: all 0.2s ease;
+                height: 40px;
+                width: 100%;
+                cursor: pointer;
+                appearance: none;
+                -webkit-appearance: none;
+                -moz-appearance: none;
+                text-align: center; /* Center the text horizontally */
+                text-align-last: center; /* Center the selected option */
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23666' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E");
+                background-repeat: no-repeat;
+                background-position: right 16px center;
+                background-size: 12px;
+            }
+            
+            /* Center text in dropdown list */
+            .modal-body .setting-select option {
+                text-align: center;
+                padding: 8px 0;
+            }
+            
+            .modal-body .setting-select:focus {
+                border-color: #0066cc;
+                box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.1);
+                outline: none;
+            }
+            
+            .modal-body .setting-select:hover {
+                border-color: #bdbdbd;
+            }
+            
+            .modal-body .btn-outline-primary.btn-md:hover {
+                background: #0066cc;
+                color: white;
+                transform: translateY(-1px);
+            }
+            
+            .modal-body .btn-outline-primary.btn-md:active {
+                transform: translateY(0);
+            }
+            
+            /* CARD STYLES - MINIMALIST & CLEAN */
+            .modal-body .container .row .card {
+                border: 1px solid #e5e5e5;
+                border-radius: 12px;
+                transition: all 0.2s ease;
+                background-color: #fff;
+                margin-bottom: 16px;
+            }
+            
+            .modal-body .container .row .card:last-child {
+                margin-bottom: 0;
+            }
+            
+            .modal-body .container .row .card:hover {
+                border-color: #d1d1d1;
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            }
+            
+            .modal-body .container .row .card .card-header {
+                background-color: #f8f9fa;
+                border-bottom: 1px solid #e5e5e5;
+                color: #333;
+                font-weight: 600;
+                border-radius: 12px 12px 0 0 !important;
+                padding: 12px 16px;
+                font-size: 1.1rem;
+            }
+            
+            .modal-body .container .row .card .card-body .list-group-item {
+                border: none;
+                border-bottom: 1px solid #f0f0f0;
+                color: #555;
+                transition: all 0.2s ease;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 10px 16px;
+            }
+            
+            .modal-body .container .row .card .card-body .list-group-item:last-child {
+                border-bottom: none;
+            }
+            
+            .modal-body .container .row .card .card-body .list-group-item:hover {
+                background-color: #f8f9fa;
+                transform: translateX(3px);
+            }
+            
+            .modal-body .container .row .card .card-body .list-group-item.active {
+                background-color: #e8f4ff;
+                color: #0066cc;
+                border-left: 3px solid #0066cc;
+                font-weight: 500;
+            }
+            
+            .modal-body .container .row .card .card-body .list-group-item:active {
+                transform: scale(0.99);
+            }
+            
+            /* Badge styles */
+            .modal-body .container .row .card .card-body .badge {
+                font-size: 0.7rem;
+                font-weight: 500;
+                padding: 0.35em 0.65em;
+            }
+            
+            /* YouTube section styling */
+            .modal-body .container .row .card .card-subtitle {
+                font-size: 0.85rem;
+                font-weight: 600;
+                color: #666;
+                margin-bottom: 0.75rem;
+            }
+            
+            .modal-body .container .row .card svg {
+                color: #888;
+            }
+            
+            /* ANIMATIONS */
+            @keyframes fadeIn {
+                from {
+                    opacity: 0;
+                    transform: translateY(5px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            
+            .modal-body .settings-row-card {
+                animation: fadeIn 0.3s ease-out;
+            }
+            
+            @keyframes slideIn {
+                from { opacity: 0; transform: translateX(-5px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            
+            .modal-body .container .row .card .card-body .list-group-item {
+                animation: slideIn 0.3s ease backwards;
+            }
+            
+            .modal-body .container .row .card .card-body .list-group-item:nth-child(1) { animation-delay: 0.05s; }
+            .modal-body .container .row .card .card-body .list-group-item:nth-child(2) { animation-delay: 0.1s; }
+            .modal-body .container .row .card .card-body .list-group-item:nth-child(3) { animation-delay: 0.15s; }
+            .modal-body .container .row .card .card-body .list-group-item:nth-child(4) { animation-delay: 0.2s; }
+            .modal-body .container .row .card .card-body .list-group-item:nth-child(5) { animation-delay: 0.25s; }
+            
+            /* FOCUS STATES */
+            .modal-body .setting-select:focus-visible,
+            .modal-body .btn-outline-primary.btn-md:focus-visible {
+                outline: 2px solid #0066cc;
+                outline-offset: 2px;
+            }
+            
+            /* DISABLED STATE */
+            .modal-body .setting-select:disabled,
+            .modal-body .btn-outline-primary.btn-md:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+            
+            /* MOBILE FIX - SIMPLE AND CLEAN */
+            @media (max-width: 768px) {
+                /* Language & Hardware Section */
+                .modal-body .settings-row-card .row.g-0 {
+                    flex-direction: column !important;
+                }
+                
+                .modal-body .col-md-6.pe-md-3,
+                .modal-body .col-md-6.ps-md-3 {
+                    width: 100% !important;
+                    padding-left: 0 !important;
+                    padding-right: 0 !important;
+                    border-right: none !important;
+                    margin-bottom: 16px;
+                }
+                
+                .modal-body .col-md-6.ps-md-3.mt-3.mt-md-0 {
+                    margin-top: 0 !important;
+                    margin-bottom: 0 !important;
+                }
+                
+                /* Fix label sizing */
+                .modal-body .setting-label {
+                    min-width: 70px;
+                    margin-right: 12px;
+                }
+                
+                .modal-body .setting-title {
+                    font-size: 0.9rem;
+                }
+                
+                .modal-body .setting-subtitle {
+                    font-size: 0.7rem;
+                }
+                
+                /* FIX: Mobile select text centering */
+                .modal-body .setting-select {
+                    height: 36px;
+                    font-size: 0.9rem;
+                    padding: 0 36px 0 12px; /* Adjusted for mobile */
+                    background-position: right 12px center;
+                    background-size: 10px;
+                    text-align: center;
+                    text-align-last: center;
+                }
+                
+                .modal-body .btn-outline-primary.btn-md {
+                    height: 36px;
+                    font-size: 0.9rem;
+                    padding: 8px 12px;
+                }
+                
+                /* Other cards */
+                .modal-body .col-md-6 {
+                    width: 100%;
+                    margin-bottom: 12px;
+                }
+                
+                .modal-body .card-header {
+                    padding: 10px 12px !important;
+                    font-size: 1rem !important;
+                }
+                
+                .modal-body .list-group-item {
+                    padding: 8px 12px !important;
+                    font-size: 0.9rem;
+                }
+                
+                .modal-body .badge {
+                    font-size: 0.65rem !important;
+                }
+            }
+            
+            /* DESKTOP DIVIDER */
+            @media (min-width: 768px) {
+                .modal-body .col-md-6.pe-md-3 {
+                    border-right: 1px solid #e0e0e0;
+                }
+            }
+            
+            /* For Firefox to center text */
+            @-moz-document url-prefix() {
+                .modal-body .setting-select {
+                    text-indent: 0;
+                    text-overflow: '';
+                }
+            }
+            
+            /* For IE10+ */
+            @media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
+                .modal-body .setting-select {
+                    padding: 0 16px;
+                    text-align: center;
+                }
+            }
+            
+                        /*ICONS*/
+                        /*ICONS*/
+                        /* Custom Bootstrap Icons using inline SVG */
+            /* Custom rotation classes */
+            
+            :root {
+                --tt-t: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath d=''/%3E%3C/svg%3E");
+                
+            
+                /* Audio icon (speaker/volume) */
+              --bi-volume-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath d='M11.536 14.01A8.473 8.473 0 0 0 14.026 8a8.473 8.473 0 0 0-2.49-6.01l-.708.707A7.476 7.476 0 0 1 13.025 8c0 2.071-.84 3.946-2.197 5.303l.708.707z'/%3E%3Cpath d='M10.121 12.596A6.48 6.48 0 0 0 12.025 8a6.48 6.48 0 0 0-1.904-4.596l-.707.707A5.483 5.483 0 0 1 11.025 8a5.483 5.483 0 0 1-1.61 3.89l.706.706z'/%3E%3Cpath d='M10.025 8a4.486 4.486 0 0 1-1.318 3.182L8 10.475A3.489 3.489 0 0 0 9.025 8c0-.966-.392-1.841-1.025-2.475l.707-.707A4.486 4.486 0 0 1 10.025 8zM7 4a.5.5 0 0 0-.812-.39L3.825 5.5H1.5A.5.5 0 0 0 1 6v4a.5.5 0 0 0 .5.5h2.325l2.363 1.89A.5.5 0 0 0 7 12V4zM4.312 6.39 6 5.04v5.92L4.312 9.61A.5.5 0 0 0 4 9.5H2v-3h2a.5.5 0 0 0 .312-.11z'/%3E%3C/svg%3E");
+                    
+                /* Video icon (camera) */
+              --bi-camera-video: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M0 5a2 2 0 0 1 2-2h7.5a2 2 0 0 1 1.983 1.738l3.11-1.382A1 1 0 0 1 16 4.269v7.462a1 1 0 0 1-1.406.913l-3.111-1.382A2 2 0 0 1 9.5 13H2a2 2 0 0 1-2-2V5zm11.5 5.175 3.5 1.556V4.269l-3.5 1.556v4.35zM2 4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h7.5a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H2z'/%3E%3C/svg%3E");
+            
+              --bi-play-fill: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath d='m11.596 8.697-6.363 3.692c-.54.313-1.233-.066-1.233-.697V4.308c0-.63.692-1.01 1.233-.696l6.363 3.692a.802.802 0 0 1 0 1.393'/%3E%3C/svg%3E");
+              --bi-pause-fill: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath d='M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5m5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5'/%3E%3C/svg%3E");
+              --bi-gear-wide-connected: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath d='M7.068.727c.243-.97 1.62-.97 1.864 0l.071.286a.96.96 0 0 0 1.622.434l.205-.211c.695-.719 1.888-.03 1.613.931l-.08.284a.96.96 0 0 0 1.187 1.187l.283-.081c.96-.275 1.65.918.931 1.613l-.211.205a.96.96 0 0 0 .434 1.622l.286.071c.97.243.97 1.62 0 1.864l-.286.071a.96.96 0 0 0-.434 1.622l.211.205c.719.695.03 1.888-.931 1.613l-.284-.08a.96.96 0 0 0-1.187 1.187l.081.283c.275.96-.918 1.65-1.613.931l-.205-.211a.96.96 0 0 0-1.622.434l-.071.286c-.243.97-1.62.97-1.864 0l-.071-.286a.96.96 0 0 0-1.622-.434l-.205.211c-.695.719-1.888.03-1.613-.931l.08-.284a.96.96 0 0 0-1.186-1.187l-.284.081c-.96.275-1.65-.918-.931-1.613l.211-.205a.96.96 0 0 0-.434-1.622l-.286-.071c-.97-.243-.97-1.62 0-1.864l.286-.071a.96.96 0 0 0 .434-1.622l-.211-.205c-.719-.695-.03-1.888.931-1.613l.284.08a.96.96 0 0 0 1.187-1.186l-.081-.284c-.275-.96.918-1.65 1.613-.931l.205.211a.96.96 0 0 0 1.622-.434zM12.973 8.5H8.25l-2.834 3.779A4.998 4.998 0 0 0 12.973 8.5m0-1a4.998 4.998 0 0 0-7.557-3.779l2.834 3.78zM5.048 3.967l-.087.065zm-.431.355A4.98 4.98 0 0 0 3.002 8c0 1.455.622 2.765 1.615 3.678L7.375 8zm.344 7.646.087.065z'/%3E%3C/svg%3E");
+              --bi-fast-forward-fill: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath d='M7.596 7.304a.802.802 0 0 1 0 1.392l-6.363 3.692C.713 12.69 0 12.345 0 11.692V4.308c0-.653.713-.998 1.233-.696z'/%3E%3Cpath d='M15.596 7.304a.802.802 0 0 1 0 1.392l-6.363 3.692C8.713 12.69 8 12.345 8 11.692V4.308c0-.653.713-.998 1.233-.696z'/%3E%3C/svg%3E");
+              --bi-skip-end-fill: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath d='M12.5 4a.5.5 0 0 0-1 0v3.248L5.233 3.612C4.713 3.31 4 3.655 4 4.308v7.384c0 .653.713.998 1.233.696L11.5 8.752V12a.5.5 0 0 0 1 0z'/%3E%3C/svg%3E");
+              --bi-bookmark-plus: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M8 4a.5.5 0 0 1 .5.5V6H10a.5.5 0 0 1 0 1H8.5v1.5a.5.5 0 0 1-1 0V7H6a.5.5 0 0 1 0-1h1.5V4.5A.5.5 0 0 1 8 4'/%3E%3Cpath d='M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1z'/%3E%3C/svg%3E");
+              --bi-repeat: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath d='M11 5.466V4H5a4 4 0 0 0-3.584 5.777.5.5 0 1 1-.896.446A5 5 0 0 1 5 3h6V1.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384l-2.36 1.966a.25.25 0 0 1-.41-.192m3.81.086a.5.5 0 0 1 .67.225A5 5 0 0 1 11 13H5v1.466a.25.25 0 0 1-.41.192l-2.36-1.966a.25.25 0 0 1 0-.384l2.36-1.966a.25.25 0 0 1 .41.192V12h6a4 4 0 0 0 3.585-5.777.5.5 0 0 1 .225-.67Z'/%3E%3C/svg%3E");
+              --bi-arrow-repeat: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath d='M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41m-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9'/%3E%3Cpath fill-rule='evenodd' d='M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5 5 0 0 0 8 3M3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9z'/%3E%3C/svg%3E");
+              --bi-chevron-double-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M3.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L9.293 8 3.646 2.354a.5.5 0 0 1 0-.708'/%3E%3Cpath fill-rule='evenodd' d='M7.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L13.293 8 7.646 2.354a.5.5 0 0 1 0-.708'/%3E%3C/svg%3E");
+              --bi-trash: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath d='M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z'/%3E%3Cpath d='M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z'/%3E%3C/svg%3E");
+              --bi-plus-lg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath fill-rule='evenodd' d='M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2'/%3E%3C/svg%3E");
+              --bi-bootstrap-reboot: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath d='M1.161 8a6.84 6.84 0 1 0 6.842-6.84.58.58 0 1 1 0-1.16 8 8 0 1 1-6.556 3.412l-.663-.577a.58.58 0 0 1 .227-.997l2.52-.69a.58.58 0 0 1 .728.633l-.332 2.592a.58.58 0 0 1-.956.364l-.643-.56A6.8 6.8 0 0 0 1.16 8z'/%3E%3Cpath d='M6.641 11.671V8.843h1.57l1.498 2.828h1.314L9.377 8.665c.897-.3 1.427-1.106 1.427-2.1 0-1.37-.943-2.246-2.456-2.246H5.5v7.352zm0-3.75V5.277h1.57c.881 0 1.416.499 1.416 1.32 0 .84-.504 1.324-1.386 1.324z'/%3E%3C/svg%3E");
+              --bi-search: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0'/%3E%3C/svg%3E");
+              --bi-x-circle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='currentColor' viewBox='0 0 16 16'%3E%3Cpath d='M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16'/%3E%3Cpath d='M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708'/%3E%3C/svg%3E");
+            }
+            
+            
+            .bi-rotate-180 {
+                transform: rotate(180deg);
+            }
+            
+            .bi-rotate-90 {
+                transform: rotate(90deg);
+            }
+            
+            .bi-rotate-270 {
+                transform: rotate(270deg);
+            }
+            
+            /* Smooth transitions for rotations */
+            .bi-rotate-180,
+            .bi-rotate-90,
+            .bi-rotate-270 {
+                transition: transform 0.2s ease-in-out;
+            }
+            
+            /* Flip horizontally */
+            .bi-flip-horizontal {
+                transform: scaleX(-1);
+            }
+            
+            /* Flip vertically */
+            .bi-flip-vertical {
+                transform: scaleY(-1);
+            }
+                        
+            .bi {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 1em;
+                height: 1em;
+                vertical-align: -0.125em;
+            }
+            
+            .bi::before {
+                display: inline-block;
+                width: 100%;
+                height: 100%;
+                content: "";
+                background-color: currentColor;
+                -webkit-mask: no-repeat center / contain;
+                mask: no-repeat center / contain;
+            }
+            .bi-play-fill::before {
+                -webkit-mask-image: var(--bi-play-fill);
+                mask-image: var(--bi-play-fill);
+            }
+            .bi-pause-fill::before {
+                -webkit-mask-image: var(--bi-pause-fill);
+                mask-image: var(--bi-pause-fill);
+            }
+            .bi-gear-wide-connected::before {
+                -webkit-mask-image: var(--bi-gear-wide-connected);
+                mask-image: var(--bi-gear-wide-connected);
+            }
+            .bi-fast-forward-fill::before {
+                -webkit-mask-image: var(--bi-fast-forward-fill);
+                mask-image: var(--bi-fast-forward-fill);
+            }
+            
+            .bi-skip-end-fill::before {
+                -webkit-mask-image: var(--bi-skip-end-fill);
+                mask-image: var(--bi-skip-end-fill);
+            }
+            
+            .bi-bookmark-plus::before {
+                -webkit-mask-image: var(--bi-bookmark-plus);
+                mask-image: var(--bi-bookmark-plus);
+            }
+            .bi-repeat::before {
+                -webkit-mask-image: var(--bi-repeat);
+                mask-image: var(--bi-repeat);
+            }
+            .bi-arrow-repeat::before {
+                -webkit-mask-image: var(--bi-arrow-repeat);
+                mask-image: var(--bi-arrow-repeat);
+            }
+            .bi-chevron-double-right::before {
+                -webkit-mask-image: var(--bi-chevron-double-right);
+                mask-image: var(--bi-chevron-double-right);
+            }
+            
+            .bi-trash::before {
+                -webkit-mask-image: var(--bi-trash);
+                mask-image: var(--bi-trash);
+            }
+            
+            .bi-plus-lg::before {
+                -webkit-mask-image: var(--bi-plus-lg);
+                mask-image: var(--bi-plus-lg);
+            }
+            
+            .bi-bootstrap-reboot::before {
+                -webkit-mask-image: var(--bi-bootstrap-reboot);
+                mask-image: var(--bi-bootstrap-reboot);
+            }
+            
+            .bi-search::before {
+                -webkit-mask-image: var(--bi-search);
+                mask-image: var(--bi-search);
+            }
+            
+            .bi-x-circle::before {
+                -webkit-mask-image: var(--bi-x-circle);
+                mask-image: var(--bi-x-circle);
+            }
+            
+            
+                        html,body{height:100%;width:100%}
+                        .scrollable-menu{height:auto;width:auto;max-height:250px;max-width:350px;overflow-x:hidden}
+                        
+                        /* NEW STYLES FOR THE TOP-RIGHT BUTTON */
+                        .top-right-button {
+                            position: fixed;
+                            top: 20px;
+                            right: 20px;
+                            z-index: 1050;
+                            padding: 8px 16px;
+                            border-radius: 8px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 1rem;
+                            font-weight: 500;
+                            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                            transition: all 0.3s ease;
+                        }
+                        .top-right-button:hover {
+                            transform: translateY(-2px);
+                            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+                        }
+            
+                        .top-left-button {
+                            position: fixed;
+                            top: 20px;
+                            left: 20px;
+                            z-index: 1050;
+                            padding: 8px 16px;
+                            border-radius: 8px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 1rem;
+                            font-weight: 500;
+                            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                            transition: all 0.3s ease;
+                        }
+            
+                        .top-left-button:hover.top-left-button:hover {
+                            transform: translateY(-2px);
+                            box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+                        }
+                        
+                        /* Styles for the collection list */
+                        .collection-list {
+                            list-style-type: none;
+                            padding: 0;
+                            margin: 0;
+                        }
+                        .collection-item {
+                            padding: 12px 15px;
+                            border-bottom: 1px solid #eee;
+                            cursor: pointer;
+                            transition: background-color 0.2s;
+                            display: flex;
+                            align-items: center;
+                            justify-content: space-between;
+                        }
+                        .collection-item:hover {
+                            background-color: #f8f9fa;
+                        }
+                        .collection-item:last-child {
+                            border-bottom: none;
+                        }
+                        .collection-item.active {
+                            background-color: #e9ecef;
+                            font-weight: 500;
+                        }
+                        .collection-badge {
+                            font-size: 0.75rem;
+                            padding: 0.35em 0.65em;
+                            border-radius: 50rem;
+                        }
+            
+                        
+            .collection-item {
+                padding: 0.75rem 1rem;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                border-bottom: 1px solid #eee;
+            }
+            
+            .collection-item:last-child {
+                border-bottom: none;
+            }
+            
+            .collection-item:hover {
+                background-color: #f8f9fa;
+                transform: translateX(5px);
+            }
+            
+            .collection-item:active {
+                background-color: #e9ecef;
+                transform: scale(0.99);
+            }
+            
+            /* UPDATED STYLES FOR LANGUAGE CODE DISPLAY */
+            .language-display-container {
+                            margin-top: 20px;
+                            padding: 15px;
+                            border: 1px solid #dee2e6;
+                            border-radius: 8px;
+                            background-color: #f8f9fa;
+                        }
+                        
+                        .language-display-header {
+                            display: flex;
+                            justify-content: space-between;
+                            align-items: center;
+                            margin-bottom: 15px;
+                        }
+                        
+                        .language-display-title {
+                            color: #495057;
+                            font-weight: 600;
+                            margin: 0;
+                        }
+                        
+                        .language-buttons-container {
+                            display: flex;
+                            gap: 10px;
+                        }
+                        
+                        .language-action-btn {
+                            width: 40px;
+                            height: 40px;
+                            border-radius: 50%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            padding: 0;
+                            font-size: 1.2rem;
+                            flex-shrink: 0;
+                        }
+                        
+                        .language-codes-grid {
+                            display: grid;
+                            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+                            gap: 10px;
+                            width: 100%;
+                        }
+                        
+                        .language-code-badge {
+                            background-color: #198754;
+                            color: white;
+                            padding: 8px 5px;
+                            border-radius: 6px;
+                            font-size: 0.9rem;
+                            font-weight: 500;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            text-align: center;
+                            min-height: 40px;
+                            box-sizing: border-box;
+                        }
+                        
+                        .no-codes-message {
+                            color: #6c757d;
+                            font-style: italic;
+                            grid-column: 1 / -1;
+                            text-align: center;
+                            padding: 20px 0;
+                        }
+                        
+                        /* Compact ISO 639-1 Code Selector Styles */
+                        .compact-code-selector {
+                            max-width: 100%;
+                            display: none; /* Hidden by default */
+                        }
+                        
+                        .compact-header {
+                            background-color: #f8f9fa;
+                            border-bottom: 1px solid #dee2e6;
+                            padding: 12px 15px;
+                        }
+                        
+                        .compact-search {
+                            position: relative;
+                            margin-bottom: 15px;
+                        }
+                        
+                        .search-icon {
+                            position: absolute;
+                            left: 10px;
+                            top: 50%;
+                            transform: translateY(-50%);
+                            color: #6c757d;
+                        }
+                        
+                        .search-input {
+                            padding-left: 35px;
+                            font-size: 0.9rem;
+                        }
+                        
+                        .compact-codes-container {
+                            max-height: 250px;
+                            overflow-y: auto;
+                            display: grid;
+                            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+                            gap: 8px;
+                            margin-bottom: 15px;
+                        }
+                        
+                        .compact-code-item {
+                            border: 1px solid #dee2e6;
+                            border-radius: 4px;
+                            padding: 8px 5px;
+                            text-align: center;
+                            cursor: pointer;
+                            font-size: 0.85rem;
+                            font-weight: 500;
+                            transition: all 0.15s ease;
+                        }
+                        
+                        .compact-code-item:hover {
+                            background-color: #f8f9fa;
+                            border-color: #adb5bd;
+                        }
+                        
+                        .compact-code-item.selected {
+                            background-color: #e7f1ff;
+                            border-color: #0d6efd;
+                            color: #0d6efd;
+                        }
+                        
+                        .compact-selection-display {
+                            background-color: #f8f9fa;
+                            border-radius: 4px;
+                            padding: 10px;
+                            min-height: 40px;
+                            margin-bottom: 15px;
+                        }
+                        
+                        .compact-selected-badge {
+                            background-color: #0d6efd;
+                            color: white;
+                            padding: 4px 8px;
+                            border-radius: 12px;
+                            font-size: 0.8rem;
+                            margin: 2px;
+                            display: inline-flex;
+                            align-items: center;
+                        }
+                        
+                        .compact-remove-code {
+                            margin-left: 5px;
+                            cursor: pointer;
+                            font-weight: bold;
+                            font-size: 0.9rem;
+                        }
+                        
+                        .compact-remove-code:hover {
+                            color: #ffcccc;
+                        }
+                        
+                        .no-selection {
+                            color: #6c757d;
+                            font-style: italic;
+                            font-size: 0.9rem;
+                        }
+                        
+                        .compact-footer {
+                            display: flex;
+                            justify-content: flex-end;
+                            gap: 10px;
+                        }
+                        
+                        .compact-footer .btn {
+                            font-size: 0.9rem;
+                            padding: 6px 12px;
+                        }
+                        
+                        .delete-all-btn {
+                            margin-right: auto; /* Push to the left */
+                        }
+                        
+                        /* Responsive adjustments */
+                        @media (max-width: 768px) {
+                            .language-code-badge {
+                                font-size: 0.85rem;
+                            }
+                        }
+                        
+                        @media (max-width: 576px) {
+                            .language-code-badge {
+                                font-size: 0.8rem;
+                            }
+                            
+                            .compact-footer {
+                                flex-wrap: wrap;
+                            }
+                            
+                            .delete-all-btn {
+                                margin-right: 0;
+                                order: 1;
+                                width: 100%;
+                                margin-top: 10px;
+                            }
+                        }
+            
+            </style>
+                </head>
+                <body hidden>
+                    <!-- Store this SVG sprite somewhere in your HTML (usually at the top or bottom) -->
+            <svg style="display: none;">
+                <symbol id="volume-icon" viewBox="0 0 16 16">
+                  <path d="M11.536 14.01A8.473 8.473 0 0 0 14.026 8a8.473 8.473 0 0 0-2.49-6.01l-.708.707A7.476 7.476 0 0 1 13.025 8c0 2.071-.84 3.946-2.197 5.303l.708.707z"/>
+                  <path d="M10.121 12.596A6.48 6.48 0 0 0 12.025 8a6.48 6.48 0 0 0-1.904-4.596l-.707.707A5.483 5.483 0 0 1 11.025 8a5.483 5.483 0 0 1-1.61 3.89l.706.706z"/>
+                  <path d="M10.025 8a4.486 4.486 0 0 1-1.318 3.182L8 10.475A3.489 3.489 0 0 0 9.025 8c0-.966-.392-1.841-1.025-2.475l.707-.707A4.486 4.486 0 0 1 10.025 8zM7 4a.5.5 0 0 0-.812-.39L3.825 5.5H1.5A.5.5 0 0 0 1 6v4a.5.5 0 0 0 .5.5h2.325l2.363 1.89A.5.5 0 0 0 7 12V4zM4.312 6.39 6 5.04v5.92L4.312 9.61A.5.5 0 0 0 4 9.5H2v-3h2a.5.5 0 0 0 .312-.11z"/>
+                </symbol>
+            
+                <!-- Add more symbols here -->
+                <symbol id="video-icon" viewBox="0 0 16 16">
+                  <path d="M0 5a2 2 0 0 1 2-2h7.5a2 2 0 0 1 1.983 1.738l3.11-1.382A1 1 0 0 1 16 4.269v7.462a1 1 0 0 1-1.406.913l-3.111-1.382A2 2 0 0 1 9.5 13H2a2 2 0 0 1-2-2V5zm11.5 5.175 3.5 1.556V4.269l-3.5 1.556v4.35zM2 4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h7.5a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1H2z"/>
+                </symbol>
+            </svg>
+            
+            
+            
+                    <!-- NEW BUTTON IN TOP RIGHT CORNER -->
+                    <!-- <button class="top-right-button btn btn-primary Devices" data-bs-toggle="modal" data-bs-target="#newModal" onclick= "loadDevices()">
+                        Players
+                    </button> -->
+                    
+                    <!-- NEW BUTTON IN TOP RIGHT CORNER id="ListButton"-->
+                    <button class="top-left-button btn btn-primary Devices" data-bs-toggle="modal" data-bs-target="#newModalV2" onclick= "loadLinkCollections()">
+                        Links
+                    </button>
+                    
+                    <!-- ORIGINAL CONTENT (NO CHANGES) -->
+                    <div class="d-flex align-items-center justify-content-center" style="height: 100%;">
+                    <div class="px-3" style="width: 100%; max-width: 1000px;">
+                        
+                        
+                        
+                <div id='outputbox' style="width: 100%;">
+                    <div class='d-flex justify-content-around align-items-center mb-3'>
+                        <h1 id='outputpanel' class='display-1'>...</h1>
+                    </div>
+                    <div class="d-flex justify-content-around align-items-center mb-3" style="width:100%">
+                            <button class="btn btn-primary me-3 saveButton" data-bs-toggle="modal" data-bs-target="#newModalV3"><i class="bi bi-bookmark-plus"></i></button>
+                            <button class="btn btn-primary playlistButtons" onclick="sendPlaylist(-1)" hidden><i class="bi bi-skip-end-fill bi-rotate-180"></i></button>
+                            <div style="width:100%" class="mx-3 ">
+                            </div>
+                            <button class="btn btn-primary me-3 playlistButtons" onclick="sendPlaylist(1)" hidden><i class="bi bi-skip-end-fill"></i></button>
+                            <button id="loopPlaylist" class="btn btn-primary playlistButtons liveornot" onclick="playlistLoop()" hidden><i class="bi bi-repeat"></i></button>
+                    </div>
+                </div>
+                        
+                
+                <div id="nameOfMediaDiv" class="mb-2" hidden>
+                    <h4><i class="bi bi-play-fill mx-2 me-3"></i><span id="nameOfMedia">Player Controls<span></h4>
+                </div>
+
+                        <!-- Input Box with Improved Toggle Button -->
+                        <div class="mb-2 inputbox">
+                            <small class="text-muted" id="littleSourceInfo">Click to change URL type:</small>
+                        </div>
+                        <div class="input-group input-group-lg mb-3 inputbox">
+                            <button class="input-group-text url-type-toggle" id="urlTypeToggle" 
+                                    data-bs-toggle="tooltip" data-bs-title="Click to change URL type" onclick="sendTypeUrl()">YouTube</button>
+                            <input id='inputpanel' type='url' class='form-control' placeholder="Enter YouTube URL" 
+                                   aria-label="Video URL" required>
+                            <button type="button" class="btn btn-light border-secondary-subtle videoSettingsButton" 
+                                    data-bs-toggle="modal" data-bs-target="#videoSettingsPop" onclick="loadSettingsVideo()"><i class="bi bi-gear-wide-connected"></i></button>
+                        </div>
+                        <div class= "d-flex justify-content-around align-items-center mb-3" style= "width:100%">
+                            <button id= "youtubeSend" class= "btn btn-primary"onclick= "sendLink() ">&nbsp;&nbsp;&nbsp;Send&nbsp;&nbsp;&nbsp;</button>
+                            <div style= "width:100%" class= "mx-3">
+                                <label for= "volumeEdit" class= "form-label ">Volume</label>
+                                <input type= "range" class= "form-range" min= "0" max= "0" value= "0" id= 'volumeEdit'  >
+                            </div>
+                            <button id='loop' class= "btn me-2 liveornot" onclick= "sendLoop()"><i class="bi bi-arrow-repeat"></i></button>
+                            <button id='startStopSetUp' class= "btn btn-primary "onclick= "startStop()"  > </button>
+                        </div>
+                        <div class= "d-flex justify-content-around align-items-center" style = "width:100%">
+                            <button class= "btn btn-primary liveornot" onclick= "buttonStoper(-5)"><i class="bi bi-fast-forward-fill bi-rotate-180"></i></button>
+                            <div style= "width:100%" class= "mx-3 liveornot">
+                                <label for= "rangeElement" class= "form-label ">Player</label>
+                                <input type= "range" class= "form-range" min= "0" max= "0" value= "0" id= "rangeElement"  >
+                            </div>
+                            <button class= "btn btn-primary liveornot" onclick= "buttonStoper(5)"><i class="bi bi-fast-forward-fill"></i></button>
+                        </div>
+                    </div>
+                    </div>
+            
+            
+                    
+            
+            <div class="modal fade" id="newModalV3" tabindex="-1" aria-labelledby="newModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                  <div class="modal-content">
+                      <div class="modal-header">
+                          <h5 class="modal-title" id="newModalLabel">Save Video</h5>
+                          <button type="button" class="btn-close Devices" data-bs-dismiss="modal" aria-label="Close"></button>
+                      </div>
+                      <div class="modal-body">
+                          <div class="input-group input-group-lg mb-3">
+                              <span class="input-group-text">Name</span>
+                              <input id="sendVideoInput" type="text" class="form-control" placeholder="Enter Name of video if have." aria-label="Video URL" required="">
+                              <button type="button" class="btn btn-light border-secondary-subtle" onclick= "saveVideo()">Save</button>
+                          </div>
+                      </div>
+                  </div>
+                </div>
+              </div>
+            
+            <!-- NEW MODAL WITH COLLECTION LIST ONLY -->
+            <div class="modal fade" id="newModalV2" tabindex="-1" aria-labelledby="newModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="newModalLabel">Links Collections</h5>
+                            <button type="button" class="btn-close Devices" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+            
+                        <div class="modal-body" id="LinksCollections">    
+                        </div>
+            
+                        <div class="modal-body">
+                            <!-- Language Display Section -->
+                            <div class="language-display-container" id="languageDisplayContainer">
+                                <div class="language-display-header">
+                                    <h6 class="language-display-title">Selected Language Codes:</h6>
+                                    <div class="language-buttons-container">
+                                        <button class="btn btn-outline-success language-action-btn Devices" id="showLanguageSelector">
+                                            <i class="bi bi-plus-lg"></i>
+                                        </button>
+                                        <button class="btn btn-outline-primary language-action-btn Devices" id="refreshAndRebootBtn">
+                                            <i class="bi bi-bootstrap-reboot"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="language-codes-grid" id="externalSelectedCodes">
+                                    <span class="no-codes-message">No codes selected</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Compact Code Selector (hidden by default) -->
+                            <div class="compact-code-selector" id="compactCodeSelector">
+                                <div class="compact-header">
+                                    <h6 class="mb-0">Select ISO 639-1 Codes</h6>
+                                </div>
+                                <div class="p-3">
+                                    <div class="compact-search">
+                                        <i class="bi bi-search search-icon"></i>
+                                        <input type="text" class="form-control search-input Devices" id="compactSearchInput" placeholder="Search codes...">
+                                    </div>
+                                    
+                                    <div class="compact-codes-container" id="compactCodesContainer">
+                                        <!-- Codes will be populated by JavaScript -->
+                                    </div>
+                                    
+                                    <div class="compact-selection-display">
+                                        <small class="text-muted mb-2 d-block">Selected Codes:</small>
+                                        <div id="compactSelectedCodes">
+                                            <span class="no-selection">No codes selected</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="compact-footer">
+                                        <button type="button" class="btn btn-outline-danger delete-all-btn Devices" id="compactDeleteAll">
+                                            <i class="bi bi-trash"></i> Delete All
+                                        </button>
+                                        <button type="button" class="btn btn-secondary Devices" id="compactCancelSelection">
+                                            <i class="bi bi-x-circle"></i> Cancel
+                                        </button>
+                                        <button type="button" class="btn btn-primary Devices" id="compactConfirmSelectionAndReboot">
+                                            <i class="bi bi-bootstrap-reboot"></i> Confirm
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            
+            <!-- NEW MODAL WITH COLLECTION LIST ONLY -->
+            <!-- <div class="modal fade" id="newModal" tabindex="-1" aria-labelledby="newModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="newModalLabel">Player Collections</h5>
+                            <button type="button" class="btn-close Devices" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="border rounded">
+                                <ul class="collection-list" id="devicesList">
+                                    <li class="collection-item" data-url="http://haha:8080">
+                                        <div>
+                                            <span class="fw-bold">Samsung A53</span>
+                                            <div class="text-muted small">http://haha:8080</div>
+                                        </div>
+                                    </li>
+                                    <li class="collection-item" data-url="https://www.example.com/device1">
+                                        <div>
+                                            <span class="fw-bold">iPhone 14 Pro</span>
+                                            <div class="text-muted small">https://www.example.com/device1</div>
+                                        </div>
+                                    </li>
+                                    <li class="collection-item" data-url="https://www.example.com/device2">
+                                        <div>
+                                            <span class="fw-bold">Google Pixel 7</span>
+                                            <div class="text-muted small">https://www.example.com/device2</div>
+                                        </div>
+                                    </li>
+                                    <li class="collection-item" data-url="https://www.example.com/device3">
+                                        <div>
+                                            <span class="fw-bold">OnePlus 10T</span>
+                                            <div class="text-muted small">https://www.example.com/device3</div>
+                                        </div>
+                                    </li>
+                                    <li class="collection-item" data-url="https://www.example.com/device4">
+                                        <div>
+                                            <span class="fw-bold">Xiaomi 12</span>
+                                            <div class="text-muted small">https://www.example.com/device4</div>
+                                        </div>
+                                    </li>
+                                    <li class="collection-item" data-url="https://www.example.com/device5">
+                                        <div>
+                                            <span class="fw-bold">Samsung S22 Ultra</span>
+                                            <div class="text-muted small">https://www.example.com/device5</div>
+                                        </div>
+                                    </li>
+                                    <li class="collection-item" data-url="https://www.example.com/device6">
+                                        <div>
+                                            <span class="fw-bold">iPad Pro</span>
+                                            <div class="text-muted small">https://www.example.com/device6</div>
+                                        </div>
+                                    </li>
+                                    <li class="collection-item" data-url="https://www.example.com/device7">
+                                        <div>
+                                            <span class="fw-bold">Surface Pro 9</span>
+                                            <div class="text-muted small">https://www.example.com/device7</div>
+                                        </div>
+                                    </li>
+                                    <li class="collection-item" data-url="https://www.example.com/device8">
+                                        <div>
+                                            <span class="fw-bold">MacBook Pro</span>
+                                            <div class="text-muted small">https://www.example.com/device8</div>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div> -->
+            
+                    <!-- ORIGINAL MODAL (NO CHANGES) -->
+                    <div class="modal fade" id="videoSettingsPop" tabindex="-1" aria-labelledby="videoSettingsPopLabel" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+                            <div class="modal-content">
+                                
+                                <!-- Modal Header -->
+                                <div class="modal-header">
+                                <h5 class="modal-title" id="videoSettingsPopLabel">Video Settings</h5>
+                                <button type="button" class="btn-close videoSettingsButton" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+            <!-- Modal Body (Scrollable content) -->
+            <div class="modal-body">
+                <div class="container text-start">
+                    <div class="row g-3"> <!-- Increased to g-3 for better spacing -->
+            
+                        <!-- Language & Hardware Section -->
+            <div class="col-12 mb-3">
+                <div class="card border-light settings-row-card">
+                    <div class="card-body p-3">
+                        <div class="row g-0 align-items-center">
+                            <!-- Language -->
+                            <div class="col-md-6 pe-md-3">
+                                <div class="d-flex align-items-center h-100">
+                                    <div class="setting-label me-3">
+                                        <div class="setting-title">Language</div>
+                                        <div class="setting-subtitle">Select</div>
+                                    </div>
+                                    <div class="setting-control flex-grow-1">
+                                        <div class="select-container">
+                                            <select class="form-select setting-select" id="languagesList" onchange="sendLanguage(this.value)">
+                                                <option value="en" selected>EN</option>
+                                                <option value="tr">TR</option>
+                                                <option value="fr">FR</option>
+                                                <option value="de">DE</option>
+                                                <option value="es">ES</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Hardware -->
+                            <div class="col-md-6 ps-md-3 mt-3 mt-md-0">
+                                <div class="d-flex align-items-center h-100">
+                                    <div class="setting-label me-3">
+                                        <div class="setting-title">Hardware</div>
+                                        <div class="setting-subtitle">Decoding</div>
+                                    </div>
+                                    <div class="setting-control flex-grow-1">
+                                        <div class="form-check form-switch d-flex align-items-center justify-content-center">
+                                            <input class="form-check-input m-0" type="checkbox" role="switch" id='hardware' onclick="sendHardware()">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            
+                        <!-- Youtube & Url Caching -->
+                        <div class="col-12 mb-3">
+                            <div class="card border-light settings-row-card">
+                                <div class="card-body p-3">
+                                    <div class="row g-0 align-items-center">
+                                        
+                                        <!-- Youtube Caching -->
+                            <div class="col-md-6 pe-md-3">
+                                <div class="d-flex align-items-center h-100">
+                                    
+                                    <div class="setting-label me-3">
+                                        <div class="setting-title">YouTube/Live</div>
+                                        <div class="setting-subtitle">Caching</div>
+                                    </div>
+                                    <div class="setting-control flex-grow-1">
+                                        <div class="form-check form-switch d-flex align-items-center justify-content-center">
+                                            <input class="form-check-input m-0" type="checkbox" role="switch" id='youtubeCaching' onclick="sendYoutubeCaching()">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                                        <!-- URL Caching -->
+                                        <div class="col-md-6 ps-md-3 mt-3 mt-md-0">
+                                            <div class="d-flex align-items-center h-100">
+                                                <div class="setting-label me-3">
+                                                    <div class="setting-title">URL/Live</div>
+                                                    <div class="setting-subtitle">Caching</div>
+                                                </div>
+                                                <div class="setting-control flex-grow-1">
+                                                    <div class="form-check form-switch d-flex align-items-center justify-content-center">
+                                                        <input class="form-check-input m-0" type="checkbox" role="switch" id='urlCaching' onclick="sendURLCaching()">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- YoutubeLegacyPlayer & Mac -->
+                         
+                        <div class="col-12 mb-3">
+                            <div class="card border-light settings-row-card">
+                                <div class="card-body p-3">
+                                    <div class="row g-0 align-items-center">
+                                        
+                                        <!-- Youtube Leagcy -->
+                            <div class="col-md-6 pe-md-3">
+                                <div class="d-flex align-items-center h-100">
+                                    
+                                    <div class="setting-label me-3">
+                                        <div class="setting-title">Legacy</div>
+                                        <div class="setting-subtitle">YouTube player</div>
+                                    </div>
+                                    <div class="setting-control flex-grow-1">
+                                        <div class="form-check form-switch d-flex align-items-center justify-content-center">
+                                            <input class="form-check-input m-0" type="checkbox" role="switch" id='ytLegacyPlayer' onclick="sendYoutubeLegacyPlayerrOn()">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                                        <!-- Check Mac & Ssid -->
+                                        <div class="col-md-6 ps-md-3 mt-3 mt-md-0">
+                                            <div class="d-flex align-items-center h-100">
+                                                <div class="setting-label me-3">
+                                                    <div class="setting-title">Check</div>
+                                                    <div class="setting-subtitle">Mac & Ssid</div>
+                                                </div>
+                                                <div class="setting-control flex-grow-1">
+                                                    <div class="form-check form-switch d-flex align-items-center justify-content-center">
+                                                        <input class="form-check-input m-0" type="checkbox" role="switch" id='ckMacAndSsid' onclick="sendCheckMacAndSsidOn()">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Resolution -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="fs-5 fw-medium card-header py-2 d-flex align-items-center">
+                                    <span>Resolution</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="list-group list-group-flush" id="videoResolutionList">
+                                        <a href="#" class="list-group-item list-group-item-action active py-2 d-flex justify-content-between align-items-center">
+                                            1080p
+                                            <span class="badge bg-primary rounded-pill">HD</span>
+                                        </a>
+                                        <a href="#" class="list-group-item list-group-item-action py-2 d-flex justify-content-between align-items-center">
+                                            720p
+                                            <span class="badge bg-secondary rounded-pill">HD Ready</span>
+                                        </a>
+                                        <a href="#" class="list-group-item list-group-item-action py-2 d-flex justify-content-between align-items-center">
+                                            480p
+                                            <span class="badge bg-light text-dark rounded-pill">SD</span>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Live Resolution -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="fs-5 fw-medium card-header py-2 d-flex align-items-center">
+                                    <span>Resolution Live</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="list-group list-group-flush" id="videoResolutionLiveList">
+                                        <a href="#" class="list-group-item list-group-item-action active py-2 d-flex justify-content-between align-items-center">
+                                            1080p
+                                            <span class="badge bg-primary rounded-pill">HD</span>
+                                        </a>
+                                        <a href="#" class="list-group-item list-group-item-action py-2 d-flex justify-content-between align-items-center">
+                                            720p
+                                            <span class="badge bg-secondary rounded-pill">HD Ready</span>
+                                        </a>
+                                        <a href="#" class="list-group-item list-group-item-action py-2 d-flex justify-content-between align-items-center">
+                                            480p
+                                            <span class="badge bg-light text-dark rounded-pill">SD</span>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+            
+                        <!-- Radio -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="fs-5 fw-medium card-header py-2 d-flex align-items-center">
+                                    <span>Radio</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="list-group list-group-flush" id="radioPlayerList">
+                                        <a href="#" class="list-group-item list-group-item-action active py-2">HTML5 Player</a>
+                                        <a href="#" class="list-group-item list-group-item-action py-2">VLC Player</a>
+                                        <a href="#" class="list-group-item list-group-item-action py-2">MPV Player</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Live & URL Cards -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="fs-5 fw-medium card-header py-2 d-flex align-items-center">
+                                    <span>Live</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="list-group list-group-flush" id="livePlayerList">
+                                        <a href="#" class="list-group-item list-group-item-action active py-2">HTML5 Player</a>
+                                        <a href="#" class="list-group-item list-group-item-action py-2">VLC Player</a>
+                                        <a href="#" class="list-group-item list-group-item-action py-2">MPV Player</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+            
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="fs-5 fw-medium card-header py-2 d-flex align-items-center">
+                                    <span>URL</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="list-group list-group-flush" id="URLPlayerList">
+                                        <a href="#" class="list-group-item list-group-item-action active py-2">Direct Play</a>
+                                        <a href="#" class="list-group-item list-group-item-action py-2">Stream</a>
+                                        <a href="#" class="list-group-item list-group-item-action py-2">Download</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+            
+                        <!-- Color Formats Cards -->
+                        <div class="col-md-6">
+                            <div class="card h-100">
+                                <div class="fs-5 fw-medium card-header py-2 d-flex align-items-center">
+                                    <span>Color Formats</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="list-group list-group-flush" id="colorFormatList">
+                                        <a href="#" class="list-group-item list-group-item-action active py-2">RGB 8-bit</a>
+                                        <a href="#" class="list-group-item list-group-item-action py-2">RGB 10-bit</a>
+                                        <a href="#" class="list-group-item list-group-item-action py-2">YUV 4:2:0</a>
+                                        <a href="#" class="list-group-item list-group-item-action py-2">YUV 4:4:4</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+            
+                        <!-- YouTube Card -->
+                        <div class="col-12">
+                            <div class="card h-100">
+                                <div class="fs-5 fw-medium card-header py-2 d-flex align-items-center">
+                                    <span>YouTube</span>
+                                </div>
+                                <div class="card-body p-2">
+                                    <div class="row g-2">
+                                        <!-- Audio Section -->
+                                        <div class="col-md-6">
+                                            <div class="h-100">
+                                                <h6 class="card-subtitle mb-2 text-muted d-flex align-items-center">
+                                                    <svg width="18" height="18" fill="currentColor" class="me-2">
+                                                        <use href="#volume-icon"></use>
+                                                    </svg>
+                                                    Audio
+                                                </h6>
+                                                <div class="list-group list-group-flush" id="youTubePlayerList">
+                                                    <a href="#" class="list-group-item list-group-item-action active py-2">AAC 128kbps</a>
+                                                    <a href="#" class="list-group-item list-group-item-action py-2">Opus 160kbps</a>
+                                                    <a href="#" class="list-group-item list-group-item-action py-2">MP3 192kbps</a>
+                                                </div>
+                                            </div>
+                                        </div>
+            
+                                        <!-- Video Section -->
+                                        <div class="col-md-6">
+                                            <div class="h-100">
+                                                <h6 class="card-subtitle mb-2 text-muted d-flex align-items-center">
+                                                    <svg width="18" height="18" fill="currentColor" class="me-2">
+                                                        <use href="#video-icon"></use>
+                                                    </svg>
+                                                    Video
+                                                </h6>
+                                                <div class="list-group list-group-flush" id="youTubePlayerListVideo">
+                                                    <a href="#" class="list-group-item list-group-item-action active py-2">1080p60</a>
+                                                    <a href="#" class="list-group-item list-group-item-action py-2">1440p</a>
+                                                    <a href="#" class="list-group-item list-group-item-action py-2">4K</a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+                            </div>
+                        </div>
+                    </div>
+            
+                    
+                    <script>
+                        // ISO 639-1 language codes
+                        let isoCodes = [];
+            
+                        // DOM Elements for the code selector
+                        const compactCodesContainer = document.getElementById('compactCodesContainer');
+                        const compactSearchInput = document.getElementById('compactSearchInput');
+                        const compactSelectedCodesContainer = document.getElementById('compactSelectedCodes');
+                        const compactConfirmSelectionAndRebootButton = document.getElementById('compactConfirmSelectionAndReboot');
+                        const compactCancelSelectionButton = document.getElementById('compactCancelSelection');
+                        const compactCodeSelector = document.getElementById('compactCodeSelector');
+                        const showLanguageSelectorBtn = document.getElementById('showLanguageSelector');
+                        const languageDisplayContainer = document.getElementById('languageDisplayContainer');
+                        const externalSelectedCodesContainer = document.getElementById('externalSelectedCodes');
+                        const refreshAndRebootBtn = document.getElementById('refreshAndRebootBtn');
+                        const compactDeleteAllButton = document.getElementById('compactDeleteAll');
+            
+                        // State
+                        let selectedCodes = []; // Main state - displayed in external display with AF as default
+                        let tempSelectedCodes = []; // Temporary state - used in compact selector
+                        let filteredCodes = [...isoCodes];
+            
+                        // Initialize the code selector
+                        function initCodeSelector() {
+                            renderCompactCodes();
+                            setupCompactEventListeners();
+                            updateCompactSelectedCodesDisplay();
+                            updateExternalSelectedCodesDisplay();
+                        }
+            
+                        // Render codes in the container
+                        function renderCompactCodes() {
+                            compactCodesContainer.innerHTML = '';
+                            
+                            if (filteredCodes.length === 0) {
+                                compactCodesContainer.innerHTML = '<div class="text-center p-3 text-muted">No codes found</div>';
+                                return;
+                            }
+                            
+                            filteredCodes.forEach(code => {
+                                const codeItem = document.createElement('div');
+                                codeItem.className = 'compact-code-item';
+                                if (tempSelectedCodes.includes(code)) {
+                                    codeItem.classList.add('selected');
+                                }
+                                
+                                codeItem.textContent = code.toUpperCase();
+                                
+                                codeItem.addEventListener('click', () => {
+                                    toggleTempCodeSelection(code);
+                                });
+                                
+                                compactCodesContainer.appendChild(codeItem);
+                            });
+                        }
+            
+                        // Set up event listeners for the code selector
+                        function setupCompactEventListeners() {
+                            // Search functionality
+                            compactSearchInput.addEventListener('input', (e) => {
+                                const searchTerm = e.target.value.toLowerCase();
+                                filteredCodes = isoCodes.filter(code => 
+                                    code.toLowerCase().includes(searchTerm)
+                                );
+                                renderCompactCodes();
+                            });
+                            
+                            // Show selector button
+                            showLanguageSelectorBtn.addEventListener('click', showLanguageSelector);
+                            
+                            // Confirm selection
+                            compactConfirmSelectionAndRebootButton.addEventListener('click', compactConfirmSelectionAndReboot);
+                            
+                            // Cancel selection
+                            compactCancelSelectionButton.addEventListener('click', compactCancelSelection);
+                            
+                            // Clear selection button
+                            refreshAndRebootBtn.addEventListener('click', refreshAndReboot);
+                            
+                            // Delete All button in compact selector
+                            compactDeleteAllButton.addEventListener('click', deleteAllTempSelection);
+                        }
+            
+                        // Show the language selector
+                        function showLanguageSelector() {
+                            // Initialize temp state with current selection
+                            tempSelectedCodes = [...selectedCodes];
+                            compactSearchInput.value = '';
+                            filteredCodes = [...isoCodes];
+                            renderCompactCodes();
+                            updateCompactSelectedCodesDisplay();
+                            
+                            // Hide language display and show compact selector
+                            languageDisplayContainer.style.display = 'none';
+                            compactCodeSelector.style.display = 'block';
+                        }
+            
+                        // Hide the language selector
+                        function hideLanguageSelector() {
+                            // Show language display and hide compact selector
+                            languageDisplayContainer.style.display = 'block';
+                            compactCodeSelector.style.display = 'none';
+                        }
+            
+                        // Toggle code selection in temp state
+                        function toggleTempCodeSelection(code) {
+                            if (tempSelectedCodes.includes(code)) {
+                                tempSelectedCodes = tempSelectedCodes.filter(c => c !== code);
+                            } else {
+                                tempSelectedCodes.push(code);
+                            }
+                            renderCompactCodes();
+                            updateCompactSelectedCodesDisplay(); // Auto-update the display
+                        }
+            
+                        // Cancel selection and discard changes
+                        function compactCancelSelection() {
+                            // Discard temp state
+                            tempSelectedCodes = [];
+                            hideLanguageSelector();
+                        }
+            
+                        // Update the selected codes display in the modal
+                        function updateCompactSelectedCodesDisplay() {
+                            if (tempSelectedCodes.length === 0) {
+                                compactSelectedCodesContainer.innerHTML = '<span class="no-selection">No codes selected</span>';
+                                return;
+                            }
+                            
+                            compactSelectedCodesContainer.innerHTML = '';
+                            tempSelectedCodes.forEach(code => {
+                                const codeBadge = document.createElement('span');
+                                codeBadge.className = 'compact-selected-badge';
+                                codeBadge.innerHTML = `${code.toUpperCase()} <span class="compact-remove-code" data-code="${code}">×</span>`;
+                                compactSelectedCodesContainer.appendChild(codeBadge);
+                            });
+                            
+                            // Add event listeners to remove buttons
+                            document.querySelectorAll('.compact-remove-code').forEach(icon => {
+                                icon.addEventListener('click', (e) => {
+                                    e.stopPropagation();
+                                    const codeToRemove = e.target.getAttribute('data-code');
+                                    tempSelectedCodes = tempSelectedCodes.filter(c => c !== codeToRemove);
+                                    updateCompactSelectedCodesDisplay();
+                                    renderCompactCodes();
+                                });
+                            });
+                        }
+            
+                        // Update the external selected codes display
+                        function updateExternalSelectedCodesDisplay() {
+                            externalSelectedCodesContainer.innerHTML = '';
+                            
+                            if (selectedCodes.length === 0) {
+                                externalSelectedCodesContainer.innerHTML = '<span class="no-codes-message">No codes selected</span>';
+                                return;
+                            }
+                            
+                            //Add all codes to the grid
+                            selectedCodes.forEach(code => {
+                                const codeBadge = document.createElement('div');
+                                codeBadge.className = 'language-code-badge';
+                                codeBadge.textContent = code.toUpperCase();
+                                externalSelectedCodesContainer.appendChild(codeBadge);
+                            });
+                        }
+            
+                        // Delete all selected codes in the temp state (compact selector)
+                        function deleteAllTempSelection() {
+                            tempSelectedCodes = [];
+                            updateCompactSelectedCodesDisplay();
+                            renderCompactCodes();
+                        }
+            
+                    </script>
+
+        <script src="index.js"></script>
+    </body>
+</html>

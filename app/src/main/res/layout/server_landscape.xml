@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#434343"
+    android:keepScreenOn="true">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/baseui"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#434343"
+        android:padding="20dp">
+
+        <TextView
+            android:id="@+id/info"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_marginEnd="16dp"
+            android:gravity="center"
+            android:hyphenationFrequency="none"
+            android:text="Waiting for Router Connection"
+            android:textColor="#ffffff"
+            app:autoSizeTextType="uniform"
+            app:autoSizeMaxTextSize="34sp"
+            app:autoSizeMinTextSize="1sp"
+            app:autoSizeStepGranularity="1sp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/idIVQrcode"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <ImageView
+            android:id="@+id/idIVQrcode"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintDimensionRatio="1:1"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintWidth_percent="0.4" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <Button
+        android:id="@+id/permissionsButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="16dp"
+        android:layout_marginLeft="16dp"
+        android:text="permissions"
+        android:textSize="14sp"/>
+
+</RelativeLayout>
