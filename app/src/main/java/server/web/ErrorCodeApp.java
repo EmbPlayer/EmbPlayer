@@ -43,6 +43,7 @@ public class ErrorCodeApp extends HttpServletAdvanced {
     public static String dataLoader = "dataLoader";
 
     public static String currentDebug = "currentDebug: ";
+    public static String postResiver = "";
 
     public static void getSystemMemoryInfo(Context context) {
 
@@ -100,7 +101,8 @@ public class ErrorCodeApp extends HttpServletAdvanced {
                 System.lineSeparator()+ errorAdditional +System.lineSeparator()+ macAddressUpdate +
                 System.lineSeparator()+ detector +System.lineSeparator()+ disposableErrors +
                 System.lineSeparator()+ mediaPlayerErrors +System.lineSeparator()+ stoppingTime +
-                System.lineSeparator()+ dataLoader+System.lineSeparator()+currentDebug;
+                System.lineSeparator()+ dataLoader+System.lineSeparator()+currentDebug+
+                System.lineSeparator()+ postResiver;
         resp.getWriter().write(k);
     }
 

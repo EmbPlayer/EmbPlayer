@@ -25,40 +25,57 @@ import org.schabi.newpipe.extractor.exceptions.ExtractionException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Scanner;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import app.tools.DisposableTools;
 import app.tools.Generators.Requirements.MediaSourceProviders;
 import app.tools.LinksDbHelper;
 import app.tools.StaticFunctions;
-import io.reactivex.rxjava3.subjects.PublishSubject;
-import io.reactivex.rxjava3.subjects.Subject;
+import io.reactivex.rxjava3.disposables.Disposable;
 import server.tools.HttpServletAdvanced;
+import server.web.ErrorCodeApp;
 import server.web.Sources;
 import server.web.Wait;
 
 import static app.tools.DisposableTools.forServer;
+import static app.tools.DisposableTools.forkJoinPool;
 import static app.tools.DisposableTools.waitMS;
-import static app.tools.StaticFunctions.onErrorSave;
 import static app.tools.StaticFunctions.getAllForJson;
 import static app.tools.StaticFunctions.setData;
 import static server.Home.app;
 
 public class AppControl extends HttpServletAdvanced {
 
-    private static final Subject<JSONArray> postSubject;
     private static final String[] LANGUAGES;
+    private static final Consumer<HttpServletRequest> emptyAction = (httpServletRequest)->{};
+    private static final Consumer<HttpServletRequest> action = (req)-> {
+        currentAction = emptyAction;
+        ErrorCodeApp.postResiver = StaticFunctions.getInfo("currentAction")+System.lineSeparator();
+        try {
+            Wait.webUIWaitStart();
+
+            JSONArray jsonArray = new JSONArray(new Scanner(req.getInputStream()).nextLine());
+
+            actions.add(()->{
+                try {
+                    clientAction(jsonArray);
+                } catch (JSONException | ExtractionException | IOException e) {
+                    AppControl.currentAction = AppControl.action;
+                }
+            },()->waitAndIsWorkingStop(),forServer,"ClientAction-Error");
+        } catch (Exception e) {
+            AppControl.currentAction = AppControl.action;
+        }
+    };
+
+    private static Consumer<HttpServletRequest> currentAction = action;
 
     static{
         LANGUAGES = getAllForJson(Arrays.stream(AppWeb.LANGUAGES).map(String::toUpperCase).toArray(String[]::new));
-        postSubject = PublishSubject.<JSONArray>create().toSerialized();
-        postSubject
-                .observeOn(forServer)
-                .throttleFirst(400, TimeUnit.MILLISECONDS) // ignore subsequent posts for 300ms
-                .subscribe((input) -> clientActionInAnotherThread(input),
-                        throwable -> onErrorSave("Post-Error",throwable));
     }
 
     @Override
@@ -81,38 +98,8 @@ public class AppControl extends HttpServletAdvanced {
 
     @Override
     protected void doPostAdvanced(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        try {
-            JSONArray obj = new JSONArray(new Scanner(req.getInputStream()).nextLine());
-
-            if(!clientActionBase(obj))
-            {
-                postSubject.onNext(obj);
-            }
-        } catch (Exception e) {
-            // keep original behavior for errors
-        }
-
+        currentAction.accept(req);
         resp.setStatus(HttpServletResponse.SC_ACCEPTED);
-    }
-
-    private boolean clientActionBase(JSONArray Inputs) throws JSONException {
-        Wait.webUIWaitStart();
-        int page = getInt(Inputs,0);
-
-        if(page == Action.sendLanguagesRefresh)
-        {
-            Sources.getSourcesController().recreate(()->Wait.webUIWaitStop());
-        }
-        else if(app().setUp.get() && page == Action.sendURL)
-        {
-            app().sendURL();
-        }
-        else
-        {
-            return false;
-        }
-
-        return true;
     }
 
     private static int getInt(JSONArray ReceivedInputs, int Index) throws JSONException {
@@ -136,24 +123,76 @@ public class AppControl extends HttpServletAdvanced {
         }
     }
 
-    private static void clientActionInAnotherThread(JSONArray Obj)
-    {
-        actions.add(()->{
-            try {
-                clientAction(Obj);
-            } catch (JSONException | ExtractionException | IOException e) {
-                throw new RuntimeException(e);
-            }
-        },forServer,"ClientAction-Error");
+    private static boolean waitStop(){
+        Wait.webUIWaitStop();
+        return true;
     }
 
-    private static void clientAction(JSONArray Obj) throws JSONException, ExtractionException, IOException {
+    public static boolean workingStop(){
+        //isWorking.set(false);
+        AppControl.currentAction = AppControl.action;
+        ErrorCodeApp.postResiver = ErrorCodeApp.postResiver+StaticFunctions.getInfo("workingStop")+System.lineSeparator();
+        return true;
+    }
+
+    public static boolean waitAndIsWorkingStop(){
+        //isWorking.set(false);
+        AppControl.currentAction = AppControl.action;
+        ErrorCodeApp.postResiver = ErrorCodeApp.postResiver+StaticFunctions.getInfo("waitAndIsWorkingStop")+System.lineSeparator();
+        return waitStop();
+    }
+
+    private static boolean empty(){
+        return true;
+    }
+
+    private static boolean sendLoop(){
+        waitLinkGenerate();
+
+        app().loopSwitch(1);
+        return waitAndIsWorkingStop();
+    }
+
+    private static boolean sendVolume(JSONArray Obj) throws JSONException {
+        app().mediaVolume(getString(Obj,1));
+        return waitAndIsWorkingStop();
+    }
+
+    private static boolean sendVideoFromCollection(JSONArray Obj) throws JSONException, ExtractionException, IOException {
+        app().startFromCollection(getInt(Obj,1), getString(Obj,2));
+        return empty();
+    }
+
+    private static boolean sendFromSource(JSONArray Obj) throws JSONException {
+        app().startFromJson(getString(Obj,1), getInt(Obj,2), getInt(Obj,3));
+        return empty();
+    }
+
+    private static boolean sendLanguagesOfStream(JSONArray Obj) throws JSONException {
+        Sources.getSourcesController().recreate(getString(Obj,1),()->waitAndIsWorkingStop());
+        return empty();
+    }
+
+    private static boolean sendDeleteLink(JSONArray Obj) throws JSONException {
+        app().deleteFromCollection(getInt(Obj,1), getString(Obj,2));
+        return waitAndIsWorkingStop();
+    }
+
+    private static boolean clientAction(JSONArray Obj) throws JSONException, ExtractionException, IOException {
 
         int page = getInt(Obj,0);
 
-        if(app().setUp.get())
+        if(page == Action.sendLanguagesRefresh){
+            Sources.getSourcesController().recreate(()->waitAndIsWorkingStop());
+            return empty();
+        }
+        else if(app().setUp.get())
         {
-            if(!app().mediaIsNull())
+            if(page == Action.sendURL){
+                app().sendURL();
+                return empty();
+            }
+            else if(!app().mediaIsNull())
             {
                 switch (page)
                 {
@@ -164,15 +203,15 @@ public class AppControl extends HttpServletAdvanced {
                         int seek = getInt(Obj,1)+1;
 
                         if(app().getSeekMax()<seek)
-                            break;
+                            return waitAndIsWorkingStop();
 
                         app().seekPosition(seek);
 
                         if(!app().timer.get()&&!app().mediaSeekStart())
-                            break;
+                            return waitAndIsWorkingStop();
 
                         app().startVideo();
-                        return;
+                        return workingStop();
 
                     case Action.sendStop:
 
@@ -181,35 +220,28 @@ public class AppControl extends HttpServletAdvanced {
                         if(app().timer.get())
                         {
                             app().stopVideo(getString(Obj,1));
-                            break;
+                            return waitAndIsWorkingStop();
                         }
                         else
                         {
                             app().startVideo();
-                            return;
+                            return workingStop();
                         }
 
                     case Action.sendLoop:
-
-                        waitLinkGenerate();
-
-                        app().loopSwitch(1);
-                        break;
+                        return sendLoop();
 
                     case Action.sendVolume:
-                        //
-
-                        app().mediaVolume(getString(Obj,1));
-                        break;
+                        return sendVolume(Obj);
 
                     case Action.sendVideoChange:
                         app().videoChanger.updateChanger(getInt(Obj,1));
-                        return;
+                        return workingStop();
 
                     case Action.sendSaveVideo:
 
                         if(!app().isSavable.get())
-                            break;
+                            return waitAndIsWorkingStop();
 
                         String Name = null;
 
@@ -219,33 +251,24 @@ public class AppControl extends HttpServletAdvanced {
                         }catch (Exception e){}
 
                         app().linkSave(LinksDbHelper.getTableNamesAsString()[app().getSelectedTable()],Name);
-
-                        break;
+                        return waitAndIsWorkingStop();
 
                     case Action.sendVideoFromCollection:
-                        app().startFromCollection(getInt(Obj,1), getString(Obj,2));
-                        return;
+                        return sendVideoFromCollection(Obj);
 
                     case Action.sendFromSource:
-                        app().startFromJson(getString(Obj,1), getInt(Obj,2), getInt(Obj,3));
-                        return;
+                        return sendFromSource(Obj);
 
                     case Action.sendLanguagesOfStream:
-                        Sources.getSourcesController().recreate(getString(Obj,1),()->Wait.webUIWaitStop());
-                        return;
+                        return sendLanguagesOfStream(Obj);
 
                     case Action.sendDeleteLink:
-
-                        app().deleteFromCollection(getInt(Obj,1), getString(Obj,2));
-
-                        break;
+                        return sendDeleteLink(Obj);
 
                     case Action.sendCollectionLoop:
-
                         waitLinkGenerate();
-
                         app().loopSwitch(2);
-                        break;
+                        return waitAndIsWorkingStop();
                 }
             }
             else
@@ -254,35 +277,22 @@ public class AppControl extends HttpServletAdvanced {
                 switch (page)
                 {
                     case Action.sendLoop:
-
-                        waitLinkGenerate();
-
-                        app().loopSwitch(1);
-                        break;
+                        return sendLoop();
 
                     case Action.sendVolume:
-                        //
-
-                        app().mediaVolume(getString(Obj,1));
-                        break;
+                        return sendVolume(Obj);
 
                     case Action.sendVideoFromCollection:
-                        app().startFromCollection(getInt(Obj,1), getString(Obj,2));
-                        return;
+                        return sendVideoFromCollection(Obj);
 
                     case Action.sendFromSource:
-                        app().startFromJson(getString(Obj,1), getInt(Obj,2), getInt(Obj,3));
-                        return;
+                        return sendFromSource(Obj);
 
                     case Action.sendLanguagesOfStream:
-                        Sources.getSourcesController().recreate(getString(Obj,1),()->Wait.webUIWaitStop());
-                        return;
+                        return sendLanguagesOfStream(Obj);
 
                     case Action.sendDeleteLink:
-
-                        app().deleteFromCollection(getInt(Obj,1), getString(Obj,2));
-
-                        break;
+                        return sendDeleteLink(Obj);
                 }
             }
         }
@@ -291,106 +301,87 @@ public class AppControl extends HttpServletAdvanced {
             switch (page)
             {
                 case Action.sendVolume:
-
-                    app().mediaVolume(getString(Obj,1));
-                    break;
+                    return sendVolume(Obj);
 
                 case Action.sendURL:
                     app().sendURLClose(getString(Obj,1));
-                    return;
+                    return empty();
 
                 case Action.sendFromSource:
-                    app().startFromJson(getString(Obj,1), getInt(Obj,2), getInt(Obj,3));
-                    return;
+                    return sendFromSource(Obj);
 
                 case Action.sendVideoFromCollection:
-                    app().startFromCollection(getInt(Obj,1), getString(Obj,2));
-                    return;
+                    return sendVideoFromCollection(Obj);
 
                 case Action.sendSourceType:
                     app().mediaProviderClientSideID.set(getInt(Obj,1));
-                    break;
+                    return waitAndIsWorkingStop();
 
                 case Action.sendVideoResolution:
-
                     app().videoResolutionID.set(getInt(Obj,1));
-                    break;
-
+                    return waitAndIsWorkingStop();
 
                 case Action.sendVideoResolutionLive:
-
                     app().videoResolutionLiveID(getInt(Obj,1));
-                    break;
+                    return waitAndIsWorkingStop();
 
                 case Action.sendPlayer:
-
                     app().playerID.set(getInt(Obj,1));
-                    break;
+                    return waitAndIsWorkingStop();
 
                 case Action.sendLivePlayer:
-
                     app().livePlayerID.set(getInt(Obj,1));
-                    break;
+                    return waitAndIsWorkingStop();
 
                 case Action.sendRadioPlayer:
-
                     app().radioPlayerID.set(getInt(Obj,1));
-                    break;
+                    return waitAndIsWorkingStop();
 
                 case Action.sendYoutubePlayer:
-
                     app().youtubePlayerID.set(getInt(Obj,1));
-                    break;
+                    return waitAndIsWorkingStop();
 
                 case Action.sendYoutubeLegacyPlayer:
-
                     app().legacyYoutubePlayer.set(!app().legacyYoutubePlayer.get());
-                    break;
+                    return waitAndIsWorkingStop();
 
                 case Action.sendYoutubePlayerVideo:
-
                     app().youtubePlayerVideoID.set(getInt(Obj,1));
-                    break;
+                    return waitAndIsWorkingStop();
 
                 case Action.sendVideoLanguage:
-
                     app().videoLanguageID.set(getInt(Obj,1));
-                    break;
+                    return waitAndIsWorkingStop();
 
                 case Action.sendHardwareDecoding:
                     app().hardware.set(!app().hardware.get());
-                    break;
+                    return waitAndIsWorkingStop();
 
                 case Action.sendCheckMacAndSsid:
                     app().checkMacAndSsid.set(!app().checkMacAndSsid.get());
-                    break;
+                    return waitAndIsWorkingStop();
 
                 case Action.sendYoutubeCaching:
                     app().onExo.youtubeCaching.set(!app().onExo.youtubeCaching.get());
-                    break;
+                    return waitAndIsWorkingStop();
 
                 case Action.sendURLCaching:
                     app().onExo.urlCaching.set(!app().onExo.urlCaching.get());
-                    break;
+                    return waitAndIsWorkingStop();
 
                 case Action.sendLanguagesOfStream:
-
-                    Sources.getSourcesController().recreate(getString(Obj,1),()->Wait.webUIWaitStop());
-                    return;
+                    return sendLanguagesOfStream(Obj);
 
                 case Action.sendDeleteLink:
-
-                    app().deleteFromCollection(getInt(Obj,1), getString(Obj,2));
-
-                    break;
+                    return sendDeleteLink(Obj);
 
                 case Action.sendColorFormat:
                     app().onIJK.colorFormatID(getInt(Obj,1));
-                    break;
+                    return waitAndIsWorkingStop();
             }
         }
 
-        Wait.webUIWaitStop();
+        return false;
     }
 
     public static class Action

@@ -76,7 +76,7 @@ public abstract class BasePanel extends AppCompatActivity {
 
         @Override
         protected void firstLaunch() {
-
+            onFirstResume();
         }
 
         @Override
@@ -153,6 +153,9 @@ public abstract class BasePanel extends AppCompatActivity {
         onResume.run();
         super.onResume();
     }
+
+    public void onFirstResume(){}
+
     @Override
     public void onPause()
     {

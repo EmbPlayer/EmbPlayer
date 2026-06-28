@@ -35,6 +35,7 @@ import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
 import app.BasePanel;
 import app.tools.AndroidOsUpdatesListener;
+import app.tools.DisposableTools;
 import app.tools.Generators.Requirements.GeneratorWithExpire;
 import app.tools.Generators.Requirements.MediaSourceProviders;
 import app.tools.Generators.SiteGenerator;
@@ -76,6 +77,7 @@ import static app.tools.StaticFunctions.onThrows;
 import static server.Home.app;
 
 import android.media.MediaPlayer;
+import android.os.Bundle;
 import android.view.SurfaceHolder;
 import server.tools.VideoSettings;
 import server.web.ErrorCodeApp;
@@ -188,7 +190,11 @@ public class AppBack extends AppWeb {
                 },
                 () -> {
                     mediaSessionStop();
-                    loadData(url, sourceProvider, nameOfMedia);
+
+                    cleaningInBackground.addStartAfterTimeout(
+                            300,
+                            ()-> loadData(url, sourceProvider,nameOfMedia),
+                            ()->{},forkJoinPool,"loadNewMedia");
                     },
                 () -> {}
         );
@@ -302,7 +308,7 @@ public class AppBack extends AppWeb {
             boolean isRadio = sourceName != null && sourceName.endsWith("_Radio");
             if (selectedSource == null) {
                 sender.sendUrlStartedResetOnlyBoolean();
-                return true;
+                return AppControl.workingStop();
             }
             JSONArray loadJson = selectedSource.jsonFile;
             JSONObject object = loadJson.getJSONObject(subCollectionIndex);
@@ -389,8 +395,10 @@ public class AppBack extends AppWeb {
                     break;
             }
 
-            if (link == null)
-                return true;
+            if (link == null){
+                sender.sendUrlStartedResetOnlyBoolean();
+                return AppControl.workingStop();
+            }
 
             MediaData finalLink1 = link;
 
@@ -483,8 +491,6 @@ public class AppBack extends AppWeb {
     }
 
     public boolean loadData(String url, MediaSourceProviders sourceProvider, String nameOfMedia) {
-
-
         saveMedia(sourceProvider, url, nameOfMedia);
 
         this.baseUrl = url;
@@ -500,7 +506,7 @@ public class AppBack extends AppWeb {
             case YOUTUBE:
 
                 if (!Connection.isHaveInternet())
-                    return false;
+                    return AppControl.waitAndIsWorkingStop();
 
                 legacyYoutubePlayer.reset();
                 PlayersCollection audioOrVideoP;
@@ -523,14 +529,14 @@ public class AppBack extends AppWeb {
                 while (true) {
                     //start from here again if failed
                     if (!youtubeGenerator.generateLink(10))
-                        return false;
+                        return AppControl.waitAndIsWorkingStop();
 
                     current = tryGenerateYoutubeContent(youtubeGenerator);
 
                     if (current.made == YoutubeGeneratorTry.Made)
                         break;
                     else if (current.made == YoutubeGeneratorTry.Error || i > 5)
-                        return false;
+                        return AppControl.waitAndIsWorkingStop();
 
                     i++;
                 }
@@ -556,7 +562,7 @@ public class AppBack extends AppWeb {
                 updateVideoSettings(player(playerID.getSave()), player(playerID.getSave()), getLivePlayer());
                 Players.updateIsLive(true);
                 if (!extractorLoader(nameOfMedia))
-                    return false;
+                    return AppControl.waitAndIsWorkingStop();
 
                 break;
 
@@ -564,7 +570,7 @@ public class AppBack extends AppWeb {
                 updateAudioSettings(player(playerID.getSave()), player(playerID.getSave()), getRadioPlayer());
                 Players.updateIsLive(true);
                 if (!extractorLoader(nameOfMedia))
-                    return false;
+                    return AppControl.waitAndIsWorkingStop();
 
                 break;
 
@@ -831,7 +837,7 @@ public class AppBack extends AppWeb {
 
         mediaSessionStop();
 
-        Wait.webUIWaitStop();
+        AppControl.waitAndIsWorkingStop();
     }
     private void sendURLBeforeDestroyWithoutCleanData()
     {
@@ -1430,14 +1436,28 @@ public class AppBack extends AppWeb {
     public static class Panel extends BasePanel
     {
         private static Consumer<SurfaceHolder> loader;
+        private static Disposable waiter;
 
         public static void loadPanel(Consumer<SurfaceHolder> onLoad)
         {
+            if(waiter!=null&&!waiter.isDisposed())
+                waiter.dispose();
+
+            waiter = DisposableTools.addTaskAfterWait(
+                    5000,
+                    ()->AppControl.workingStop(),()->{
+                        AppControl.workingStop();
+                        return "videoPanelWorkWatingStop";
+                    },forkJoinPool);
+
             loader = onLoad;
 
-            cleaningInBackground.addUI(
-                    () -> Main.loadPage(Panel.class),
-                    "LoadPanel-Error");
+            cleaningInBackground.addUI(() -> Main.loadPage(Panel.class),"LoadPanel-Error");
+        }
+
+        @Override
+        protected void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
         }
 
         @Override
@@ -1700,6 +1720,8 @@ public class AppBack extends AppWeb {
 
                     loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),()->{});
 
+                    AppControl.workingStop();
+
                 /*try {
                     youtubeGenerator.Wait(() -> mediaPlayer);
                 } catch (Exception e) {
@@ -1937,6 +1959,8 @@ public class AppBack extends AppWeb {
                     //urlPlayer.Load();
 
                     loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),()->{});
+
+                    AppControl.workingStop();
                 }
 
                 try {
