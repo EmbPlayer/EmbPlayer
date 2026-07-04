@@ -26,6 +26,7 @@ import com.emb.player.R;
 import androidx.appcompat.app.AppCompatActivity;
 import app.services.BaseServer;
 import app.tools.SData;
+import app.tools.StaticFunctions;
 import io.reactivex.rxjava3.disposables.Disposable;
 
 import static app.tools.DisposableTools.addTask;
@@ -44,6 +45,8 @@ public class Permissions extends AppCompatActivity {
         pBase = new PermissionsFunctionality();
         setContentView(R.layout.permissions);
         pBase.baseFunction(this);
+
+        StaticFunctions.hideNavigationButtons(this);
     }
 
     @Override

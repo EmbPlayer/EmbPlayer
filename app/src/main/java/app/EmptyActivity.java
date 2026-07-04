@@ -18,6 +18,7 @@
 
 package app;
 
+import android.app.Activity;
 import android.os.Bundle;
 
 import com.emb.player.R;
@@ -56,6 +57,7 @@ public class EmptyActivity {
             finishCurrent();
             current = this;
             setContentView(R.layout.empty);
+            onCreated(this);
             findViewById(R.id.empty).post(loadWithPost);
         }
 
@@ -102,7 +104,7 @@ public class EmptyActivity {
             finishCurrent();
             current = this;
             setContentView(R.layout.empty);
-
+            onCreated(this);
             findViewById(R.id.empty).post(()-> {
                 waitMS(100);
                 finishCurrent();
@@ -150,6 +152,7 @@ public class EmptyActivity {
             finishCurrent();
             current = this;
             setContentView(R.layout.empty);
+            onCreated(this);
         }
 
         public static void load()
@@ -176,5 +179,9 @@ public class EmptyActivity {
     {
         if(AppBack.Panel.check(BasePanel.PanelInfo.Displaying))
             correctThread.accept(()->Main.loadPage(em));
+    }
+
+    private static void onCreated(Activity current){
+        StaticFunctions.hideNavigationButtons(current);
     }
 }
