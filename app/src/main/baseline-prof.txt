@@ -1,2 +1,2 @@
-Lapp/tools/MediaPlayer/YoutubeGenerator;->GenerateInfoAuto()V
-Lapp/tools/MediaPlayer/YoutubeGenerator;->LoadContent()V
+HSPLapp/tools/MediaPlayer/YoutubeGenerator;->GenerateInfoAuto()V
+HSPLapp/tools/MediaPlayer/YoutubeGenerator;->LoadContent()V
