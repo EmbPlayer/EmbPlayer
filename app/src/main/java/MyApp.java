@@ -16,8 +16,6 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package app;
-
 import android.app.Activity;
 import android.app.Application;
 import android.os.Build;
