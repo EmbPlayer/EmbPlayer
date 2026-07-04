@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />-->
 
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="app"
     xmlns:tools="http://schemas.android.com/tools">
 
     <!--<uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />-->
@@ -87,6 +88,7 @@
 
     <!--android:networkSecurityConfig="@xml/networksecurityconfig"-->
     <application
+        android:name=".MyApp"
         android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:hardwareAccelerated="true"

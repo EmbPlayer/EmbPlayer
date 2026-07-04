@@ -45,8 +45,6 @@ public class Permissions extends AppCompatActivity {
         pBase = new PermissionsFunctionality();
         setContentView(R.layout.permissions);
         pBase.baseFunction(this);
-
-        StaticFunctions.hideNavigationButtons(this);
     }
 
     @Override

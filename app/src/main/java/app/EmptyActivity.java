@@ -182,6 +182,5 @@ public class EmptyActivity {
     }
 
     private static void onCreated(Activity current){
-        StaticFunctions.hideNavigationButtons(current);
     }
 }

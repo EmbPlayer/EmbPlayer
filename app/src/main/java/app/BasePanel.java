@@ -77,7 +77,6 @@ public abstract class BasePanel extends AppCompatActivity {
         @Override
         protected void firstLaunch() {
             onFirstResume();
-            StaticFunctions.hideNavigationButtons(BasePanel.this);
         }
 
         @Override

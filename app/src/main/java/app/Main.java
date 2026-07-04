@@ -371,7 +371,6 @@ public class Main extends AppCompatActivity{
             @Override
             protected void firstLaunch() {
                 qrSecond();
-                StaticFunctions.hideNavigationButtons(main);
             }
 
             @Override
