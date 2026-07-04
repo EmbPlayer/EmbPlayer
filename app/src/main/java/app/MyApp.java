@@ -15,14 +15,11 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
+package app;
 
 import android.app.Activity;
 import android.app.Application;
-import android.os.Build;
 import android.os.Bundle;
-import android.view.View;
-import android.view.WindowInsets;
-import android.view.WindowInsetsController;
 
 import app.tools.StaticFunctions;
 
@@ -32,12 +29,9 @@ public class MyApp extends Application {
     public void onCreate() {
         super.onCreate();
 
-        // ✅ This is called on the APPLICATION, not the Activity.
-        // It works perfectly from API 14 (Android 4.0) to 34.
         registerActivityLifecycleCallbacks(new ActivityLifecycleCallbacks() {
             @Override
             public void onActivityCreated(Activity activity, Bundle savedInstanceState) {
-                StaticFunctions.hideNavigationButtons(activity);
             }
 
             @Override
@@ -45,7 +39,6 @@ public class MyApp extends Application {
                 StaticFunctions.hideNavigationButtons(activity);
             }
 
-            // These are required to override but can be empty:
             @Override public void onActivityStarted(Activity activity) {}
             @Override public void onActivityPaused(Activity activity) {}
             @Override public void onActivityStopped(Activity activity) {}
