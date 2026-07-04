@@ -20,8 +20,6 @@ package app.App;
 
 import android.database.Cursor;
 
-import com.emb.player.R;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -36,7 +34,6 @@ import app.tools.Players.all.PlayersCollection;
 import app.tools.SData;
 import app.tools.StaticFunctions;
 import app.tools.StaticFunctions.ItemWithId;
-import server.web.ErrorCodeApp;
 import server.web.Sources;
 
 import static app.tools.StaticFunctions.onThrows;
@@ -74,7 +71,7 @@ public class AppWeb{
     public final ButtonBoolean setUp;
     public final ButtonBoolean playlist;
     public final ButtonBoolean hardware;
-    public final ButtonBoolean checkMacAndSsid;
+    public final ButtonBoolean checkMacAddress;
 
     private String extractorPattern;
     private String extractorExpirePattern;
@@ -96,7 +93,7 @@ public class AppWeb{
         isSavable = new SavedButtonBoolean(SData.Data.IsSavable,false);
         loop =  new SavedButtonInteger(SData.Data.SavedLoop,0);
         hardware = new SavedButtonBoolean(SData.Data.HardwareDecoding,false);
-        checkMacAndSsid = new SavedButtonBoolean(SData.Data.CheckMacAndSsid,false);
+        checkMacAddress = new SavedButtonBoolean(SData.Data.CheckMacAddress,false);
 
         mediaProviderClientSideID = new SavedButtonInteger(SData.Data.MediaProviderClientSideID,0);
         videoLanguageID = new SavedButtonInteger(SData.Data.LanguageIndex,0);

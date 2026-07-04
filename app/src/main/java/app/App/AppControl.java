@@ -25,24 +25,20 @@ import org.schabi.newpipe.extractor.exceptions.ExtractionException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Scanner;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import app.tools.DisposableTools;
 import app.tools.Generators.Requirements.MediaSourceProviders;
 import app.tools.LinksDbHelper;
 import app.tools.StaticFunctions;
-import io.reactivex.rxjava3.disposables.Disposable;
 import server.tools.HttpServletAdvanced;
 import server.web.ErrorCodeApp;
 import server.web.Sources;
 import server.web.Wait;
 
 import static app.tools.DisposableTools.forServer;
-import static app.tools.DisposableTools.forkJoinPool;
 import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.getAllForJson;
 import static app.tools.StaticFunctions.setData;
@@ -357,8 +353,8 @@ public class AppControl extends HttpServletAdvanced {
                     app().hardware.set(!app().hardware.get());
                     return waitAndIsWorkingStop();
 
-                case Action.sendCheckMacAndSsid:
-                    app().checkMacAndSsid.set(!app().checkMacAndSsid.get());
+                case Action.sendCheckMacAddress:
+                    app().checkMacAddress.set(!app().checkMacAddress.get());
                     return waitAndIsWorkingStop();
 
                 case Action.sendYoutubeCaching:
@@ -412,7 +408,7 @@ public class AppControl extends HttpServletAdvanced {
         private static final int sendURLCaching = 23;
         private static final int sendVideoResolutionLive = 24;
         private static final int sendYoutubeLegacyPlayer = 25;
-        private static final int sendCheckMacAndSsid = 26;
+        private static final int sendCheckMacAddress = 26;
         private static final int sendRadioPlayer = 27;
     }
 }

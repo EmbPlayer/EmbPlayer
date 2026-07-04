@@ -210,7 +210,7 @@ public class SData {
         YoutubeCaching,URLCaching,
         IsSavable, ColorFormatIndex,
         LegacyYoutubePlayer,SavedMedia,
-        CheckMacAndSsid,
+        CheckMacAddress,
         ExoPlayerOn,VLCPlayerOn
     }
 }

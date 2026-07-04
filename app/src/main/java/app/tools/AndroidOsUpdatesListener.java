@@ -577,8 +577,8 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
             }
             if (currentComposite == null) return false;
 
-            // Read the combined flag (default false)
-            boolean checkMacAndSsid = SData.get(SData.Data.CheckMacAndSsid, false);
+            // Read the flag (This will now only dictate the MAC address check)
+            boolean checkMacAndSsid = SData.get(SData.Data.CheckMacAddress, false);
 
             // Parse both composites
             ConnectionIdentity currentId = ConnectionIdentity.parse(currentComposite);
@@ -586,17 +586,16 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
 
             boolean changed = false;
 
-            // ---- MAC + SSID combined check (if enabled) ----
-            if (checkMacAndSsid) {
-                // MAC check
-                if (!equalsSafe(currentId.mac, savedId.mac)) changed = true;
+            // ---- SSID / interface name check (ALWAYS CHECKED NOW) ----
+            if (currentId.type.equals("WIFI")) {
+                if (!equalsSafe(currentId.ssid, savedId.ssid)) changed = true;
+            } else if (currentId.type.equals("ETHERNET")) {
+                if (!equalsSafe(currentId.ifName, savedId.ifName)) changed = true;
+            }
 
-                // SSID / interface name check
-                if (currentId.type.equals("WIFI")) {
-                    if (!equalsSafe(currentId.ssid, savedId.ssid)) changed = true;
-                } else if (currentId.type.equals("ETHERNET")) {
-                    if (!equalsSafe(currentId.ifName, savedId.ifName)) changed = true;
-                }
+            // ---- MAC check (Only checked if enabled by user) ----
+            if (checkMacAndSsid) {
+                if (!equalsSafe(currentId.mac, savedId.mac)) changed = true;
             }
 
             // ---- IP / hostname check (ALWAYS) ----
@@ -610,7 +609,7 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
                 changed = true;
             }
 
-            // If any change detected (always includes IP/hostname, plus optional MAC+SSID)
+            // If any change detected (always includes IP/hostname and SSID, plus optional MAC)
             if (changed) {
                 triggerUpdate(currentComposite);
                 return true;
