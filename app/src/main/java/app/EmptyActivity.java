@@ -28,6 +28,7 @@ import java.util.function.Consumer;
 import androidx.appcompat.app.AppCompatActivity;
 import app.App.AppBack;
 import app.tools.StaticFunctions;
+import app.tools.activity.DefaultActivity;
 import io.reactivex.rxjava3.disposables.Disposable;
 
 import static app.tools.DisposableTools.addTaskUI;
@@ -36,7 +37,7 @@ import static app.tools.DisposableTools.waitMS;
 public class EmptyActivity {
     private static AppCompatActivity current;
 
-    public static class OnRelease extends AppCompatActivity {
+    public static class OnRelease extends DefaultActivity {
         public static final LoadWithPost loadWithPost = new LoadWithPost();
         private static final Consumer<Runnable> correctThread = (r)->AppBack.Panel.runFromPanel(r);
         private static final StaticFunctions.Starter loader = new StaticFunctions.Starter() {
@@ -88,7 +89,7 @@ public class EmptyActivity {
         }
     }
 
-    public static class EmptyIJK extends AppCompatActivity {
+    public static class EmptyIJK extends DefaultActivity {
         private static Disposable onUI;
         private static final Consumer<Runnable> correctThread = (r)-> {
             disposeUI();
@@ -131,7 +132,7 @@ public class EmptyActivity {
         }
     }
 
-    public static class EmptyOem extends AppCompatActivity {
+    public static class EmptyOem extends DefaultActivity {
 
         private static final Consumer<Runnable> correctThread = (r)->AppBack.Panel.runFromPanel(r);
         private static final StaticFunctions.Starter loader = new StaticFunctions.Starter() {

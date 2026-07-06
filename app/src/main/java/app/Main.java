@@ -39,7 +39,6 @@ import com.emb.player.R;
 import java.util.concurrent.Callable;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import app.App.AppBack;
@@ -49,6 +48,7 @@ import app.tools.DisposableTools;
 import app.tools.QrCodePage;
 import app.tools.SData;
 import app.tools.StaticFunctions;
+import app.tools.activity.DefaultActivity;
 import io.reactivex.rxjava3.disposables.Disposable;
 
 import static app.tools.DisposableTools.addTask;
@@ -57,7 +57,7 @@ import static app.tools.DisposableTools.forServer;
 import static app.tools.DisposableTools.forkJoinPool;
 import static server.Home.app;
 
-public class Main extends AppCompatActivity{
+public class Main extends DefaultActivity {
 
     // In your Activity or Fragment
     private static final int PERMISSION_REQUEST_CODE = 100;
@@ -85,7 +85,6 @@ public class Main extends AppCompatActivity{
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         appLoader = DisposableTools.addTask(()->{
             main = this;
 

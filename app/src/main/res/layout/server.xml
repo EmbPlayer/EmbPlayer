@@ -4,8 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#434343"
-    android:keepScreenOn="true">
+    android:background="#434343">
 
     <androidx.constraintlayout.widget.Guideline
         android:id="@+id/textHeightLimit"

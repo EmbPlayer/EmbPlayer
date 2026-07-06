@@ -21,7 +21,6 @@ package app;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Rect;
-import android.os.Build;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.SurfaceHolder;
@@ -35,22 +34,19 @@ import com.emb.player.R;
 
 import org.schabi.newpipe.extractor.stream.VideoStream;
 
-import java.util.Objects;
 import java.util.concurrent.Callable;
 
 import app.tools.Players.all.PlayersCollection;
 import app.tools.Recyclable;
 import app.tools.StaticFunctions;
+import app.tools.activity.DefaultActivity;
 import io.reactivex.rxjava3.functions.Consumer;
-import server.web.ErrorCodeApp;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
 
-import static app.tools.DisposableTools.forServer;
 import static app.tools.DisposableTools.waitMS;
 
-public abstract class BasePanel extends AppCompatActivity {
+public abstract class BasePanel extends DefaultActivity {
 
     public enum PanelInfo{
         notCreated,Created,notDisplaying,Displaying

@@ -20,17 +20,68 @@ package battery;
 
 import android.content.Context;
 import android.content.Intent;
+import android.os.Build;
+import android.os.Bundle;
 import android.view.View;
 
+import com.emb.player.R;
+
+import androidx.annotation.Nullable;
 import app.Main;
+import app.tools.activity.DefaultActivity;
+import dev.doubledot.doki.api.tasks.DokiApi;
 import dev.doubledot.doki.ui.DokiActivity;
+import dev.doubledot.doki.views.DokiContentView;
+import kotlin.Unit;
+import kotlin.jvm.functions.Function1;
 
 public class BatterySettings{
 
     public static View.OnClickListener onClickBatterySettingsButton(Context context){
         return view -> {
-            Main.loadPage(DokiActivity.Companion.newIntent(context));
+            Main.loadPage(Doki.class);
         };
+    }
+
+    public static class Doki extends DefaultActivity {
+
+        private static final String device = Build.MANUFACTURER.toLowerCase().replace(" ", "-");
+
+        private DokiApi api = null;
+
+        public static final String MANUFACTURER_EXTRA = "dev.doubledot.doki.ui.DokiActivity.MANUFACTURER_EXTRA";
+
+        @Override
+        protected void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+
+            DokiContentView dokiView = new DokiContentView(this);
+            setContentView(dokiView);
+
+            String manufacturerId = device;
+
+            if (getIntent() != null && getIntent().getExtras() != null) {
+                String extra = getIntent().getExtras().getString(MANUFACTURER_EXTRA);
+                if (extra != null) {
+                    manufacturerId = extra;
+                }
+            }
+
+            api = dokiView.loadContent(manufacturerId);
+
+            dokiView.setOnCloseListener(view -> {
+                finish();
+                return Unit.INSTANCE;
+            });
+        }
+
+        @Override
+        protected void onDestroy() {
+            super.onDestroy();
+            if (api != null) {
+                api.cancel();
+            }
+        }
     }
 
 }

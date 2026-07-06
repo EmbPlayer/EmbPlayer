@@ -23,10 +23,9 @@ import android.os.Bundle;
 
 import com.emb.player.R;
 
-import androidx.appcompat.app.AppCompatActivity;
 import app.services.BaseServer;
 import app.tools.SData;
-import app.tools.StaticFunctions;
+import app.tools.activity.DefaultActivity;
 import io.reactivex.rxjava3.disposables.Disposable;
 
 import static app.tools.DisposableTools.addTask;
@@ -34,7 +33,7 @@ import static app.tools.DisposableTools.addTaskUI;
 import static app.tools.DisposableTools.forServer;
 import static server.Home.app;
 
-public class Permissions extends AppCompatActivity {
+public class Permissions extends DefaultActivity {
 
     private Disposable appLoader;
     private int savedPort;

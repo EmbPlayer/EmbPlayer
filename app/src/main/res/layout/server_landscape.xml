@@ -4,8 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#434343"
-    android:keepScreenOn="true">
+    android:background="#434343">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/baseui"

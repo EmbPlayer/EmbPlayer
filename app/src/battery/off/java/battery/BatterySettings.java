@@ -21,6 +21,7 @@ package battery;
 import android.content.Context;
 import android.view.View;
 import android.app.AlertDialog;
+import app.tools.activity.DefaultActivity;
 
 public class BatterySettings{
 
@@ -38,5 +39,7 @@ public class BatterySettings{
                 .setCancelable(true)
                 .show();
     }
+
+    public static class Doki extends DefaultActivity{}
 }
 

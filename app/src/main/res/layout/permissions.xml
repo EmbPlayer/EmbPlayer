@@ -4,8 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#C8C8C8"
-    android:orientation="vertical"
-    android:keepScreenOn="true">
+    android:orientation="vertical">
     <!-- android:fitsSystemWindows="true" -->
 
     <!-- Scrollable content fills remaining space -->

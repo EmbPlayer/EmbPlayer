@@ -246,28 +246,6 @@ public class StaticFunctions {
         System.exit(0);
     }
 
-    public static void hideNavigationButtons(Activity current){
-        // --- HIDE NAVIGATION BAR WITH SWIPE-TO-SHOW BEHAVIOR ---
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // Android 11 (API 30) and above - The official, non-deprecated way
-            WindowInsetsController controller = current.getWindow().getInsetsController();
-            if (controller != null) {
-                // Hide the bottom navigation bar
-                controller.hide(WindowInsets.Type.navigationBars());
-                // This makes it reappear temporarily when the user swipes from the bottom
-                controller.setSystemBarsBehavior(
-                        WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                );
-            }
-        } else {
-            // Android 10 (API 29) and below - The legacy fallback
-            @SuppressWarnings("deprecation")
-            int uiFlags = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
-            current.getWindow().getDecorView().setSystemUiVisibility(uiFlags);
-        }
-    }
-
     public static class StarterPost implements Runnable{
         protected Runnable run = ()->{};
         private final Runnable empty = ()->{};

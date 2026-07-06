@@ -87,7 +87,7 @@
 
     <!--android:networkSecurityConfig="@xml/networksecurityconfig"-->
     <application
-        android:name="app.MyApp"
+        android:name="app.tools.activity.MyApp"
         android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:hardwareAccelerated="true"
@@ -169,8 +169,11 @@
             android:theme="@style/Theme.NoTitleBar.Fullscreen"
             android:exported="true">
         </activity>
-
-
+        <activity android:name="battery.BatterySettings$Doki"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+            android:exported="true">
+        </activity>
         <!-- Boot Receiver (for your own app's auto-start) -->
         <receiver
             android:name="app.tools.AndroidOsUpdatesListener"
