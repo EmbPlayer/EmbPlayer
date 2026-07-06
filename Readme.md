@@ -67,19 +67,33 @@ EmbPlayer is built in multiple flavours to support a wide range of Android devic
 
 Here are some previews of EmbPlayer in action:
 
-![Host App – Main Interface](img/m5.jpg)
-*Host app interface on the Android device.*
-
-![QR Code Scanner – Ready to Connect](img/m3.jpg)
-*Scan this QR code from any browser to start controlling playback.*
-
-![Web Remote – Control Panel](img/w2.PNG)
-*The web-based remote control panel as seen on a laptop or phone browser.*
-
-![Live Streams – Turkey & Bulgaria Lists](img/w7.PNG)
-*Curated country-based live TV/radio streams (TR and BG).*
-
-![YouTube Playback](img/w1.PNG)
-*Playing a YouTube video or live stream with full remote controls.*
+<table>
+  <tr>
+    <td align="center">
+      <img src="img/m5.jpg" width="250" alt="Host App – Main Interface"/>
+      <br /><sub><b>Host app interface</b> on the Android device.</sub>
+    </td>
+    <td align="center">
+      <img src="img/m3.jpg" width="250" alt="QR Code Scanner – Ready to Connect"/>
+      <br /><sub>Scan this QR code from any browser to start controlling playback.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="img/w2.PNG" width="250" alt="Web Remote – Control Panel"/>
+      <br /><sub>The web-based remote control panel as seen on a laptop or phone browser.</sub>
+    </td>
+    <td align="center">
+      <img src="img/w7.PNG" width="250" alt="Live Streams – Turkey & Bulgaria Lists"/>
+      <br /><sub>Curated country-based live TV/radio streams (TR and BG).</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <img src="img/w1.PNG" width="250" alt="YouTube Playback"/>
+      <br /><sub>Playing a YouTube video or live stream with full remote controls.</sub>
+    </td>
+  </tr>
+</table>
 
 ---
