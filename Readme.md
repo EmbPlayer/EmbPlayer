@@ -69,29 +69,22 @@ Here are some previews of EmbPlayer in action:
 
 <table>
   <tr>
-    <td align="center">
-      <img src="img/m5.jpg" width="250" alt="Host App – Main Interface"/>
-      <br /><sub><b>Host app interface</b> on the Android device.</sub>
-    </td>
-    <td align="center">
-      <img src="img/m3.jpg" width="250" alt="QR Code Scanner – Ready to Connect"/>
-      <br /><sub>Scan this QR code from any browser to start controlling playback.</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <img src="img/w2.PNG" width="250" alt="Web Remote – Control Panel"/>
-      <br /><sub>The web-based remote control panel as seen on a laptop or phone browser.</sub>
-    </td>
-    <td align="center">
-      <img src="img/w7.PNG" width="250" alt="Live Streams – Turkey & Bulgaria Lists"/>
-      <br /><sub>Curated country-based live TV/radio streams (TR and BG).</sub>
-    </td>
-  </tr>
-  <tr>
     <td align="center" colspan="2">
-      <img src="img/w1.PNG" width="250" alt="YouTube Playback"/>
-      <br /><sub>Playing a YouTube video or live stream with full remote controls.</sub>
+      <b>📱 Host App – Multiple Views</b><br><br>
+      <img src="img/m5.jpg" width="180" alt="Main Interface"/>
+      <img src="img/m3.jpg" width="180" alt="QR Scanner"/>
+      <img src="img/w1.PNG" width="180" alt="YouTube Playback"/>
+      <br><sub>The host Android app in action: main interface, QR scanner, and YouTube playback.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="img/w2.PNG" width="280" alt="Web Remote – Control Panel"/>
+      <br /><sub><b>Web Remote</b> – control panel as seen on any browser.</sub>
+    </td>
+    <td align="center">
+      <img src="img/w7.PNG" width="280" alt="Live Streams – Turkey & Bulgaria"/>
+      <br /><sub><b>Live Streams</b> – curated TR & BG country-based TV/radio lists.</sub>
     </td>
   </tr>
 </table>
