@@ -71,20 +71,28 @@ Here are some previews of EmbPlayer in action:
   <tr>
     <td align="center" colspan="2">
       <b>📱 Host App – Multiple Views</b><br><br>
+      <img src="img/m1.jpg" width="380" alt="Main Interface"/>
       <img src="img/m5.jpg" width="380" alt="Main Interface"/>
+      <img src="img/m4.jpg" width="380" alt="Main Interface"/>
+      <img src="img/m2.jpg" width="380" alt="Main Interface"/>
       <img src="img/m3.jpg" width="380" alt="QR Scanner"/>
-      <img src="img/w1.PNG" width="380" alt="YouTube Playback"/>
       <br><sub>The host Android app in action: main interface, QR scanner, and YouTube playback.</sub>
     </td>
   </tr>
   <tr>
     <td align="center">
+      <img src="img/u3.jpg" width="380" alt="Web Remote – Control Panel"/>
+      <img src="img/u6.jpg" width="380" alt="Web Remote – Control Panel"/>
+      <img src="img/u8.jpg" width="380" alt="Web Remote – Control Panel"/>
+      <img src="img/u7.jpg" width="380" alt="Web Remote – Control Panel"/>
+      <img src="img/u4.jpg" width="380" alt="Web Remote – Control Panel"/>
       <img src="img/w2.PNG" width="380" alt="Web Remote – Control Panel"/>
+      <img src="img/w3.PNG" width="380" alt="Web Remote – Control Panel"/>
+      <img src="img/w4.PNG" width="380" alt="Web Remote – Control Panel"/>
+      <img src="img/w5.PNG" width="380" alt="Web Remote – Control Panel"/>
+      <img src="img/w8.PNG" width="380" alt="Web Remote – Control Panel"/>
+      <img src="img/w9.PNG" width="380" alt="Web Remote – Control Panel"/>
       <br /><sub><b>Web Remote</b> – control panel as seen on any browser.</sub>
-    </td>
-    <td align="center">
-      <img src="img/w7.PNG" width="380" alt="Live Streams – Turkey & Bulgaria"/>
-      <br /><sub><b>Live Streams</b> – curated TR & BG country-based TV/radio lists.</sub>
     </td>
   </tr>
 </table>
