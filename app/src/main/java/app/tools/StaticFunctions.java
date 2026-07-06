@@ -247,8 +247,8 @@ public class StaticFunctions {
     }
 
     public static class StarterPost implements Runnable{
+        private final static Runnable empty = ()->{};
         protected Runnable run = ()->{};
-        private final Runnable empty = ()->{};
 
         public void post(Runnable task){
             run = ()->{
@@ -264,8 +264,8 @@ public class StaticFunctions {
     }
 
     public static abstract class StarterBase implements Runnable{
+        private final static Runnable empty = ()->{};
         protected Runnable run;
-        private final Runnable empty = ()->{};
 
         public StarterBase(){
             run = ()->secondLaunches();
