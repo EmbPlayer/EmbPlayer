@@ -67,19 +67,19 @@ EmbPlayer is built in multiple flavours to support a wide range of Android devic
 
 Here are some previews of EmbPlayer in action:
 
-![Host App – Main Interface](img/m5.png)
+![Host App – Main Interface](img/m5.jpg)
 *Host app interface on the Android device.*
 
 ![QR Code Scanner – Ready to Connect](img/m3.jpg)
 *Scan this QR code from any browser to start controlling playback.*
 
-![Web Remote – Control Panel](img/w2.png)
+![Web Remote – Control Panel](img/w2.PNG)
 *The web-based remote control panel as seen on a laptop or phone browser.*
 
-![Live Streams – Turkey & Bulgaria Lists](img/w7.png)
+![Live Streams – Turkey & Bulgaria Lists](img/w7.PNG)
 *Curated country-based live TV/radio streams (TR and BG).*
 
-![YouTube Playback](img/w1.png)
+![YouTube Playback](img/w1.PNG)
 *Playing a YouTube video or live stream with full remote controls.*
 
 ---
