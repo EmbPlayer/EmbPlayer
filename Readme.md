@@ -76,7 +76,7 @@ Here are some previews of EmbPlayer in action:
       <img src="img/m4.jpg" width="380" alt="Main Interface"/>
       <img src="img/m2.jpg" width="380" alt="Main Interface"/>
       <img src="img/m3.jpg" width="380" alt="QR Scanner"/>
-      <br><sub>The host Android app in action: main interface, QR scanner, and YouTube playback.</sub>
+      <br><sub>The host Android app in action: main interface and QR code.</sub>
     </td>
   </tr>
   <tr>
