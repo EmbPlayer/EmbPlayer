@@ -126,10 +126,7 @@ public class AppControl extends HttpServletAdvanced {
     }
 
     private static void workingStopAfter(){
-        actions.addStartAfterTimeout(100,
-                ()-> AppControl.currentAction = AppControl.action,
-                ()-> AppControl.currentAction = AppControl.action,
-                forkJoinPool,"stopWorking");
+        currentAction = action;
     }
 
     public static boolean workingStop(){

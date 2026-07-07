@@ -1696,12 +1696,17 @@ public class AppBack extends AppWeb {
         public Runnable getLoader()
         {
             return () -> {
+
+                cleaningInBackground.addStartAfterTimeout(5000,
+                        ()->AppControl.workingStop(),
+                        ()->AppControl.workingStop(),
+                        forkJoinPool,"workStop");
+
                 Loops l = loopUpdate();
                 if(displayOn())
                 {
                     Panel.loadPanel((hol)->{
                         mediaPlayer = globalGenerator.startPanel(true,l.getLoop(),l.getPlayListLoop());
-                        AppControl.workingStop();
                         /*if(!Panel.blackPanelFix)
                             waitMS(500);*/
 
@@ -1713,8 +1718,6 @@ public class AppBack extends AppWeb {
                     mediaPlayer = globalGenerator.startPanel(false,l.getLoop(),l.getPlayListLoop());
 
                     loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),()->{});
-
-                    AppControl.workingStop();
 
                 /*try {
                     youtubeGenerator.Wait(() -> mediaPlayer);
@@ -1921,7 +1924,10 @@ public class AppBack extends AppWeb {
         public Runnable getLoader(){
 
             return () -> {
-
+                cleaningInBackground.addStartAfterTimeout(5000,
+                        ()->AppControl.workingStop(),
+                        ()->AppControl.workingStop(),
+                        forkJoinPool,"workStop");
 
                 /*try {
                     if(!isStreamAvailable(url))
@@ -1938,7 +1944,6 @@ public class AppBack extends AppWeb {
                 {
                     Panel.loadPanel((hol)->{
                         mediaPlayer = globalGenerator.startPanel(true,l.getLoop(),l.getPlayListLoop());
-                        AppControl.workingStop();
                         /*if(!Panel.blackPanelFix)
                             waitMS(500);*/
 
@@ -1953,8 +1958,6 @@ public class AppBack extends AppWeb {
                     //urlPlayer.Load();
 
                     loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),()->{});
-
-                    AppControl.workingStop();
                 }
 
                 try {
