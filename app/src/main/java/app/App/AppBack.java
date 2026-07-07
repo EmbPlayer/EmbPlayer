@@ -57,6 +57,7 @@ import app.tools.Players.all.PlayersCollection;
 import app.tools.Recyclable;
 import app.tools.SData;
 import app.tools.StaticFunctions;
+import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
@@ -1436,23 +1437,16 @@ public class AppBack extends AppWeb {
     public static class Panel extends BasePanel
     {
         private static Consumer<SurfaceHolder> loader;
-        private static Disposable waiter;
 
         public static void loadPanel(Consumer<SurfaceHolder> onLoad)
         {
-            if(waiter!=null&&!waiter.isDisposed())
-                waiter.dispose();
-
-            waiter = DisposableTools.addTaskAfterWait(
-                    5000,
-                    ()->AppControl.workingStop(),()->{
-                        AppControl.workingStop();
-                        return "videoPanelWorkWatingStop";
-                    },forkJoinPool);
-
             loader = onLoad;
 
-            cleaningInBackground.addUI(() -> Main.loadPage(Panel.class),"LoadPanel-Error");
+            cleaningInBackground.add(() -> Main.loadPage(Panel.class),
+                    ()-> AppControl.workingStop(),
+                    ()-> AppControl.workingStop(),
+                    AndroidSchedulers.mainThread(),
+                    "LoadPanel-Error");
         }
 
         @Override
@@ -1707,7 +1701,7 @@ public class AppBack extends AppWeb {
                 {
                     Panel.loadPanel((hol)->{
                         mediaPlayer = globalGenerator.startPanel(true,l.getLoop(),l.getPlayListLoop());
-
+                        AppControl.workingStop();
                         /*if(!Panel.blackPanelFix)
                             waitMS(500);*/
 
@@ -1944,7 +1938,7 @@ public class AppBack extends AppWeb {
                 {
                     Panel.loadPanel((hol)->{
                         mediaPlayer = globalGenerator.startPanel(true,l.getLoop(),l.getPlayListLoop());
-
+                        AppControl.workingStop();
                         /*if(!Panel.blackPanelFix)
                             waitMS(500);*/
 
