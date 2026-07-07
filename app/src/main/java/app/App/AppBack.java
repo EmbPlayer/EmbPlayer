@@ -263,6 +263,11 @@ public class AppBack extends AppWeb {
     }
 
     public void startPanel() {
+        cleaningInBackground.addStartAfterTimeout(5000,
+                ()->AppControl.workingStop(),
+                ()->AppControl.workingStop(),
+                forkJoinPool,"workStop");
+
         panelRun.run();
         setUp.set(true);
     }
@@ -1696,12 +1701,6 @@ public class AppBack extends AppWeb {
         public Runnable getLoader()
         {
             return () -> {
-
-                cleaningInBackground.addStartAfterTimeout(5000,
-                        ()->AppControl.workingStop(),
-                        ()->AppControl.workingStop(),
-                        forkJoinPool,"workStop");
-
                 Loops l = loopUpdate();
                 if(displayOn())
                 {
@@ -1924,10 +1923,6 @@ public class AppBack extends AppWeb {
         public Runnable getLoader(){
 
             return () -> {
-                cleaningInBackground.addStartAfterTimeout(5000,
-                        ()->AppControl.workingStop(),
-                        ()->AppControl.workingStop(),
-                        forkJoinPool,"workStop");
 
                 /*try {
                     if(!isStreamAvailable(url))
