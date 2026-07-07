@@ -25,7 +25,6 @@ import org.schabi.newpipe.extractor.exceptions.ExtractionException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Scanner;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import javax.servlet.http.HttpServletRequest;
@@ -40,6 +39,7 @@ import server.web.Sources;
 import server.web.Wait;
 
 import static app.tools.DisposableTools.forServer;
+import static app.tools.DisposableTools.forkJoinPool;
 import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.getAllForJson;
 import static app.tools.StaticFunctions.setData;
@@ -50,6 +50,7 @@ public class AppControl extends HttpServletAdvanced {
     private static final String[] LANGUAGES;
     private static final Consumer<HttpServletRequest> emptyAction = (httpServletRequest)->{};
     private static final Consumer<HttpServletRequest> action = (req)-> {
+        currentAction = emptyAction;
         ErrorCodeApp.postResiver = StaticFunctions.getInfo("currentAction")+System.lineSeparator();
         try {
             Wait.webUIWaitStart();
@@ -60,14 +61,15 @@ public class AppControl extends HttpServletAdvanced {
                 try {
                     clientAction(jsonArray);
                 } catch (JSONException | ExtractionException | IOException e) {
-                    AppControl.currentAction.set(AppControl.action);
+                    workingStopAfter();
                 }
             },()->waitAndIsWorkingStop(),forServer,"ClientAction-Error");
         } catch (Exception e) {
-            AppControl.currentAction.set(AppControl.action);
+            workingStopAfter();
         }
     };
-    private static final AtomicReference<Consumer<HttpServletRequest>> currentAction = new AtomicReference<>(action);
+
+    private static Consumer<HttpServletRequest> currentAction = action;
 
     static{
         LANGUAGES = getAllForJson(Arrays.stream(AppWeb.LANGUAGES).map(String::toUpperCase).toArray(String[]::new));
@@ -93,7 +95,7 @@ public class AppControl extends HttpServletAdvanced {
 
     @Override
     protected void doPostAdvanced(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        currentAction.getAndSet(emptyAction).accept(req);
+        currentAction.accept(req);
         resp.setStatus(HttpServletResponse.SC_ACCEPTED);
     }
 
@@ -123,16 +125,23 @@ public class AppControl extends HttpServletAdvanced {
         return true;
     }
 
+    private static void workingStopAfter(){
+        actions.addStartAfterTimeout(100,
+                ()-> AppControl.currentAction = AppControl.action,
+                ()-> AppControl.currentAction = AppControl.action,
+                forkJoinPool,"stopWorking");
+    }
+
     public static boolean workingStop(){
         //isWorking.set(false);
-        AppControl.currentAction.set(AppControl.action);
+        workingStopAfter();
         ErrorCodeApp.postResiver = ErrorCodeApp.postResiver+StaticFunctions.getInfo("workingStop")+System.lineSeparator();
         return true;
     }
 
     public static boolean waitAndIsWorkingStop(){
         //isWorking.set(false);
-        AppControl.currentAction.set(AppControl.action);
+        workingStopAfter();
         ErrorCodeApp.postResiver = ErrorCodeApp.postResiver+StaticFunctions.getInfo("waitAndIsWorkingStop")+System.lineSeparator();
         return waitStop();
     }
