@@ -263,11 +263,6 @@ public class AppBack extends AppWeb {
     }
 
     public void startPanel() {
-        cleaningInBackground.addStartAfterTimeout(5000,
-                ()->AppControl.workingStop(),
-                ()->AppControl.workingStop(),
-                forkJoinPool,"workStop");
-
         panelRun.run();
         setUp.set(true);
     }
@@ -1710,6 +1705,8 @@ public class AppBack extends AppWeb {
                             waitMS(500);*/
 
                         loadVideo(hol);
+
+                        AppControl.workingStop();
                     });
                 }
                 else
@@ -1718,13 +1715,7 @@ public class AppBack extends AppWeb {
 
                     loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),()->{});
 
-                /*try {
-                    youtubeGenerator.Wait(() -> mediaPlayer);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }*/
-
-                    //StartVideo();
+                    AppControl.workingStop();
                 }
             };
         }
@@ -1943,6 +1934,8 @@ public class AppBack extends AppWeb {
                             waitMS(500);*/
 
                         loadVideo(hol);
+
+                        AppControl.workingStop();
                     });
                 }
                 else
@@ -1953,6 +1946,8 @@ public class AppBack extends AppWeb {
                     //urlPlayer.Load();
 
                     loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),()->{});
+
+                    AppControl.workingStop();
                 }
 
                 try {

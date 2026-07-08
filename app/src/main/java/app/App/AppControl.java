@@ -30,9 +30,11 @@ import java.util.function.Consumer;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import app.tools.DisposableTools;
 import app.tools.Generators.Requirements.MediaSourceProviders;
 import app.tools.LinksDbHelper;
 import app.tools.StaticFunctions;
+import io.reactivex.rxjava3.disposables.Disposable;
 import server.tools.HttpServletAdvanced;
 import server.web.ErrorCodeApp;
 import server.web.Sources;
@@ -47,10 +49,23 @@ import static server.Home.app;
 
 public class AppControl extends HttpServletAdvanced {
 
+    private static final int MAX_ACTION_WAIT_TIMEOUT = 10000;
+
     private static final String[] LANGUAGES;
     private static final Consumer<HttpServletRequest> emptyAction = (httpServletRequest)->{};
     private static final Consumer<HttpServletRequest> action = (req)-> {
         currentAction = emptyAction;
+
+        disposeWorkingStopAfterTimeout();
+        workingStopAfterTimeout = DisposableTools.addTaskAfterWait(
+                MAX_ACTION_WAIT_TIMEOUT,
+                ()->AppControl.workingStop(),
+                ()->{
+                    AppControl.workingStop();
+                    return "workStop";
+                },
+                forkJoinPool);
+
         ErrorCodeApp.postResiver = StaticFunctions.getInfo("currentAction")+System.lineSeparator();
         try {
             Wait.webUIWaitStart();
@@ -70,6 +85,7 @@ public class AppControl extends HttpServletAdvanced {
     };
 
     private static Consumer<HttpServletRequest> currentAction = action;
+    private static Disposable workingStopAfterTimeout;
 
     static{
         LANGUAGES = getAllForJson(Arrays.stream(AppWeb.LANGUAGES).map(String::toUpperCase).toArray(String[]::new));
@@ -97,6 +113,11 @@ public class AppControl extends HttpServletAdvanced {
     protected void doPostAdvanced(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         currentAction.accept(req);
         resp.setStatus(HttpServletResponse.SC_ACCEPTED);
+    }
+
+    private static void disposeWorkingStopAfterTimeout(){
+        if(workingStopAfterTimeout != null && !workingStopAfterTimeout.isDisposed())
+            workingStopAfterTimeout.dispose();
     }
 
     private static int getInt(JSONArray ReceivedInputs, int Index) throws JSONException {
@@ -127,6 +148,7 @@ public class AppControl extends HttpServletAdvanced {
 
     private static void workingStopAfter(){
         currentAction = action;
+        disposeWorkingStopAfterTimeout();
     }
 
     public static boolean workingStop(){
