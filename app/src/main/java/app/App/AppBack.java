@@ -1443,8 +1443,8 @@ public class AppBack extends AppWeb {
             loader = onLoad;
 
             cleaningInBackground.add(() -> Main.loadPage(Panel.class),
-                    ()-> AppControl.workingStopAndLoaded(),
-                    ()-> AppControl.workingStopAndLoaded(),
+                    ()-> AppControl.workingStop(),
+                    ()-> AppControl.workingStop(),
                     AndroidSchedulers.mainThread(),
                     "LoadPanel-Error");
         }
@@ -1706,7 +1706,7 @@ public class AppBack extends AppWeb {
 
                         loadVideo(hol);
 
-                        AppControl.workingStopAndLoaded();
+                        AppControl.workingStop();
                     });
                 }
                 else
@@ -1715,7 +1715,7 @@ public class AppBack extends AppWeb {
 
                     loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),()->{});
 
-                    AppControl.workingStopAndLoaded();
+                    AppControl.workingStop();
                 }
             };
         }
@@ -1935,7 +1935,7 @@ public class AppBack extends AppWeb {
 
                         loadVideo(hol);
 
-                        AppControl.workingStopAndLoaded();
+                        AppControl.workingStop();
                     });
                 }
                 else
@@ -1947,7 +1947,7 @@ public class AppBack extends AppWeb {
 
                     loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),()->{});
 
-                    AppControl.workingStopAndLoaded();
+                    AppControl.workingStop();
                 }
 
                 try {

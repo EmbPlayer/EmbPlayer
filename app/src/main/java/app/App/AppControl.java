@@ -56,6 +56,16 @@ public class AppControl extends HttpServletAdvanced {
     private static final Consumer<HttpServletRequest> action = (req)-> {
         currentAction = emptyAction;
 
+        disposeWorkingStopAfterTimeout();
+        workingStopAfterTimeout = DisposableTools.addTaskAfterWait(
+                MAX_ACTION_WAIT_TIMEOUT,
+                ()->AppControl.workingStop(),
+                ()->{
+                    AppControl.workingStop();
+                    return "workStop";
+                },
+                forkJoinPool);
+
         ErrorCodeApp.postResiver = StaticFunctions.getInfo("currentAction")+System.lineSeparator();
         try {
             Wait.webUIWaitStart();
@@ -76,7 +86,6 @@ public class AppControl extends HttpServletAdvanced {
 
     private static Consumer<HttpServletRequest> currentAction = action;
     private static Disposable workingStopAfterTimeout;
-    private static boolean isLoaded;
 
     static{
         LANGUAGES = getAllForJson(Arrays.stream(AppWeb.LANGUAGES).map(String::toUpperCase).toArray(String[]::new));
@@ -149,12 +158,6 @@ public class AppControl extends HttpServletAdvanced {
         return true;
     }
 
-    public static boolean workingStopAndLoaded(){
-        workingStop();
-        isLoaded = true;
-        return true;
-    }
-
     public static boolean waitAndIsWorkingStop(){
         //isWorking.set(false);
         workingStopAfter();
@@ -201,39 +204,6 @@ public class AppControl extends HttpServletAdvanced {
     private static boolean clientAction(JSONArray Obj) throws JSONException, ExtractionException, IOException {
 
         int page = getInt(Obj,0);
-
-        disposeWorkingStopAfterTimeout();
-
-        if(page == (Action.sendFromSource | Action.sendVideoFromCollection) || (!app().setUp.get() && page == Action.sendURL))
-        {
-            isLoaded = false;
-            workingStopAfterTimeout = DisposableTools.addTask(()->{
-
-                for(int i = 0; i<MAX_ACTION_WAIT_TIMEOUT; i++){
-                    waitMS(1000);
-                    if(isLoaded)
-                    {
-                        break;
-                    }
-                }
-
-                AppControl.workingStop();
-
-                return true;
-            },()->{
-                AppControl.workingStop();
-                return "workingStop";
-            },forkJoinPool);
-        }
-        else
-            workingStopAfterTimeout = DisposableTools.addTaskAfterWait(
-                    MAX_ACTION_WAIT_TIMEOUT,
-                    ()->AppControl.workingStop(),
-                    ()->{
-                        AppControl.workingStop();
-                        return "workStop";
-                    },
-                    forkJoinPool);
 
         if(page == Action.sendLanguagesRefresh){
             Sources.getSourcesController().recreate(()->waitAndIsWorkingStop());
