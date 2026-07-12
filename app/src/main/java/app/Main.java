@@ -404,7 +404,7 @@ public class Main extends DefaultActivity {
             if(AppBack.Panel.check(BasePanel.PanelInfo.Created))
                 return;
 
-            app().reloadMedia(()->{
+            app().mediaReload.tryLoad(()->{
                 app().errorHandel.getSeek();
                 return true;
             },()->{});

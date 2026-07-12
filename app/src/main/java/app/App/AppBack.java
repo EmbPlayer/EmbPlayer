@@ -29,13 +29,13 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
 import app.BasePanel;
 import app.tools.AndroidOsUpdatesListener;
-import app.tools.DisposableTools;
 import app.tools.Generators.Requirements.GeneratorWithExpire;
 import app.tools.Generators.Requirements.MediaSourceProviders;
 import app.tools.Generators.SiteGenerator;
@@ -62,6 +62,7 @@ import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.functions.Action;
+import io.reactivex.rxjava3.functions.BiConsumer;
 import io.reactivex.rxjava3.functions.Consumer;
 import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
@@ -94,6 +95,7 @@ public class AppBack extends AppWeb {
     private static boolean appStarted;
 
     public final ChangeVideo videoChanger = new ChangeVideo();
+    public final MediaReload mediaReload = new MediaReload();
     private final Sender sender = new Sender();
 
     public AsyncRun errorHandel;
@@ -199,28 +201,6 @@ public class AppBack extends AppWeb {
                     },
                 () -> {}
         );
-    }
-
-    public void reloadMedia(Callable<Boolean> ifTrueMake, @NonNull Runnable onEnd) {
-        app().setUp.set(false);
-
-        closePanel(() -> {
-            try {
-                if (!ifTrueMake.call())
-                    return;
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-
-            errorHandel.currentRecover.currentStopAndResetState();
-            errorHandel.detection.stop();
-        }, () -> {
-            mediaKillOnly();
-
-            startPanel();
-
-            onEnd.run();
-        }, onEnd);
     }
 
     public void sendURLWithoutCleanData(Runnable task) {
@@ -850,6 +830,7 @@ public class AppBack extends AppWeb {
     }
     private void sendURLBeforeDestroy()
     {
+        mediaReload.reset();
         SData.resetToDefault();
 
         jsonSelectedRes = null;
@@ -977,29 +958,6 @@ public class AppBack extends AppWeb {
         else
             mediaPlayer.load();
     }
-    private void mediaKillOnly()
-    {
-        if(mediaIsNull())
-            return;
-
-        PlayerControllerBase oldPlayer = mediaPlayer;
-
-        videoChanger.disposeChanger();
-
-        globalGenerator.mediaErrorStop();
-
-        if(oldPlayer != null)
-        {
-            while (oldPlayer.notClosable())
-            {
-                waitMS(1500);
-            }
-
-            oldPlayer.release();
-        }
-
-        mediaPlayer = null;
-    }
 
     private void mediaSessionStop() {
         if(mediaIsNull())
@@ -1080,6 +1038,100 @@ public class AppBack extends AppWeb {
         public YoutubeGeneratorTryAndType(YoutubeGeneratorTry made,StreamingService.LinkType type){
             this.made = made;
             this.type = type;
+        }
+    }
+
+    public class MediaReload {
+
+        private final int MAX_TRY_COUNT = 3;
+        private final int MAX_TRY_CHECK_COUNT = 3;
+        private final AtomicBoolean isRan = new AtomicBoolean(false);
+
+        private int currentTryCounts;
+
+        private final BiConsumer<Callable<Boolean>,Runnable> tryingAfterFirstPlay = (ifTrueMake,onEnd)->{
+            if(isRan.getAndSet(true))
+                return;
+
+            tryBase(ifTrueMake,onEnd);
+        };
+
+        private final BiConsumer<Callable<Boolean>,Runnable> tryLoadDefault = (ifTrueMake,onEnd)->{
+            if(isRan.getAndSet(true))
+                return;
+
+            if(currentTryCounts<MAX_TRY_COUNT){
+                currentTryCounts++;
+                tryBase(ifTrueMake,onEnd);
+            }
+            else
+                sendURL();
+        };
+
+        private BiConsumer<Callable<Boolean>,Runnable> tryingCurrent = tryLoadDefault;
+
+        public void reset(){
+            currentTryCounts = 0;
+            isRan.set(false);
+            tryingCurrent = tryLoadDefault;
+        }
+
+        public void tryLoadAfterFirstPlay() {
+            tryingCurrent = tryingAfterFirstPlay;
+        }
+
+        public void tryLoad(Callable<Boolean> ifTrueMake, @NonNull Runnable onEnd){
+            try {
+                tryingCurrent.accept(ifTrueMake,onEnd);
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        private void mediaKillOnly()
+        {
+            if(!mediaIsNull()){
+                PlayerControllerBase oldPlayer = mediaPlayer;
+
+                videoChanger.disposeChanger();
+
+                globalGenerator.mediaErrorStop();
+
+                if(oldPlayer != null)
+                {
+                    for(int i = 0; i< MAX_TRY_CHECK_COUNT; i++){
+                        waitMS(1500);
+                        if(!oldPlayer.notClosable())
+                            break;
+                    }
+
+                    oldPlayer.release();
+                }
+
+                mediaPlayer = null;
+            }
+
+            isRan.set(false);
+        }
+
+        private void tryBase(Callable<Boolean> ifTrueMake, @NonNull Runnable onEnd) {
+            closePanel(() -> {
+                try {
+                    if (!ifTrueMake.call())
+                        return;
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+
+                errorHandel.currentRecover.currentStopAndResetState();
+                errorHandel.detection.stop();
+            }, () -> {
+                mediaKillOnly();
+
+                startPanel();
+
+                onEnd.run();
+            }, onEnd);
         }
     }
 
@@ -1499,7 +1551,7 @@ public class AppBack extends AppWeb {
         private final StaticFunctions.Starter onNotLoaded = new StaticFunctions.Starter() {
             @Override
             protected void firstLaunch() {
-                reloadMedia(()->{
+                mediaReload.tryLoad(()->{
                     if(onExo.cachingFailed())
                         return false;
 
@@ -2214,6 +2266,7 @@ public class AppBack extends AppWeb {
 
                                         if(mediaPlayer.firstPlayTrigger(50,500))
                                         {
+                                            mediaReload.tryLoadAfterFirstPlay();
                                             sender.sendUrlStartedReset();
                                             /*sender.SendUrlStartedResetWithoutUIReset();*/
                                         }
