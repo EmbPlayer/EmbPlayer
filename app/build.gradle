@@ -120,8 +120,8 @@ android {
         resValue "integer", "YoutubeAudioEngineID", "2"
         resValue "integer", "YoutubeVideoEngineID", "2"
 
-        versionName "1.01"    // digits of the *fractional part* shall NOT be > than "9"
-        versionCode 101
+        versionName "1.02"    // digits of the *fractional part* shall NOT be > than "9"
+        versionCode 102
         vectorDrawables.useSupportLibrary true
         multiDexEnabled true    // as we have over 65536 lines of code...
     }
