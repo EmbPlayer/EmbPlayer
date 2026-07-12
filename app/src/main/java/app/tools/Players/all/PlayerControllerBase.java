@@ -750,7 +750,7 @@ public abstract class PlayerControllerBase {
             seekSecond = mills;
             seekAndEnd.updateTemp(seekSecond);
         }
-        
+
         public long getMaxSeek()
         {
             return maxSeek;

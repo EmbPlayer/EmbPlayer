@@ -29,7 +29,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import androidx.annotation.CallSuper;
@@ -62,7 +61,6 @@ import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.functions.Action;
-import io.reactivex.rxjava3.functions.BiConsumer;
 import io.reactivex.rxjava3.functions.Consumer;
 import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
@@ -185,6 +183,7 @@ public class AppBack extends AppWeb {
     public void onMediaChanging(String url, MediaSourceProviders sourceProvider, String nameOfMedia) {
         cleaningInBackground.clear();
 
+        mediaReload.reset();
         closePanel(
                 () -> {
                     SData.resetToDefault();
@@ -198,7 +197,7 @@ public class AppBack extends AppWeb {
                             300,
                             ()-> loadData(url, sourceProvider,nameOfMedia),
                             ()->{},forkJoinPool,"loadNewMedia");
-                    },
+                },
                 () -> {}
         );
     }
@@ -1042,50 +1041,75 @@ public class AppBack extends AppWeb {
     }
 
     public class MediaReload {
-
         private final int MAX_TRY_COUNT = 3;
         private final int MAX_TRY_CHECK_COUNT = 3;
-        private final AtomicBoolean isRan = new AtomicBoolean(false);
 
+        // Standard variables are safe now because of the synchronized block
+        private boolean isRan;
         private int currentTryCounts;
 
-        private final BiConsumer<Callable<Boolean>,Runnable> tryingAfterFirstPlay = (ifTrueMake,onEnd)->{
-            if(isRan.getAndSet(true))
-                return;
+        private final Callable<Boolean> checkingOnlyIsRan = () -> isRan;
 
-            tryBase(ifTrueMake,onEnd);
-        };
+        private final Callable<Boolean> checkingMultiple = () -> {
+            if (isRan)
+                return true;
 
-        private final BiConsumer<Callable<Boolean>,Runnable> tryLoadDefault = (ifTrueMake,onEnd)->{
-            if(isRan.getAndSet(true))
-                return;
-
-            if(currentTryCounts<MAX_TRY_COUNT){
-                currentTryCounts++;
-                tryBase(ifTrueMake,onEnd);
-            }
-            else
+            if (currentTryCounts >= MAX_TRY_COUNT) {
                 sendURL();
+                return true;
+            }
+
+            currentTryCounts++;
+            return false;
         };
 
-        private BiConsumer<Callable<Boolean>,Runnable> tryingCurrent = tryLoadDefault;
+        private Callable<Boolean> checking = checkingMultiple;
 
-        public void reset(){
+        // Synchronize state changes
+        public synchronized void reset() {
             currentTryCounts = 0;
-            isRan.set(false);
-            tryingCurrent = tryLoadDefault;
+            isRan = false;
+            checking = checkingMultiple;
         }
 
-        public void tryLoadAfterFirstPlay() {
-            tryingCurrent = tryingAfterFirstPlay;
+        // Synchronize state changes
+        public synchronized void tryLoadAfterFirstPlay() {
+            checking = checkingOnlyIsRan;
         }
 
-        public void tryLoad(Callable<Boolean> ifTrueMake, @NonNull Runnable onEnd){
-            try {
-                tryingCurrent.accept(ifTrueMake,onEnd);
-            } catch (Throwable e) {
-                throw new RuntimeException(e);
+        public void tryLoad(Callable<Boolean> ifTrueMake, @NonNull Runnable onEnd) {
+            // Lock the critical check-and-update section so only one thread
+            // can enter at a time. This fixes the Samsung memory cache issue!
+            synchronized (this) {
+                try {
+                    if (checking.call())
+                        return;
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+
+                isRan = true;
             }
+
+            // Run tryBase OUTSIDE the synchronized block so it doesn't block
+            // other non-critical operations while the media loads.
+            closePanel(() -> {
+                try {
+                    if (!ifTrueMake.call())
+                        return;
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+
+                errorHandel.currentRecover.currentStopAndResetState();
+                errorHandel.detection.stop();
+            }, () -> {
+                mediaKillOnly();
+
+                startPanel();
+
+                onEnd.run();
+            }, onEnd);
         }
 
         private void mediaKillOnly()
@@ -1111,27 +1135,7 @@ public class AppBack extends AppWeb {
                 mediaPlayer = null;
             }
 
-            isRan.set(false);
-        }
-
-        private void tryBase(Callable<Boolean> ifTrueMake, @NonNull Runnable onEnd) {
-            closePanel(() -> {
-                try {
-                    if (!ifTrueMake.call())
-                        return;
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-
-                errorHandel.currentRecover.currentStopAndResetState();
-                errorHandel.detection.stop();
-            }, () -> {
-                mediaKillOnly();
-
-                startPanel();
-
-                onEnd.run();
-            }, onEnd);
+            isRan = false;
         }
     }
 
