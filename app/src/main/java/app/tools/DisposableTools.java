@@ -150,6 +150,46 @@ public class DisposableTools {
                 });
     }
 
+    public static Disposable addPollingTask(
+            Callable<Boolean> conditionToContinue,
+            Runnable onTick,
+            Runnable onComplete,
+            Callable<String> onError,
+            long intervalMs,
+            Scheduler scheduler) {
+
+        // Initial delay 0 so it starts checking immediately
+        return Observable.interval(0, intervalMs, TimeUnit.MILLISECONDS, Schedulers.computation())
+                .observeOn(scheduler)
+                .takeWhile(tick -> {
+                    try {
+                        return conditionToContinue.call();
+                    } catch (Exception e) {
+                        return false; // Stop polling if the condition check throws an error
+                    }
+                })
+                .doOnNext(tick -> {
+                    if (onTick != null) {
+                        try {
+                            onTick.run();
+                        } catch (Exception ignored) {}
+                    }
+                })
+                .doOnComplete(() -> {
+                    if (onComplete != null) {
+                        try {
+                            onComplete.run();
+                        } catch (Exception ignored) {}
+                    }
+                })
+                .doOnError(error -> {
+                    try {
+                        onErrorSave("PollingTask-" + onError.call() + ": ", error);
+                    } catch (Exception ignored) {}
+                })
+                .subscribe();
+    }
+
     private static Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Consumer<Boolean> onSuccess, Scheduler scheduler, int timeOutMS)
     {
         return Single.fromCallable(maker)

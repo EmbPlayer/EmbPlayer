@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Queue;
+import java.util.concurrent.Callable;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -173,6 +174,36 @@ public class Recyclable {
 
         public final void add(Runnable make, Runnable onError, Scheduler scheduler, String taskName) {
             list.add((index)->makeDisposable(index,make,onError,scheduler,taskName));
+        }
+
+        public final void addPolling(
+                Callable<Boolean> conditionToContinue,
+                Runnable onTick,
+                Runnable onComplete,
+                Runnable onError,
+                Runnable onDispose,
+                long intervalMs,
+                Scheduler scheduler,
+                String taskName) {
+
+            list.add((index) -> new DisposableOnDisposing(
+                    DisposableTools.addPollingTask(
+                            conditionToContinue,
+                            onTick,
+                            () -> {
+                                onComplete.run();
+                                remove(index);
+                            },
+                            () -> {
+                                onError.run();
+                                remove(index);
+                                return name + taskName;
+                            },
+                            intervalMs,
+                            scheduler
+                    ),
+                    onDispose
+            ));
         }
 
         public final void add(Runnable make, Scheduler scheduler, String taskName){

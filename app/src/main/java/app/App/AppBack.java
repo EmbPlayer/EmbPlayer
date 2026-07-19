@@ -92,6 +92,7 @@ public class AppBack extends AppWeb {
 
     private static boolean appStarted;
 
+    private final MediaStopOrSwitch onStop = new MediaStopOrSwitch();
     public final ChangeVideo videoChanger = new ChangeVideo();
     public final MediaReload mediaReload = new MediaReload();
     private final Sender sender = new Sender();
@@ -176,30 +177,8 @@ public class AppBack extends AppWeb {
             SData.resetToDefault();
             uiReset();
             detectionRecover();
-        }, () -> mediaSessionStop(), () -> {
+        }, () -> onStop.mediaSessionStop(), () -> {
         });
-    }
-
-    public void onMediaChanging(String url, MediaSourceProviders sourceProvider, String nameOfMedia) {
-        cleaningInBackground.clear();
-
-        mediaReload.reset();
-        closePanel(
-                () -> {
-                    SData.resetToDefault();
-                    uiReset();
-                    detectionRecover();
-                },
-                () -> {
-                    mediaSessionStop();
-
-                    cleaningInBackground.addStartAfterTimeout(
-                            300,
-                            ()-> loadData(url, sourceProvider,nameOfMedia),
-                            ()->{},forkJoinPool,"loadNewMedia");
-                },
-                () -> {}
-        );
     }
 
     public void sendURLWithoutCleanData(Runnable task) {
@@ -264,15 +243,14 @@ public class AppBack extends AppWeb {
         return false;
     }
 
-
     public void startFromCollection(int tableIndex, String id) throws ExtractionException, IOException {
 
         isSavable.set(false);
-        sender.sendUrlStart(() -> {
+        sender.onMediaChangingUse(() -> {
 
             String[] all = savedLinks.getAllColumnValuesById(LinksDbHelper.getTableNamesAsString()[tableIndex], id);
 
-            onMediaChanging(all[1], MediaSourceProviders.values()[Integer.parseInt(all[2])], all[0]);
+            onStop.onMediaChanging(all[1], MediaSourceProviders.values()[Integer.parseInt(all[2])], all[0]);
 
             return true;
         }, () -> "StartFromCollection-Error");
@@ -282,7 +260,7 @@ public class AppBack extends AppWeb {
 
         isSavable.set(false);
 
-        sender.sendUrlStart(() -> {
+        sender.onMediaChangingUse(() -> {
 
             Sources.Source selectedSource = Sources.getSourcesController().getSource(sourceName);
             boolean isRadio = sourceName != null && sourceName.endsWith("_Radio");
@@ -350,7 +328,7 @@ public class AppBack extends AppWeb {
                                         extractorExpirePattern(subDirectory.getString("defaultPatternExtractExpire"));
 
                                         MediaData finalLink = link;
-                                        onMediaChanging(finalLink.directory, finalLink.provider, finalLink.name);
+                                        onStop.onMediaChanging(finalLink.directory, finalLink.provider, finalLink.name);
                                         return true;
                                     }
                                 }
@@ -382,7 +360,7 @@ public class AppBack extends AppWeb {
 
             MediaData finalLink1 = link;
 
-            onMediaChanging(finalLink1.directory, finalLink1.provider, finalLink1.name);
+            onStop.onMediaChanging(finalLink1.directory, finalLink1.provider, finalLink1.name);
 
             return true;
         }, () -> "StartFromJson-Error");
@@ -394,6 +372,7 @@ public class AppBack extends AppWeb {
     }
 
     public void sendURLClose(String url) {
+        cleaningInBackground.clear();
         isSavable.set(true);
 
         sender.sendUrlStart(() -> {
@@ -588,7 +567,7 @@ public class AppBack extends AppWeb {
             errorHandel.detection.dynamicTryCount = 300;
         }
 
-        return true;
+        return false;
     }
 
     public void startVideo() {
@@ -815,9 +794,7 @@ public class AppBack extends AppWeb {
     {
         onExo.cachingFailed(false);
 
-        mediaSessionStop();
-
-        AppControl.waitAndIsWorkingStop();
+        onStop.mediaSessionStopAndWaitAndIsWorkingStop();
     }
     private void sendURLBeforeDestroyWithoutCleanData()
     {
@@ -958,60 +935,6 @@ public class AppBack extends AppWeb {
             mediaPlayer.load();
     }
 
-    private void mediaSessionStop() {
-        if(mediaIsNull())
-            return;
-
-        errorHandel.posSaved = false;
-
-        badSoundFixer.run();
-
-        Runnable playListClean = YoutubePlayList.softDispose();
-        killAll(errorHandel.mediaBuffering, errorHandel.mediaGetSeek);
-
-        Generator oldGenerator = globalGenerator;
-        globalGenerator = null;
-        PlayerControllerBase oldPlayer = mediaPlayer;
-
-        videoChanger.disposeChanger();
-
-        Generator generatorC = oldGenerator;
-        Runnable playlistC = playListClean;
-
-        if(oldPlayer !=null)
-        {
-            while (oldPlayer.notClosable())
-            {
-                if(generatorC != null){
-                    generatorC.kill();
-                    generatorC = null;
-                }
-                else if(playlistC != null)
-                {
-                    playlistC.run();
-                    playlistC = null;
-                }
-                else
-                {
-                    waitMS(1500);
-                }
-            }
-
-            oldPlayer.release();
-        }
-
-        if(generatorC != null){
-            generatorC.kill();
-        }
-
-        if(playlistC != null)
-        {
-            playlistC.run();
-        }
-
-        mediaPlayer = null;
-    }
-
     private void onErrorFail(Exception e)
     {
         onErrorSave("AppBack-OnError",e);
@@ -1094,48 +1017,71 @@ public class AppBack extends AppWeb {
             // Run tryBase OUTSIDE the synchronized block so it doesn't block
             // other non-critical operations while the media loads.
             closePanel(() -> {
-                try {
-                    if (!ifTrueMake.call())
-                        return;
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
+                        try {
+                            if (!ifTrueMake.call())
+                                return;
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
 
-                errorHandel.currentRecover.currentStopAndResetState();
-                errorHandel.detection.stop();
-            }, () -> {
-                mediaKillOnly();
-
-                startPanel();
-
-                onEnd.run();
-            }, onEnd);
+                        detectionRecover();
+                    },
+                    () ->{
+                        mediaKillOnly(()->{
+                            startPanel();
+                            onEnd.run();
+                        });
+                    },
+                    onEnd);
         }
-
-        private void mediaKillOnly()
-        {
-            if(!mediaIsNull()){
-                PlayerControllerBase oldPlayer = mediaPlayer;
-
-                videoChanger.disposeChanger();
-
-                globalGenerator.mediaErrorStop();
-
-                if(oldPlayer != null)
-                {
-                    for(int i = 0; i< MAX_TRY_CHECK_COUNT; i++){
-                        waitMS(1500);
-                        if(!oldPlayer.notClosable())
-                            break;
-                    }
-
-                    oldPlayer.release();
-                }
-
-                mediaPlayer = null;
+        private void mediaKillOnly(Runnable onComplete){
+            if(mediaIsNull()){
+                isRan = false;
+                onComplete.run();
+                return;
             }
 
+            PlayerControllerBase oldPlayer = mediaPlayer;
+
+            videoChanger.disposeChanger();
+
+            globalGenerator.mediaErrorStop();
+
+            if(oldPlayer != null)
+            {
+                Runnable onComp = ()->{
+                    oldPlayer.release();
+                    mediaPlayer = null;
+                    isRan = false;
+                    onComplete.run();
+                };
+
+                Callable<Boolean> check = new Callable<Boolean>() {
+                    private int i;
+                    @Override
+                    public Boolean call() throws Exception {
+                        boolean result = oldPlayer.notClosable() && i < MAX_TRY_CHECK_COUNT;
+                        i++;
+                        return result;
+                    }
+                };
+
+                cleaningInBackground.addPolling(
+                        check,
+                        ()->{},
+                        onComp,
+                        ()->{},
+                        ()->{},
+                        1500,
+                        forkJoinPool,
+                        "mediaKillOnly");
+
+                return;
+            }
+
+            mediaPlayer = null;
             isRan = false;
+            onComplete.run();
         }
     }
 
@@ -2530,20 +2476,15 @@ public class AppBack extends AppWeb {
     }
     public static class Sender
     {
-        private final StaticFunctions.ActionWait sender;
+        private final SenderFuncuanality sender;
 
         public Sender()
         {
-            sender = new StaticFunctions.ActionWait(){
+            sender = new SenderFuncuanality();
+        }
 
-                @Override
-                public void onDispose()
-                {
-                    super.onDispose();
-                    app().closeDataAndPanelWithoutWaitReset();
-                    waitMS(300);
-                }
-            };
+        public synchronized void onMediaChangingUse(Callable<Boolean> Base, Callable<String> OnError) {
+            sender.onMediaChangingUse(Base,OnError);
         }
 
         public synchronized void sendUrlStart(Callable<Boolean> Base, Callable<String> OnError) {
@@ -2561,6 +2502,31 @@ public class AppBack extends AppWeb {
         public synchronized void sendUrlStartedResetOnlyBoolean()
         {
             sender.resetStateAndUIWait();
+        }
+
+        private class SenderFuncuanality extends StaticFunctions.ActionWait{
+
+            private void onDisposeBase(){
+                super.onDispose();
+            }
+
+            @Override
+            public void onDispose()
+            {
+                onDisposeBase();
+                app().closeDataAndPanelWithoutWaitReset();
+                waitMS(300);
+            }
+
+            public synchronized void onMediaChangingUse(Callable<Boolean> Base, Callable<String> OnError){
+                if (isActivated())
+                    return;
+
+                activate();
+
+                onDisposeBase();
+                run(Base,OnError);
+            }
         }
     }
     private static class BadSoundFixer extends StaticFunctions.Starter
@@ -2588,6 +2554,150 @@ public class AppBack extends AppWeb {
             reset();
         }
     }
+
+    private class MediaStopOrSwitch {
+        private final MediaStop mediaStop = new MediaStop();
+        private final WaitAndIsWorkingStop mediaStopAndWait = new WaitAndIsWorkingStop();
+        private final OnMediaChanging mediaStopAndMediaChange = new OnMediaChanging();
+
+        private String url;
+        private MediaSourceProviders sourceProvider;
+        private String nameOfMedia;
+
+        public void mediaSessionStopAndWaitAndIsWorkingStop(){
+            reset();
+            mediaStopAndWait.mediaSessionStopBase();
+        }
+
+        public void mediaSessionStop(){
+            mediaStop.mediaSessionStopBase();
+        }
+
+        public void onMediaChanging(String url, MediaSourceProviders sourceProvider, String nameOfMedia) {
+            mediaStopAndMediaChange.onMediaChanging(url,sourceProvider,nameOfMedia);
+        }
+
+        private void reset(){
+            url = null;
+            sourceProvider = null;
+            nameOfMedia = null;
+        }
+
+        public class MediaStop{
+            final void mediaSessionStopBase(){
+
+                if(mediaIsNull()){
+                    make();
+                    return;
+                }
+
+                errorHandel.posSaved = false;
+
+                badSoundFixer.run();
+
+                StaticFunctions.Starter tick = new StaticFunctions.Starter() {
+                    private Runnable playListClean;
+                    private Generator oldGenerator;
+
+                    @Override
+                    protected void firstLaunch() {
+                        playListClean = YoutubePlayList.softDispose();
+                        killAll(errorHandel.mediaBuffering, errorHandel.mediaGetSeek);
+
+                        oldGenerator = globalGenerator;
+                        globalGenerator = null;
+                    }
+
+                    @Override
+                    protected void secondLaunches() {
+                        if(oldGenerator != null){
+                            oldGenerator.kill();
+                            oldGenerator = null;
+                        }
+                        if(playListClean != null)
+                        {
+                            playListClean.run();
+                            playListClean = null;
+                        }
+                    }
+                };
+                tick.run();
+
+                PlayerControllerBase oldPlayer = mediaPlayer;
+
+                videoChanger.disposeChanger();
+
+                if(oldPlayer !=null){
+                    cleaningInBackground.addPolling(
+                            ()->oldPlayer.notClosable(),
+                            tick,
+                            ()->{
+
+                                tick.run();
+                                oldPlayer.release();
+                                mediaPlayer = null;
+                                make();
+                            },
+                            ()->{},
+                            ()->{},
+                            1500,
+                            forkJoinPool,
+                            "mediaSessionStop"
+                    );
+                    return;
+                }
+
+                tick.run();
+                mediaPlayer = null;
+                make();
+            }
+
+            protected void make(){}
+        }
+
+        public class WaitAndIsWorkingStop extends MediaStop{
+            @Override
+            protected void make(){
+                AppControl.waitAndIsWorkingStop();
+            }
+        }
+
+        public class OnMediaChanging extends MediaStop{
+
+            public void onMediaChanging(String url, MediaSourceProviders sourceProvider, String nameOfMedia) {
+                reset();
+                cleaningInBackground.clear();
+
+                MediaStopOrSwitch.this.url = url;
+                MediaStopOrSwitch.this.sourceProvider = sourceProvider;
+                MediaStopOrSwitch.this.nameOfMedia = nameOfMedia;
+
+                mediaReload.reset();
+                closePanel(
+                        () -> {
+                            SData.resetToDefault();
+                            uiReset();
+                            detectionRecover();
+                        },
+                        () -> mediaSessionStopBase(),
+                        () -> {}
+                );
+            }
+
+            @Override
+            protected void make(){
+                try {
+                    waitMS(100);
+                    if(loadData(url, sourceProvider,nameOfMedia))
+                        mediaSessionStopBase();
+                }
+                catch (Exception e){
+                    mediaSessionStopBase();
+                }
+            }
+        }
+    }
+
     public static class MediaData{
         private final String name;
         private final String directory;

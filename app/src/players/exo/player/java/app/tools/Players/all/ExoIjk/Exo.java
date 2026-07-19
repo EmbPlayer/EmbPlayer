@@ -256,7 +256,7 @@ public abstract class Exo extends Player {
     @Override
     protected void pauseBeforeRelease(){}
 
-    @Override
+    /*@Override
     public void release()
     {
         super.release();
@@ -283,6 +283,41 @@ public abstract class Exo extends Player {
         }
         catch (Exception e) {
             onErrorSave("ExPlayer-Release-Error",e);
+        }
+
+        onReleased();
+    }*/
+
+    @Override
+    public void release()
+    {
+        super.release();
+
+        // Capture local reference
+        HandlerCustom handler = playerHandler;
+
+        if(handler == null) {
+            onReleased();
+            return;
+        }
+
+        try {
+            makeTry(() -> {
+                if(media == null) return;
+
+                beforeClean();
+                WeakReference<ExoPlayer> selected = new WeakReference<>(media);
+                media = null;
+
+                if (selected.get() != null)
+                    selected.get().release();
+            });
+
+            // Use the local reference instead of playerHandler
+            handler.clean();
+        }
+        catch (Exception e) {
+            onErrorSave("ExPlayer-Release-Error", e);
         }
 
         onReleased();
@@ -327,7 +362,7 @@ public abstract class Exo extends Player {
     private void makeTry(Runnable tryMake){
         makeTry(tryMake,-1);
     }
-
+/*
     private <T> T makeTry(Callable<T> tryGetFromExoThread,T onFalse, int maxWaitSeconds) {
         AtomicReference<T> wait = new AtomicReference<>(null);
 
@@ -362,6 +397,50 @@ public abstract class Exo extends Player {
         catch (Exception e)
         {
             onErrorSave("ExPlayer-Try",e);
+            return onFalse;
+        }
+
+        return onFalse;
+    }*/
+
+    private <T> T makeTry(Callable<T> tryGetFromExoThread, T onFalse, int maxWaitSeconds) {
+        // 1. Capture a local reference to avoid concurrent modification nulls
+        HandlerCustom handler = playerHandler;
+
+        // 2. Safely abort if the handler is already cleaned up
+        if (handler == null) {
+            return onFalse;
+        }
+
+        AtomicReference<T> wait = new AtomicReference<>(null);
+
+        // 3. Use the local reference
+        handler.post(() -> {
+            try {
+                wait.set(tryGetFromExoThread.call());
+            } catch (Exception e) {
+                wait.set(onFalse);
+            }
+        });
+
+        try {
+            if(maxWaitSeconds == -1) {
+                while (true) {
+                    waitMS(100);
+                    T curr = wait.get();
+                    if(curr != null) return curr;
+                }
+            }
+
+            maxWaitSeconds = maxWaitSeconds * 10;
+
+            for(int p = 0; p < maxWaitSeconds; p++) {
+                waitMS(100);
+                T curr = wait.get();
+                if(curr != null) return curr;
+            }
+        } catch (Exception e) {
+            onErrorSave("ExPlayer-Try", e);
             return onFalse;
         }
 
@@ -425,8 +504,19 @@ public abstract class Exo extends Player {
             return looper;
         }
 
+        /*public void clean()
+        {
+            playerHandlerr = null;
+            looper = null;
+        }*/
+
         public void clean()
         {
+            // Quit the underlying thread loop to prevent severe memory/thread leaks
+            if (looper != null) {
+                looper.quitSafely();
+            }
+
             playerHandlerr = null;
             looper = null;
         }

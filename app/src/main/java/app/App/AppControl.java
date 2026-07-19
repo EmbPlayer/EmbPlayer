@@ -25,6 +25,7 @@ import org.schabi.newpipe.extractor.exceptions.ExtractionException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Scanner;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import javax.servlet.http.HttpServletRequest;
@@ -49,22 +50,20 @@ import static server.Home.app;
 
 public class AppControl extends HttpServletAdvanced {
 
-    private static final int MAX_ACTION_WAIT_TIMEOUT = 10000;
+    private static final int MAX_ACTION_WAIT_TIMEOUT = 4000;
     private static final String[] LANGUAGES;
 
-    private static final Consumer<HttpServletRequest> emptyAction = (httpServletRequest)->{};
+    private static Disposable workingStopAfterTimeout;
+    private static final Consumer<HttpServletRequest> emptyAction = (httpServletRequest)->{
+        if(workingStopAfterTimeout == null || workingStopAfterTimeout.isDisposed()){
+            workingStopAfterTimeoutStart();
+        }
+    };
     private static final Consumer<HttpServletRequest> action = (req)-> {
         currentAction = emptyAction;
 
         disposeWorkingStopAfterTimeout();
-        workingStopAfterTimeout = DisposableTools.addTaskAfterWait(
-                MAX_ACTION_WAIT_TIMEOUT,
-                ()->AppControl.workingStop(),
-                ()->{
-                    AppControl.workingStop();
-                    return "workStop";
-                },
-                forkJoinPool);
+        workingStopAfterTimeoutStart();
 
         ErrorCodeApp.postResiver = StaticFunctions.getInfo("currentAction")+System.lineSeparator();
         try {
@@ -85,7 +84,6 @@ public class AppControl extends HttpServletAdvanced {
     };
 
     private static Consumer<HttpServletRequest> currentAction = action;
-    private static Disposable workingStopAfterTimeout;
 
     static{
         LANGUAGES = getAllForJson(Arrays.stream(AppWeb.LANGUAGES).map(String::toUpperCase).toArray(String[]::new));
@@ -120,6 +118,22 @@ public class AppControl extends HttpServletAdvanced {
             workingStopAfterTimeout.dispose();
     }
 
+    private static void actionReset(){
+        currentAction = action;
+        disposeWorkingStopAfterTimeout();
+    }
+
+    private static void workingStopAfterTimeoutStart(){
+        workingStopAfterTimeout = DisposableTools.addTaskAfterWait(
+                MAX_ACTION_WAIT_TIMEOUT,
+                ()->AppControl.workingStop(),
+                ()->{
+                    AppControl.workingStop();
+                    return "workStop";
+                },
+                forkJoinPool);
+    }
+
     private static int getInt(JSONArray ReceivedInputs, int Index) throws JSONException {
         return Integer.parseInt(getString(ReceivedInputs,Index));
     }
@@ -147,8 +161,7 @@ public class AppControl extends HttpServletAdvanced {
     }
 
     private static void workingStopAfter(){
-        currentAction = action;
-        disposeWorkingStopAfterTimeout();
+        actionReset();
     }
 
     public static boolean workingStop(){

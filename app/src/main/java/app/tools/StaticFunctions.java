@@ -475,7 +475,6 @@ public class StaticFunctions {
             return 20000;
         }
 
-        @CallSuper
         protected synchronized void onDispose()
         {
             stopCurrent();
