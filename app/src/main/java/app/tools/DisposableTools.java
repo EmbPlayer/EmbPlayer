@@ -132,7 +132,7 @@ public class DisposableTools {
 
     public static Disposable addTask(Callable<Boolean> maker, Callable<String> onError, Scheduler scheduler)
     {
-        return addTaskWithTimeOut(maker,onError,(onSuccess)->{},scheduler,60000);
+        return addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,scheduler,60000);
     }
 
     public static Disposable addTaskUI(Callable<Boolean> maker,Callable<String> onError) {
