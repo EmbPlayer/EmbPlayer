@@ -55,7 +55,7 @@ public abstract class Vlc extends Player
     private Disposable voutDisposable;
     private LibVLC libVLC;
     private ArrayList<String> vlcOptions;
-    private Runnable displayFixSecond = ()->{};
+    private Runnable displayFixSecond = StaticFunctions.Empty.r;
     private Disposable displayFix;
     private IVLCVout holderOfVLC;
     private SurfaceHolder holder;
