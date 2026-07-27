@@ -127,7 +127,6 @@ public class AppControl extends HttpServletAdvanced {
     private static void workingStopAfterTimeoutStart(){
         workingStopAfterTimeout = DisposableTools.addTaskAfterWait(
                 MAX_ACTION_WAIT_TIMEOUT,
-                ()->AppControl.workingStop(),
                 ()->{
                     stop.run();
                     return true;
