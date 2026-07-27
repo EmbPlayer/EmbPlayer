@@ -237,6 +237,32 @@ public class Recyclable {
             });
         }
 
+        private Disposable makeDisposable(int index,Runnable make, Runnable onError, Scheduler scheduler, String taskName){
+            return addTask(()->{
+                make.run();
+                remove(index);
+                return true;
+            },()->{
+                onError.run();
+                remove(index);
+                return name+taskName;
+            },scheduler);
+        }
+
+        private Disposable makeDisposable(int index,Runnable make,
+                                          Runnable onError,Runnable onNotStartedAndTimeOuted,
+                                          Scheduler scheduler,String taskName,int timeOutMS) {
+            return addTaskWithTimeOut(()->{
+                make.run();
+                remove(index);
+                return true;
+            },()->{
+                onError.run();
+                remove(index);
+                return name+taskName;
+            },StaticFunctions.Empty.rC,onNotStartedAndTimeOuted,scheduler,timeOutMS);
+        }
+
         private void remove(int index){
 
             Disposable current = null;
