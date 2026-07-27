@@ -259,6 +259,12 @@ public class DisposableTools {
                     }
                 });
     }
+
+    private static Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Consumer<Boolean> onSuccess, Scheduler scheduler, int timeOutMS)
+    {
+        return addTaskWithTimeOut(maker,onError,onSuccess,StaticFunctions.Empty.r,scheduler,timeOutMS);
+    }
+
     private static Scheduler forkJoinPoolMakerDefault(int priority,boolean fifo)
     {
         return Schedulers.from(new java.util.concurrent.ForkJoinPool(
