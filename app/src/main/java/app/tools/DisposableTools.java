@@ -242,7 +242,7 @@ public class DisposableTools {
                 .subscribe();
     }
 
-    private static Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Consumer<Boolean> onSuccess, Scheduler scheduler, int timeOutMS)
+    public static Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Consumer<Boolean> onSuccess,Runnable onNotStartedAndTimeOuted, Scheduler scheduler, int timeOutMS)
     {
         return Single.fromCallable(maker)
                 .subscribeOn(scheduler) // Run the task on a background thread
