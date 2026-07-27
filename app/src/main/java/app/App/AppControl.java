@@ -50,7 +50,7 @@ import static server.Home.app;
 
 public class AppControl extends HttpServletAdvanced {
 
-    private static final int MAX_ACTION_WAIT_TIMEOUT = 4000;
+    private static final int MAX_ACTION_WAIT_TIMEOUT = 3000;
     private static final String[] LANGUAGES;
 
     private static Disposable workingStopAfterTimeout;
