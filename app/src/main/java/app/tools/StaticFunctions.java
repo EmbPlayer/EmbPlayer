@@ -261,7 +261,6 @@ public class StaticFunctions {
     }
 
     public static abstract class StarterBase implements Runnable{
-        private final static Runnable empty = ()->{};
         protected Runnable run;
 
         public StarterBase(){
