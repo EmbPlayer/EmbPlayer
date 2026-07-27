@@ -1076,7 +1076,7 @@ public class AppBack extends AppWeb {
 
                 cleaningInBackground.addPolling(
                         check,
-                        ()->{},
+                        StaticFunctions.Empty.r,
                         onComp,
                         ()->{},
                         ()->{},
