@@ -39,6 +39,7 @@ import org.apache.commons.net.ntp.TimeInfo;
 import java.net.InetAddress;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static app.Main.getContext;
 import static app.tools.DisposableTools.addTask;
