@@ -72,7 +72,7 @@ public class AppControl extends HttpServletAdvanced {
 
             JSONArray jsonArray = new JSONArray(new Scanner(req.getInputStream()).nextLine());
 
-            actions.add(()->{
+            actions.addWithOnTimeOut(()->{
                 try {
                     clientAction(jsonArray);
                 } catch (JSONException | ExtractionException | IOException e) {
