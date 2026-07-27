@@ -250,7 +250,7 @@ public class StaticFunctions {
         public void post(Runnable task){
             run = ()->{
                 task.run();
-                run = empty;
+                run = Empty.r;
             };
         }
 
