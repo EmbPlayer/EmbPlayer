@@ -88,7 +88,7 @@ public class ExoIjkPlayers extends IjkPlayers {
     }
 
     @OptIn(markerClass = UnstableApi.class)
-    private static void addDataBase(boolean urlCaching, boolean youtubeCaching, ExoPlayer media, String mediaLinkPure, boolean isLive, boolean videoOnly)
+    private static void addDataBase(boolean caching, ExoPlayer media, String mediaLinkPure, boolean isLive, boolean videoOnly)
     {
         //String mediaLink = MediaProxyServlet.getPure(mediaLinkPure,videoOnly);
         String mediaLink = mediaLinkPure;
