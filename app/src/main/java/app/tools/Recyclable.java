@@ -223,7 +223,7 @@ public class Recyclable {
         }
 
         public final void addUI(Runnable make, String taskName){
-            this.addUI(make,()->{},taskName);
+            this.addUI(make,StaticFunctions.Empty.r,taskName);
         }
 
         public final void clear(){
