@@ -404,6 +404,10 @@ public class AppWeb{
         {
             this.cachingFailed = cachingFailed;
         }
+
+        public enum Types{
+            Youtube,URL
+        }
     }
 
     public static class IJKPlayerOnly
