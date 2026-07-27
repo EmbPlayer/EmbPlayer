@@ -202,6 +202,10 @@ public class AppBack extends AppWeb {
         });
     }
 
+    public void forceStopActivate(){
+        onStop.mediaForceStopActivate();
+    }
+
     public void nullDisplay() {
         if (mediaIsNull()) return;
         ((IVideoPlayer) mediaPlayer).nullDisplay();
