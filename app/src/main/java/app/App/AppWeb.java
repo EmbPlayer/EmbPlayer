@@ -373,7 +373,6 @@ public class AppWeb{
         private boolean temp;
         public final ButtonBoolean youtubeCaching;
         public final ButtonBoolean urlCaching;
-
         public ExoPlayerOnly()
         {
             youtubeCaching = new SavedButtonBoolean(SData.Data.YoutubeCaching,false);
