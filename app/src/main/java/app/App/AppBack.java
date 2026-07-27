@@ -1078,8 +1078,8 @@ public class AppBack extends AppWeb {
                         check,
                         StaticFunctions.Empty.r,
                         onComp,
-                        ()->{},
-                        ()->{},
+                        StaticFunctions.Empty.r,
+                        StaticFunctions.Empty.r,
                         1500,
                         forkJoinPool,
                         "mediaKillOnly");
