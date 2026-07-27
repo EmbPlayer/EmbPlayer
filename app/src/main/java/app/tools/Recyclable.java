@@ -172,6 +172,10 @@ public class Recyclable {
             list.add((index)->makeDisposable(index,make,onError,scheduler,taskName));
         }
 
+        public final void addWithOnTimeOut(Runnable make, Runnable onError,Runnable onNotStartedAndTimeOuted, Scheduler scheduler, String taskName,int timeOutMS) {
+            list.add((index)->makeDisposable(index,make,onError,onNotStartedAndTimeOuted,scheduler,taskName,timeOutMS));
+        }
+
         public final void addPolling(
                 Callable<Boolean> conditionToContinue,
                 Runnable onTick,
