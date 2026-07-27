@@ -1813,7 +1813,7 @@ public class AppBack extends AppWeb {
 
                     //if(timer.Get())
 
-                    loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),()->{});
+                    loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),StaticFunctions.Empty.r);
 
                     errorHandel.posSaved = false;
                     localGenerator.mediaError.started = false;
