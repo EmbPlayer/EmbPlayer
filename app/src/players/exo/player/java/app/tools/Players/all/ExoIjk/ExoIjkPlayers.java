@@ -118,7 +118,7 @@ public class ExoIjkPlayers extends IjkPlayers {
             return;
         }
 
-        addDataBase(app().onExo.urlCaching.get(), app().onExo.youtubeCaching.get(),media,audioOrBase,isLive,videoOnly);
+        addDataBase(app().onExo.getTemp(),media,audioOrBase,isLive,videoOnly);
     }
 
     private static class ExoAudio extends Audio<PlayerController.ExoInner> {
