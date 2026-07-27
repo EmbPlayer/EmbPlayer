@@ -156,6 +156,10 @@ public class Recyclable {
             },scheduler));
         }
 
+        public final void add(Runnable make, Scheduler scheduler, String taskName){
+            this.add(make,StaticFunctions.Empty.r,scheduler,taskName);
+        }
+
         public final void add(Runnable make,Runnable onDisposing, Runnable onError, Scheduler scheduler, String taskName) {
             list.add((index)->new DisposableOnDisposing(makeDisposable(index,make,onError,scheduler,taskName),onDisposing));
         }
