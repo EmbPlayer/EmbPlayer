@@ -495,7 +495,7 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
                     // 4. Subscribe and define the action for each interval
                     .subscribe(tick -> {
                         // This block executes every SYNC_INTERVAL_MS on the Main Thread
-                        if(!displayOFF())
+                        if(!displayOFF() && notEnd())
                             performSyncCheck();
                         else
                             delayDetector.dispose();
