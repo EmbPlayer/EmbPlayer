@@ -52,6 +52,7 @@ public class AppControl extends HttpServletAdvanced {
 
     private static final int MAX_ACTION_WAIT_TIMEOUT = 3000;
     private static final String[] LANGUAGES;
+    private static final Runnable stop = () -> app().forceStopActivate();
 
     private static Disposable workingStopAfterTimeout;
     private static final Consumer<HttpServletRequest> emptyAction = (httpServletRequest)->{
