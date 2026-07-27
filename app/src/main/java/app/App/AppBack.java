@@ -460,6 +460,7 @@ public class AppBack extends AppWeb {
         playlist.set(false);
         timer.set(true);
         onExo.cachingFailed(false);
+        onExo.setTemp(ExoPlayerOnly.Types.URL);
 
         errorHandel.detection.detectionSeconds = 5;
         errorHandel.detection.dynamicDetectionDelayMS = 500;
