@@ -122,7 +122,7 @@ public class BaseServer extends ServiceBackgroud {
             return;
 
         tasks.add(()->{
-            app().sendURLWithoutCleanData(()->{});
+            app().sendURLWithoutCleanData(StaticFunctions.Empty.r);
             super.onDestroy();
         },forServer,"onDestroying");
     }

@@ -208,7 +208,7 @@ public abstract class BasePanel extends DefaultActivity {
             panelBlackScreenClose.run();
             panelInfo = PanelInfo.notCreated;
 
-            //waitMS(100);
+            waitMS(100);
             onDestroy_.run();
         });
 

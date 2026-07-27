@@ -637,8 +637,8 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
     }
 
     public static class ConnectivityManagerM extends ConnectivityManager.NetworkCallback {
-        private static Consumer<Network> onCon = (network)->{};
-        private static Runnable onLos = ()->{};
+        private static Consumer<Network> onCon = StaticFunctions.Empty.c;
+        private static Runnable onLos = StaticFunctions.Empty.r;
 
         @Override
         public void onAvailable(Network network) {

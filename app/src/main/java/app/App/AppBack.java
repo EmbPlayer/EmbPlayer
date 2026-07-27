@@ -781,15 +781,13 @@ public class AppBack extends AppWeb {
             beforeOnDestroy.run();
 
             if(Panel.panelIsNull()){
-                onDestroy.run();
-                //cleaningInBackground.addStartAfterWait(50,onDestroy,StaticFunctions.Empty.r,forGenerators,"onDestroyMedia");
+                cleaningInBackground.addStartAfterWait(50,onDestroy,StaticFunctions.Empty.r,forGenerators,"onDestroyMedia");
                 return;
             }
 
             try {
                 Panel.close(()->{
-                    cleaningInBackground.add(onDestroy,StaticFunctions.Empty.r,forGenerators,"onDestroyMedia");
-                    //cleaningInBackground.addStartAfterWait(50,onDestroy,StaticFunctions.Empty.r,forGenerators,"onDestroyMedia");
+                    cleaningInBackground.addStartAfterWait(50,onDestroy,StaticFunctions.Empty.r,forGenerators,"onDestroyMedia");
                 }).accept(cleaningInBackground);
             } catch (Throwable e) {
                 throw new RuntimeException(e);

@@ -69,7 +69,7 @@ public class EmptyActivity {
         }
 
         public static class LoadWithPost extends StaticFunctions.Starter {
-            private Runnable make = ()->{};
+            private Runnable make = StaticFunctions.Empty.r;
 
             public void post(Runnable make){
                 this.make = make;
