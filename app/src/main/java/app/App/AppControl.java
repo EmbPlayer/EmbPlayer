@@ -78,7 +78,7 @@ public class AppControl extends HttpServletAdvanced {
                 } catch (JSONException | ExtractionException | IOException e) {
                     workingStopAfter();
                 }
-            },()->waitAndIsWorkingStop(),forServer,"ClientAction-Error");
+            },()->waitAndIsWorkingStop(),stop,forServer,"ClientAction-Error",5000);
         } catch (Exception e) {
             workingStopAfter();
         }
