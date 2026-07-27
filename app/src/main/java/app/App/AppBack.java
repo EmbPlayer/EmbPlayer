@@ -472,6 +472,7 @@ public class AppBack extends AppWeb {
                 if (!Connection.isHaveInternet())
                     return AppControl.waitAndIsWorkingStop();
 
+                onExo.setTemp(ExoPlayerOnly.Types.Youtube);
                 legacyYoutubePlayer.reset();
                 PlayersCollection audioOrVideoP;
                 PlayersCollection videoP = null;
