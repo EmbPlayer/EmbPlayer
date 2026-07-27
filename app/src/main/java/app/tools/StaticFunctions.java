@@ -317,6 +317,13 @@ public class StaticFunctions {
         }
     }
 
+    public static class Empty{
+        public final static Runnable r = ()->{};
+        public final static Action a = ()->{};
+        public final static Consumer c = (n)->{};
+        public final static io.reactivex.rxjava3.functions.Consumer rC = (n)->{};
+    }
+
     public static abstract class StarterWithBoolean implements Callable<Boolean> {
 
         private final AtomicReference<Callable<Boolean>> run = new AtomicReference<>();
