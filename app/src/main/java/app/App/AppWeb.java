@@ -379,6 +379,21 @@ public class AppWeb{
             urlCaching = new SavedButtonBoolean(SData.Data.URLCaching,false);
         }
 
+        public void setTemp(Types type){
+            switch (type)
+            {
+                case URL:
+                    temp = urlCaching.get();
+
+                case Youtube:
+                    temp = youtubeCaching.get();
+            }
+        }
+
+        public boolean getTemp(){
+            return temp;
+        }
+
         public boolean cachingFailed()
         {
             return cachingFailed;
