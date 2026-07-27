@@ -94,7 +94,7 @@ public class ExoIjkPlayers extends IjkPlayers {
         String mediaLink = mediaLinkPure;
 
         if(getSourceType() == MediaSourceProviders.YOUTUBE)
-            if(youtubeCaching)
+            if(caching)
                 media.setMediaSource(new YouTubeMediaSourceBuilder(Main.getContext()).buildMediaSource(mediaLink,isLive,videoOnly));
             else
                 media.setMediaItem(new MediaItem.Builder()
