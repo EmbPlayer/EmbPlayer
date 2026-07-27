@@ -788,7 +788,8 @@ public class AppBack extends AppWeb {
 
             try {
                 Panel.close(()->{
-                    cleaningInBackground.addStartAfterTimeout(50,onDestroy,()->{},forGenerators,"onDestroyMedia");
+                    cleaningInBackground.add(onDestroy,StaticFunctions.Empty.r,forGenerators,"onDestroyMedia");
+                    //cleaningInBackground.addStartAfterWait(50,onDestroy,StaticFunctions.Empty.r,forGenerators,"onDestroyMedia");
                 }).accept(cleaningInBackground);
             } catch (Throwable e) {
                 throw new RuntimeException(e);
