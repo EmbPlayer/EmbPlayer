@@ -128,7 +128,11 @@ public class AppControl extends HttpServletAdvanced {
                 MAX_ACTION_WAIT_TIMEOUT,
                 ()->AppControl.workingStop(),
                 ()->{
-                    AppControl.workingStop();
+                    stop.run();
+                    return true;
+                },
+                ()->{
+                    stop.run();
                     return "workStop";
                 },
                 forkJoinPool);
