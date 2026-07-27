@@ -102,7 +102,7 @@ public class ExoIjkPlayers extends IjkPlayers {
                         .setMimeType(MimeTypes.APPLICATION_MP4) // Optional but recommended
                         .build());
         else
-        if(urlCaching)
+        if(caching)
             media.setMediaSource(new GenericMediaSourceBuilder(Main.getContext()).buildMediaSource(mediaLink,isLive,videoOnly));
         else
             media.setMediaItem(new MediaItem.Builder()
