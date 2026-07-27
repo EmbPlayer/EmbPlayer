@@ -114,7 +114,7 @@ public class ExoIjkPlayers extends IjkPlayers {
     private static void addDataBase(ExoPlayer media, String audioOrBase, boolean isLive, boolean videoOnly)
     {
         if(app().onExo.cachingFailed()){
-            addDataBase(false,false,media,audioOrBase,isLive,videoOnly);
+            addDataBase(false,media,audioOrBase,isLive,videoOnly);
             return;
         }
 
