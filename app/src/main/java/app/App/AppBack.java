@@ -2575,6 +2575,10 @@ public class AppBack extends AppWeb {
             mediaStopAndMediaChange.onMediaChanging(url,sourceProvider,nameOfMedia);
         }
 
+        public void mediaForceStopActivate(){
+            mediaPlayer.activateForceRelease();
+        }
+
         private void reset(){
             url = null;
             sourceProvider = null;
