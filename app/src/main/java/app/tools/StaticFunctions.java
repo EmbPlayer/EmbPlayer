@@ -245,8 +245,7 @@ public class StaticFunctions {
     }
 
     public static class StarterPost implements Runnable{
-        private final static Runnable empty = ()->{};
-        protected Runnable run = ()->{};
+        protected Runnable run = Empty.r;
 
         public void post(Runnable task){
             run = ()->{
