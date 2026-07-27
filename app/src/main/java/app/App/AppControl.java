@@ -135,7 +135,8 @@ public class AppControl extends HttpServletAdvanced {
                     stop.run();
                     return "workStop";
                 },
-                forkJoinPool);
+                stop,
+                forkJoinPool,500);
     }
 
     private static int getInt(JSONArray ReceivedInputs, int Index) throws JSONException {
