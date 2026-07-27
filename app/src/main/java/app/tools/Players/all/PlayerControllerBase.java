@@ -480,29 +480,7 @@ public abstract class PlayerControllerBase {
     }
     protected void onEnded()
     {
-        end(()->{
-
-            //GetSeekAfterIsPlayingDynamic();
-            if (getCurrentPosition()<(getDuration()-1500))
-                return false;
-
-            //GetSeekAfterIsPlayingDynamic()
-
-            if (baseData().getLoop()){
-                PlayerControllerBase.this.waitActionCompleteAndStart(()-> PlayerControllerBase.this.start(0));
-                return false;
-            }
-
-            if(baseData().getPlayListLoop()){
-                listeners.onPlayListLoop();
-                return false;
-            }
-
-            mediaStop();
-            listeners.onCompletionListener();
-
-            return true;
-        });
+        end(()->notEnd());
     }
     protected boolean notEnd(){
         if(getCurrentPosition()<(getDuration()-1500))
