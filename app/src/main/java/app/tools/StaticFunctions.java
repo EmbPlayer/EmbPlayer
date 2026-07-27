@@ -276,7 +276,7 @@ public class StaticFunctions {
 
         public final void emptySet()
         {
-            run = empty;
+            run = Empty.r;
         }
     }
 
