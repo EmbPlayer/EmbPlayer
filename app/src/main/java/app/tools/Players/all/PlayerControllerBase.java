@@ -179,6 +179,10 @@ public abstract class PlayerControllerBase {
         System.gc();
     }
 
+    public final void activateForceRelease(){
+        baseData().waitSeek.currentStopAndResetState();
+    }
+
     public final void load()
     {
         baseData().waitSeek.actionStart(()->{
