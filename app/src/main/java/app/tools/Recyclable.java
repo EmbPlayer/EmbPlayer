@@ -206,10 +206,6 @@ public class Recyclable {
             ));
         }
 
-        public final void add(Runnable make, Scheduler scheduler, String taskName){
-            this.add(make,()->{},scheduler,taskName);
-        }
-
         public final void addUI(Runnable make, Runnable onError, String taskName) {
             list.add((index)->addTask(()->{
                 make.run();
