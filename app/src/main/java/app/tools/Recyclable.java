@@ -164,16 +164,8 @@ public class Recyclable {
             list.add((index)->new DisposableOnDisposing(makeDisposable(index,make,onError,scheduler,taskName),onDisposing));
         }
 
-        private Disposable makeDisposable(int index,Runnable make, Runnable onError, Scheduler scheduler, String taskName){
-            return addTask(()->{
-                make.run();
-                remove(index);
-                return true;
-            },()->{
-                onError.run();
-                remove(index);
-                return name+taskName;
-            },scheduler);
+        public final void addWithOnTimeOut(Runnable make,Runnable onDisposing, Runnable onError,Runnable onNotStartedAndTimeOuted, Scheduler scheduler, String taskName,int timeOutMS){
+            list.add((index)->new DisposableOnDisposing(makeDisposable(index,make,onError,onNotStartedAndTimeOuted,scheduler,taskName,timeOutMS),onDisposing));
         }
 
         public final void add(Runnable make, Runnable onError, Scheduler scheduler, String taskName) {
