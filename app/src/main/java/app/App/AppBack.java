@@ -1562,7 +1562,7 @@ public class AppBack extends AppWeb {
                     } catch (Exception e) {
                         onErrorFail(e);
                     }
-                },() -> reset(),()->{},forGenerators,"OnErrorListener");
+                },() -> reset(),StaticFunctions.Empty.r,forGenerators,"OnErrorListener");
             }
 
             @Override
