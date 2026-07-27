@@ -249,7 +249,12 @@ public class DisposableTools {
                 .timeout(timeOutMS, TimeUnit.MILLISECONDS,Schedulers.computation()) // The "Self-Destruct" timer
                 .subscribe(onSuccess, onError_ -> {
                     try{
-                        onErrorSave("BaseDisposable-"+onError.call()+": ",onError_);
+                        if(onError_ instanceof java.util.concurrent.TimeoutException &&
+                        onNotStartedAndTimeOuted != StaticFunctions.Empty.r){
+                            onNotStartedAndTimeOuted.run();
+                        }
+                        else
+                            onErrorSave("BaseDisposable-"+onError.call()+": ",onError_);
                     } catch (Exception ignored) {
                     }
                 });
