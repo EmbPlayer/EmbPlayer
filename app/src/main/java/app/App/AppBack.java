@@ -1634,7 +1634,7 @@ public class AppBack extends AppWeb {
                 cleaningInBackground.add(()->{
                     ListenersYoutube.super.onPlayListLoop();
                     videoChanger.updateChanger(1,10,1000);
-                },()->reset(),()->{},forkJoinPool,"PlayListLoop");
+                },()->reset(),StaticFunctions.Empty.r,forkJoinPool,"PlayListLoop");
             }
 
             @Override
