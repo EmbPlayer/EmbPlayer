@@ -407,7 +407,7 @@ public class Main extends DefaultActivity {
             app().mediaReload.tryLoad(()->{
                 app().errorHandel.getSeek();
                 return true;
-            },()->{});
+            },StaticFunctions.Empty.r);
 
             /*
             TextView codeOut = main.findViewById(R.id.code);
