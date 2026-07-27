@@ -370,6 +370,7 @@ public class AppWeb{
     public static class ExoPlayerOnly
     {
         private boolean cachingFailed;
+        private boolean temp;
         public final ButtonBoolean youtubeCaching;
         public final ButtonBoolean urlCaching;
 
