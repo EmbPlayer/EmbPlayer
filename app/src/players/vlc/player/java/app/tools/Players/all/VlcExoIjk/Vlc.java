@@ -564,7 +564,7 @@ public abstract class Vlc extends Player
         if(displayFix!=null&&!displayFix.isDisposed())
             displayFix.dispose();
 
-        displayFixSecond = ()->{};
+        displayFixSecond = StaticFunctions.Empty.r;
 
         if(holderOfVLC ==null)
             return;
