@@ -2636,8 +2636,8 @@ public class AppBack extends AppWeb {
                                 mediaPlayer = null;
                                 make();
                             },
-                            ()->{},
-                            ()->{},
+                            StaticFunctions.Empty.r,
+                            StaticFunctions.Empty.r,
                             1500,
                             forkJoinPool,
                             "mediaSessionStop"
