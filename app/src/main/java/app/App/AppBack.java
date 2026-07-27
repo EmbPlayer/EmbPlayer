@@ -1684,7 +1684,7 @@ public class AppBack extends AppWeb {
                 if(seek == 0)
                     seek = 1;
                 return seek;
-            },()->{});
+            },StaticFunctions.Empty.r);
         }
 
         protected void resetPlayer(@NonNull GeneratorWithExpire generatorWithExpire)
