@@ -1513,20 +1513,10 @@ public class AppBack extends AppWeb {
                     if(onExo.cachingFailed())
                         return false;
 
-                    if(getSavedSource() == MediaSourceProviders.YOUTUBE)
-                    {
-                        if(onExo.youtubeCaching.get())
-                            onExo.cachingFailed(true);
-                        else
-                            return false;
-                    }
+                    if(onExo.getTemp())
+                        onExo.cachingFailed(true);
                     else
-                    {
-                        if(onExo.urlCaching.get())
-                            onExo.cachingFailed(true);
-                        else
-                            return false;
-                    }
+                        return false;
 
                     return true;
                 },()->reset());
