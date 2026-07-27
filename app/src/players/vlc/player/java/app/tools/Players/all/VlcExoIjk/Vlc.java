@@ -496,7 +496,7 @@ public abstract class Vlc extends Player
                 make.run();
                 displayFixSecond.run();
 
-                displayFixSecond = ()->{};
+                displayFixSecond = StaticFunctions.Empty.r;
                 displayFix.dispose();
                 return true;
             },()->"DisplayFix");
