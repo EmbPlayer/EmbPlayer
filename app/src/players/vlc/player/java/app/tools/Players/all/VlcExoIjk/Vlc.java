@@ -40,7 +40,6 @@ import app.tools.StaticFunctions;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import server.tools.MediaProxyServlet;
-import server.web.ErrorCodeApp;
 
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.addTaskUI;
