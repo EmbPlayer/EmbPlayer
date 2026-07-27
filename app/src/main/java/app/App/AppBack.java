@@ -2135,7 +2135,7 @@ public class AppBack extends AppWeb {
                             cleaningInBackground.addStartAfterWait(2000,()->{
                                 errorHandel.errorFixerIsRan = false;
                                 currentRecover.currentStopAndResetStateAndUIWait();
-                            },()->{},forkJoinPool,"RecoverError-After-2-Seconds-Delay");
+                            },StaticFunctions.Empty.r,forkJoinPool,"RecoverError-After-2-Seconds-Delay");
                         }
                     }, () -> "RecoverError");
 
