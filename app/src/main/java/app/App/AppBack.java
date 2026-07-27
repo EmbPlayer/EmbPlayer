@@ -1945,7 +1945,7 @@ public class AppBack extends AppWeb {
                     mediaPlayer = globalGenerator.startPanel(false,l.getLoop(),l.getPlayListLoop());
                     //urlPlayer.Load();
 
-                    loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),()->{});
+                    loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),StaticFunctions.Empty.r);
 
                     AppControl.workingStop();
                 }
