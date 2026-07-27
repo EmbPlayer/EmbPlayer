@@ -136,7 +136,59 @@ public class DisposableTools {
     }
 
     public static Disposable addTaskUI(Callable<Boolean> maker,Callable<String> onError) {
-        return addTaskWithTimeOut(maker,onError,(onSuccess)->{},AndroidSchedulers.mainThread(),4000);
+        return addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,AndroidSchedulers.mainThread(),4000);
+    }
+
+    public static Disposable addTaskAfterWait(
+            int afterMills,
+            Callable<Boolean> make,
+            Callable<String> onError,
+            Runnable onNotStartedAndTimeOuted,
+            Scheduler scheduler,
+            int timeOut
+    ) {
+        // 1. WAIT: Start the timer and wait 'afterMills'
+        return Completable.timer(afterMills, TimeUnit.MILLISECONDS, Schedulers.computation())
+
+                // 2. TRY TO EXECUTE: andThen() waits for the timer above to finish before continuing
+                .andThen(
+                        Single.fromCallable(make)
+                                // Request execution on your specific thread
+                                .subscribeOn(scheduler)
+                                // 3. TIMEOUT: Start the clock. If it can't finish (or can't start)
+                                // within 'timeOut', it throws a TimeoutException.
+                                .timeout(timeOut, TimeUnit.MILLISECONDS, Schedulers.computation())
+                )
+                .subscribe(
+                        // On Success: Task completed within the time limit
+                        result -> {
+                            // Assuming StaticFunctions.Empty.a is a Consumer
+                            // StaticFunctions.Empty.a.accept(result);
+                        },
+
+                        // On Error / Timeout
+                        (Throwable onError_) -> {
+                            if (onError_ instanceof java.util.concurrent.TimeoutException &&
+                                    onNotStartedAndTimeOuted != null) { // Swap back to StaticFunctions.Empty.r if needed
+
+                                // It couldn't execute in time, run the fallback runnable
+                                onNotStartedAndTimeOuted.run();
+
+                            } else {
+                                // A real error happened during execution
+                                String errorTag = "Unknown";
+                                try {
+                                    if (onError != null) {
+                                        errorTag = onError.call();
+                                    }
+                                } catch (Exception e) {
+                                    errorTag = "ErrorResolvingName";
+                                }
+
+                                onErrorSave("BaseDisposable-" + errorTag + ": ", onError_);
+                            }
+                        }
+                );
     }
 
     public static Disposable addTaskAfterWait(int afterMills, Action make, Callable<String> onError, Scheduler scheduler){
