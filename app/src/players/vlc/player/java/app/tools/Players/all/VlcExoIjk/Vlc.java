@@ -52,6 +52,8 @@ import static app.tools.StaticFunctions.onErrorSave;
 
 public abstract class Vlc extends Player
 {
+    //TODO: Fix critical VLC bug where native media-changing/closing errors interrupt the entire application
+
     protected MediaPlayer media;
 
     protected final HandleVoutReady handleVoutReady = new HandleVoutReady();
