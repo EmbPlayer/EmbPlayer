@@ -51,7 +51,10 @@ public class AppControl extends HttpServletAdvanced {
 
     private static final int MAX_ACTION_WAIT_TIMEOUT = 3000;
     private static final String[] LANGUAGES;
-    private static final Runnable stop = () -> app().forceStopActivate();
+    private static final Runnable workingStopAfterTimeoutStartOnEnd = () -> {
+        app().forceStopActivate();
+        actionReset();
+    };
 
     private static Disposable workingStopAfterTimeout;
     private static final Consumer<HttpServletRequest> emptyAction = (httpServletRequest)->{
@@ -77,7 +80,10 @@ public class AppControl extends HttpServletAdvanced {
                 } catch (JSONException | ExtractionException | IOException e) {
                     workingStopAfter();
                 }
-            },()->waitAndIsWorkingStop(),stop,forServer,"ClientAction-Error",5000);
+            },()->waitAndIsWorkingStop(),()->{
+                app().forceStopActivate();
+                waitAndIsWorkingStop();
+            },forServer,"ClientAction-Error",5000);
         } catch (Exception e) {
             workingStopAfter();
         }
@@ -120,21 +126,20 @@ public class AppControl extends HttpServletAdvanced {
 
     private static void actionReset(){
         currentAction = action;
-        disposeWorkingStopAfterTimeout();
     }
 
     private static void workingStopAfterTimeoutStart(){
         workingStopAfterTimeout = DisposableTools.addTaskAfterWait(
                 MAX_ACTION_WAIT_TIMEOUT,
                 ()->{
-                    stop.run();
+                    workingStopAfterTimeoutStartOnEnd.run();
                     return true;
                 },
                 ()->{
-                    stop.run();
+                    workingStopAfterTimeoutStartOnEnd.run();
                     return "workStop";
                 },
-                stop,
+                workingStopAfterTimeoutStartOnEnd,
                 forkJoinPool,500);
     }
 
@@ -166,6 +171,7 @@ public class AppControl extends HttpServletAdvanced {
 
     private static void workingStopAfter(){
         actionReset();
+        disposeWorkingStopAfterTimeout();
     }
 
     public static boolean workingStop(){
