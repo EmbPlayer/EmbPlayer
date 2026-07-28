@@ -96,10 +96,7 @@ public abstract class VlcExoIjkPlayerControllerBase extends ExoIjkPlayerControll
                             break;
 
                         case MediaPlayer.Event.Vout:
-                            if(event.getVoutCount() > 0)
-                            {
-                                handleVoutReady();
-                            }
+                            handleVoutReady.handleVoutReady();
                             break;
 
                         case MediaPlayer.Event.ESAdded:

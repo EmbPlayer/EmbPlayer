@@ -31,19 +31,21 @@ import org.videolan.libvlc.interfaces.IVLCVout;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
+import java.util.concurrent.Callable;
 
 import app.App.AppBack;
 import app.Main;
+import app.tools.DisposableTools;
 import app.tools.Players.all.Player;
 
 import app.tools.StaticFunctions;
-import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import server.tools.MediaProxyServlet;
 
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.addTaskUI;
 import static app.tools.DisposableTools.forSecondMedia;
+import static app.tools.DisposableTools.forkJoinPool;
 import static app.tools.DisposableTools.ioThreadPoolScheduler;
 import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.onErrorSave;
@@ -51,6 +53,8 @@ import static app.tools.StaticFunctions.onErrorSave;
 public abstract class Vlc extends Player
 {
     protected MediaPlayer media;
+
+    protected final HandleVoutReady handleVoutReady = new HandleVoutReady();
 
     private Disposable voutDisposable;
     private LibVLC libVLC;
@@ -294,6 +298,7 @@ public abstract class Vlc extends Player
             libVLC = new LibVLC(Main.getContext(),vlcOptions);
 
             media = new MediaPlayer(libVLC);
+            handleVoutReady.maker.reset();
             if(holder!=null)
             {
                 //Pair<Integer, Integer> dimensions = getScreenDimensions();
@@ -333,6 +338,7 @@ public abstract class Vlc extends Player
     @Override
     public WeakReference<MediaPlayer> resetGC()
     {
+        handleVoutReady.dispose();
         super.resetGC();
         WeakReference<MediaPlayer> oldData =  new WeakReference<>(media);
 
@@ -346,6 +352,7 @@ public abstract class Vlc extends Player
     @Override
     public void reset()
     {
+        handleVoutReady.dispose();
         super.reset();
         media.stop();
     }
@@ -353,6 +360,7 @@ public abstract class Vlc extends Player
     @Override
     public void release()
     {
+        handleVoutReady.dispose();
         super.release();
         audioLink = null;
 
@@ -438,7 +446,7 @@ public abstract class Vlc extends Player
     /**
      * Handles Vout event - handles screen rotation properly
      */
-    protected void handleVoutReady() {
+    /*protected void handleVoutReady() {
         if (voutDisposable != null && !voutDisposable.isDisposed()) {
             voutDisposable.dispose();
         }
@@ -484,7 +492,7 @@ public abstract class Vlc extends Player
                             applyVideoDimensionsWithRotation(0, 0);
                         }
                 );
-    }
+    }*/
 
     private void displayUpdate(Runnable make)
     {
@@ -571,5 +579,100 @@ public abstract class Vlc extends Player
 
         holderOfVLC.detachViews();
         holderOfVLC = null;
+    }
+
+    public class HandleVoutReady{
+        private boolean isFound;
+        private int retryCount = 0;
+        private final Callable<Boolean> conditionToContinue = ()->{
+            if (retryCount >= 15 || isFound) {
+                return false; // Stop polling
+            }
+
+            try {
+                if (Vlc.this.media == null) {
+                    return false; // Stop if media has been destroyed
+                }
+
+                IMedia iMedia = Vlc.this.media.getMedia();
+                if (iMedia != null && !iMedia.isReleased()) {
+                    iMedia.parse();
+
+                    int trackCount = iMedia.getTrackCount();
+                    for (int i = 0; i < trackCount; i++) {
+                        IMedia.Track track = iMedia.getTrack(i);
+                        if (track instanceof IMedia.VideoTrack) {
+                            IMedia.VideoTrack videoTrack = (IMedia.VideoTrack) track;
+                            if (videoTrack.width > 0 && videoTrack.height > 0) {
+                                // Dimensions found! Apply them immediately.
+                                isFound = true;
+                                int w = videoTrack.width;
+                                int h = videoTrack.height;
+
+                                applyVideoDimensionsWithRotation(w, h);
+                                AppBack.Panel.setOnRotate(() -> applyVideoDimensionsWithRotation(w, h));
+
+                                return false; // Return false to stop polling
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                onErrorSave("voutDisposable", e);
+            }
+
+            retryCount++;
+            return retryCount < 15; // Continue polling if under 15 retries
+        };
+        private final Runnable onComplete = () -> {
+            // If it finished 15 retries without finding the dimensions, apply the fallback
+            if (!isFound) {
+                applyVideoDimensionsWithRotation(0, 0);
+            }
+        };
+
+        private final StaticFunctions.Starter maker = new StaticFunctions.Starter() {
+            @Override
+            protected void firstLaunch() {
+                if(holder==null)
+                    return;
+
+                isFound = false;
+                retryCount = 0;
+
+                voutDisposable = DisposableTools.addTaskAfterWait(500,()-> voutDisposable = DisposableTools.addPollingTask(
+                        // 1. conditionToContinue (runs every 150ms)
+                        conditionToContinue,
+                        // 2. onTick
+                        StaticFunctions.Empty.r, // Not needed, we do the work inside conditionToContinue
+                        // 3. onComplete
+                        onComplete,
+                        // 4. onError
+                        () -> "voutReadyTask",
+                        // 5. intervalMs
+                        150,
+                        // 6. scheduler
+                        forkJoinPool
+                ),()->"VoutDisposableTimeOut",forkJoinPool);
+            }
+
+            @Override
+            protected void secondLaunches() {
+
+            }
+        };
+
+        protected void dispose(){
+            if (voutDisposable != null && !voutDisposable.isDisposed()) {
+                voutDisposable.dispose();
+            }
+        }
+
+        /**
+         * Handles Vout event - handles screen rotation properly
+         */
+        protected void handleVoutReady() {
+            maker.run();
+        }
     }
 }

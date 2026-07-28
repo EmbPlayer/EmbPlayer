@@ -60,6 +60,7 @@ import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.exceptions.UndeliverableException;
 import io.reactivex.rxjava3.functions.Action;
 import io.reactivex.rxjava3.functions.Consumer;
 import io.reactivex.rxjava3.functions.Function;
@@ -2308,8 +2309,24 @@ public class AppBack extends AppWeb {
 
                 StaticFunctions.onThrows(thread,throwable);
             });
-            RxJavaPlugins.setErrorHandler((error)->{
-                onErrorSave("RX-UndeliverableException",error);
+
+            // Call this ONCE early in Application.onCreate()
+            RxJavaPlugins.setErrorHandler(error -> {
+                try {
+                    // 1. Unwrap the outer UndeliverableException wrapper
+                    if (error instanceof UndeliverableException) {
+
+                        // 2. Safely call your logging method
+                        onErrorSave("RX-UndeliverableException", error);
+                        return;
+                    }
+
+                    StaticFunctions.onThrows(Thread.currentThread(),error);
+                } catch (Throwable t) {
+                    StaticFunctions.onThrows(Thread.currentThread(),t);
+                    // 3. Catch any error inside your logger to prevent app crashes
+                    //Log.e("RxJavaErrorHandler", "Failed to save error log", t);
+                }
             });
             mediaBuffering = new WaitDisposable(300);
             mediaGetSeek = new WaitDisposable(100);
