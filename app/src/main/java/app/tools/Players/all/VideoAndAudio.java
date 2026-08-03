@@ -33,7 +33,6 @@ import app.tools.Players.PlayerController;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Scheduler;
 import io.reactivex.rxjava3.disposables.Disposable;
-import server.web.ErrorCodeApp;
 import server.web.Wait;
 
 import static app.tools.DisposableTools.addTask;
@@ -495,7 +494,7 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
                     // 4. Subscribe and define the action for each interval
                     .subscribe(tick -> {
                         // This block executes every SYNC_INTERVAL_MS on the Main Thread
-                        if(!displayOFF() && notEnd())
+                        if(!displayOFF() && !isCanBeEnd())
                             performSyncCheck();
                         else
                             delayDetector.dispose();

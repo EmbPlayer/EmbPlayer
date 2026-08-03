@@ -29,12 +29,16 @@ import androidx.annotation.CallSuper;
 import app.services.BaseServer;
 import app.tools.Generators.Requirements.Piped.VideoQuality;
 import app.tools.Generators.YoutubeGenerator;
+import app.tools.Players.PlayerControllerChangeable;
 import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.exceptions.UndeliverableException;
 import io.reactivex.rxjava3.functions.Action;
 import server.web.Wait;
 
 import org.apache.commons.net.ntp.NTPUDPClient;
 import org.apache.commons.net.ntp.TimeInfo;
+import org.eclipse.jetty.io.EofException;
+
 import java.net.InetAddress;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,14 +49,30 @@ import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.forkJoinPool;
 
 public class StaticFunctions {
-    public static void onThrows(Thread thread, Throwable throwable) {
-        String errorFrom = "UncaughtException: ";
-        saveError(errorFrom + StaticFunctions.getFullReport(errorFrom,thread,throwable, getContext()));
-        BaseServer.restart();
+    public static void onThrows(Thread thread, Throwable throwable){
+        onThrows("UncaughtException: ",thread,throwable);
     }
     public static void onThrows(Throwable throwable) {
-        onErrorSave("UncaughtException: ",throwable);
-        BaseServer.restart();
+        onThrows("UncaughtException: ",throwable);
+    }
+
+    public static void onThrows(String errorName,Thread thread, Throwable throwable) {
+        try {
+            saveError(errorName + StaticFunctions.getFullReport(errorName,thread,throwable, getContext()));
+            checkAndRestart(throwable);
+        }
+        catch (Exception e){
+            checkAndRestart(e);
+        }
+    }
+    public static void onThrows(String errorName,Throwable throwable) {
+        try {
+            onErrorSave(errorName,throwable);
+            checkAndRestart(throwable);
+        }
+        catch (Exception e){
+            checkAndRestart(e);
+        }
     }
     public static void onErrorSave(String errorFrom, Throwable throwable)
     {
@@ -74,6 +94,22 @@ public class StaticFunctions {
         return getFullReport(name,Thread.currentThread(),null,null);
     }
 
+    private static void checkAndRestart(Throwable throwable){
+        try {
+            if(throwable instanceof UndeliverableException)
+                return;
+
+            if(throwable instanceof EofException)
+                return;
+
+            if (PlayerControllerChangeable.isNotHaveErrorFromPlayers(throwable))
+                return;
+
+            BaseServer.restart();
+        } catch (Exception e) {
+            checkAndRestart(e);
+        }
+    }
     private static String getFullReport(String title,Thread currentThread, Throwable throwable, Context context) {
         StringBuilder report = new StringBuilder();
 

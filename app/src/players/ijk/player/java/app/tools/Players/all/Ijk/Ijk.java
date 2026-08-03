@@ -611,7 +611,7 @@ public abstract class Ijk extends Player
     }
 
     @Override
-    public long getDuration()
+    public long modifyGetDuration()
     {
         if(isNull())
             return 0;
@@ -633,12 +633,12 @@ public abstract class Ijk extends Player
 
     @Override
     @CallSuper
-    public void start()
+    public void modifyStart()
     {
         media.start();
     }
 
-    public final void start(long seek)
+    public final void modifyStart(long seek)
     {
         if(onEndTriggered(seek))
             return;
@@ -652,13 +652,13 @@ public abstract class Ijk extends Player
     }
 
     @Override
-    public boolean isPlaying()
+    public boolean modifyIsPlaying()
     {
         return media.isPlaying();
     }
 
     @Override
-    public boolean isNull()
+    public boolean modifyIsNull()
     {
         return media==null;
     }
@@ -682,13 +682,13 @@ public abstract class Ijk extends Player
     }
 
     @Override
-    public void pause()
+    public void modifyPause()
     {
         media.pause();
     }
 
     @Override
-    public long getCurrentPosition()
+    public long modifyGetCurrentPosition()
     {
         if(isNull())
             return 0;
@@ -697,7 +697,7 @@ public abstract class Ijk extends Player
     }
 
     @Override
-    protected void pauseBeforeRelease() {
+    protected void modifyPauseBeforeRelease() {
         if(media==null)
             return;
 
@@ -777,7 +777,7 @@ public abstract class Ijk extends Player
     }
 
     @Override
-    public void setVolume(float volume) {
+    public void modifySetVolume(float volume) {
         if(isNull())
             return;
 

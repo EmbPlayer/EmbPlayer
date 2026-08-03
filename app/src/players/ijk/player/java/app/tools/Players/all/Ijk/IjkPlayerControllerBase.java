@@ -51,8 +51,8 @@ public abstract class IjkPlayerControllerBase extends OemPlayerControllerBase {
         }
 
         @Override
-        public final void start() {
-            super.start();
+        public final void modifyStart() {
+            super.modifyStart();
             panelFix.run();
         }
 

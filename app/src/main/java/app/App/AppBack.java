@@ -19,6 +19,8 @@
 package app.App;
 
 import com.emb.player.R;
+
+import org.eclipse.jetty.io.EofException;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -204,7 +206,11 @@ public class AppBack extends AppWeb {
     }
 
     public void forceStopActivate(){
-        onStop.mediaForceStopActivate();
+        try {
+            if(mediaPlayer!=null)
+                onStop.mediaForceStopActivate();
+        }
+        catch (Exception e){}
     }
 
     public void nullDisplay() {
@@ -2301,33 +2307,17 @@ public class AppBack extends AppWeb {
 
         public AsyncRun()
         {
-            //ErrorCodeApp.code4 = "";
             Thread.setDefaultUncaughtExceptionHandler((thread, throwable) ->
+                    StaticFunctions.onThrows(thread,throwable));
+
+            RxJavaPlugins.setErrorHandler(error ->
             {
-                if (PlayerControllerChangeable.isNotHaveErrorFromPlayers(throwable))
-                    return;
-
-                StaticFunctions.onThrows(thread,throwable);
-            });
-
-            // Call this ONCE early in Application.onCreate()
-            RxJavaPlugins.setErrorHandler(error -> {
                 try {
-                    // 1. Unwrap the outer UndeliverableException wrapper
-                    if (error instanceof UndeliverableException) {
-
-                        // 2. Safely call your logging method
-                        onErrorSave("RX-UndeliverableException", error);
-                        return;
-                    }
-
-                    StaticFunctions.onThrows(Thread.currentThread(),error);
-                } catch (Throwable t) {
-                    StaticFunctions.onThrows(Thread.currentThread(),t);
-                    // 3. Catch any error inside your logger to prevent app crashes
-                    //Log.e("RxJavaErrorHandler", "Failed to save error log", t);
+                    onErrorSave("RX-UndeliverableException",error);
                 }
+                catch (Exception e){}
             });
+
             mediaBuffering = new WaitDisposable(300);
             mediaGetSeek = new WaitDisposable(100);
             detection = new PlayerFreezeDetection();

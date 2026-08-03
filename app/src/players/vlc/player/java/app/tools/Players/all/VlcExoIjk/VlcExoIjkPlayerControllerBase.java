@@ -117,7 +117,7 @@ public abstract class VlcExoIjkPlayerControllerBase extends ExoIjkPlayerControll
         }
 
         @Override
-        public long getDuration()
+        public long modifyGetDuration()
         {
             if(isNull())
                 return 0;

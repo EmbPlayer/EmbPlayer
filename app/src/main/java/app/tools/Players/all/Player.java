@@ -93,17 +93,25 @@ public abstract class Player {
         return bufferingCounter>=2;
     }
 
-    public void basePreset(){}
-
-    public void secondPlayer(boolean yes)
+    public final void secondPlayer(boolean yes)
     {
         secondPlayer = yes;
     }
 
-    public boolean isPrepared()
+    public final boolean isPrepared()
     {
         return prepared;
     }
+
+    protected final void disposeReleaser()
+    {
+        if(releaser!=null&&!releaser.isDisposed())
+            releaser.dispose();
+    }
+
+    public void basePreset(){}
+    public void emptyPanelOpen(){}
+    public void emptyPanelClose(){}
 
     @CallSuper
     public void setOptionsAfterPlayerCreated(boolean hardwareDecoding)
@@ -159,25 +167,6 @@ public abstract class Player {
         error = false;
     }
 
-    public void setDisplaySurface(SurfaceHolder holder){
-        onDisplaySet.run();
-        modifySetDisplaySurface(holder);
-    }
-
-    public void nullDisplay(){
-        onDisplayNull.run();
-        modifyNullDisplay();
-    }
-
-    public void emptyPanelOpen(){}
-    public void emptyPanelClose(){}
-
-    protected void disposeReleaser()
-    {
-        if(releaser!=null&&!releaser.isDisposed())
-            releaser.dispose();
-    }
-
 
     @CallSuper
     protected void resetBase()
@@ -192,23 +181,92 @@ public abstract class Player {
         prepared = true;
     }
 
-    public abstract void setVolume(float volume);
     public abstract void newMedia();
-    public abstract void start();
-    public abstract void start(long seek);
-    public abstract void pause();
     public abstract void seekTo(long seek);
     public abstract void audioNormal();
     public abstract void dontSleep(boolean on);
     public abstract void hardwareDecoding();
-    public abstract boolean isPlaying();
-    public abstract boolean isNull();
-    public abstract long getDuration();
-    public abstract long getCurrentPosition();
     public abstract boolean listenersUpdate();
-    protected abstract void pauseBeforeRelease();
+    protected abstract boolean onEndTriggered(long curPos);
 
+    public final void setDisplaySurface(SurfaceHolder holder){
+        try{
+            onDisplaySet.run();
+            modifySetDisplaySurface(holder);
+        } catch (Exception e) {}
+    }
+
+    public final void nullDisplay(){
+        try {
+            onDisplayNull.run();
+            modifyNullDisplay();
+        } catch (Exception e) {}
+    }
+    public final void setVolume(float volume){
+        try{
+            modifySetVolume(volume);
+        } catch (Exception e) {}
+    }
+    public final void start(){
+        try {
+            modifyStart();
+        }
+        catch (Exception e){}
+    }
+    public final void start(long seek){
+        try {
+            modifyStart(seek);
+        } catch (Exception e) {}
+    }
+    public final void pause(){
+        try {
+            modifyPause();
+        } catch (Exception e) {}
+    }
+    public final boolean isPlaying(){
+        try {
+            return modifyIsPlaying();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    public final boolean isNull(){
+        try {
+            return modifyIsNull();
+        } catch (Exception e) {
+            return true;
+        }
+    }
+    public final long getDuration(){
+        try {
+            return modifyGetDuration();
+        } catch (Exception e) {
+            return Long.MAX_VALUE;
+        }
+    }
+    public final long getCurrentPosition(){
+        try {
+            return modifyGetCurrentPosition();
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+    protected final void pauseBeforeRelease(){
+        try {
+            modifyPauseBeforeRelease();
+        } catch (Exception e) {}
+    }
+
+
+    protected abstract void modifySetVolume(float volume);
+    protected abstract void modifyStart();
+    protected abstract void modifyStart(long seek);
+    protected abstract void modifyPause();
+    protected abstract boolean modifyIsPlaying();
+    protected abstract boolean modifyIsNull();
+    protected abstract long modifyGetDuration();
+    protected abstract long modifyGetCurrentPosition();
+    protected abstract void modifyPauseBeforeRelease();
     protected abstract void modifySetDisplaySurface(SurfaceHolder holder);
     protected abstract void modifyNullDisplay();
-    protected abstract boolean onEndTriggered(long curPos);
 }

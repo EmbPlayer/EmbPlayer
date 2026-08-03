@@ -189,7 +189,7 @@ public abstract class Vlc extends Player
     }
 
     @Override
-    public long getDuration()
+    public long modifyGetDuration()
     {
         if(isNull())
             return 0;
@@ -209,13 +209,13 @@ public abstract class Vlc extends Player
     }
 
     @Override
-    public void start()
+    public void modifyStart()
     {
         media.play();
     }
 
     @Override
-    public void start(long seek)
+    public void modifyStart(long seek)
     {
         if(onEndTriggered(seek))
             return;
@@ -225,13 +225,13 @@ public abstract class Vlc extends Player
     }
 
     @Override
-    public boolean isPlaying()
+    public boolean modifyIsPlaying()
     {
         return media.isPlaying();
     }
 
     @Override
-    public boolean isNull()
+    public boolean modifyIsNull()
     {
         return media==null;
     }
@@ -261,13 +261,13 @@ public abstract class Vlc extends Player
     }
 
     @Override
-    public void pause()
+    public void modifyPause()
     {
         media.pause();
     }
 
     @Override
-    public long getCurrentPosition()
+    public long modifyGetCurrentPosition()
     {
         if(isNull())
             return 0;
@@ -276,7 +276,7 @@ public abstract class Vlc extends Player
     }
 
     @Override
-    protected void pauseBeforeRelease() {
+    protected void modifyPauseBeforeRelease() {
         if(media==null)
             return;
 
@@ -420,7 +420,7 @@ public abstract class Vlc extends Player
     }
 
     @Override
-    public void setVolume(float volume) {
+    public void modifySetVolume(float volume) {
         if(!isNull())
             media.setVolume((int)(volume*maxVolumeLevel));
     }

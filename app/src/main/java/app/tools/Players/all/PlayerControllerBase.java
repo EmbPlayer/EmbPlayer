@@ -480,11 +480,11 @@ public abstract class PlayerControllerBase {
     }
     protected void onEnded()
     {
-        end(()->notEnd());
+        end(()-> isCanBeEnd());
     }
-    protected boolean notEnd(){
+    protected boolean isCanBeEnd(){
         if(getCurrentPosition()<(getDuration()-1500))
-            return true;
+            return false;
 
         //GetSeekAfterIsPlayingDynamic()
 
@@ -501,7 +501,7 @@ public abstract class PlayerControllerBase {
         mediaStop();
         listeners.onCompletionListener();
 
-        return false;
+        return true;
     }
 
     protected boolean onEndTriggered(long curPos)

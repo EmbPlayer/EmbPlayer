@@ -73,7 +73,7 @@ public abstract class Exo extends Player {
     }
 
     @Override
-    public long getDuration()
+    public long modifyGetDuration()
     {
         return makeTry(()->{
             if(!isNull())
@@ -102,13 +102,13 @@ public abstract class Exo extends Player {
     }
 
     @Override
-    public void start()
+    public void modifyStart()
     {
         makeTry(() -> media.play(),1);
     }
 
     @Override
-    public void start(long seek)
+    public void modifyStart(long seek)
     {
         if(onEndTriggered(seek))
             return;
@@ -122,13 +122,13 @@ public abstract class Exo extends Player {
     }
 
     @Override
-    public boolean isPlaying()
+    public boolean modifyIsPlaying()
     {
         return makeTry(()-> media != null && media.isPlaying(),false,-1);
     }
 
     @Override
-    public boolean isNull()
+    public boolean modifyIsNull()
     {
         return media == null;
     }
@@ -159,13 +159,13 @@ public abstract class Exo extends Player {
     }
 
     @Override
-    public void pause()
+    public void modifyPause()
     {
         makeTry(() -> media.pause(),1);
     }
 
     @Override
-    public long getCurrentPosition()
+    public long modifyGetCurrentPosition()
     {
         return makeTry(()->{
             if(!isNull())
@@ -245,7 +245,7 @@ public abstract class Exo extends Player {
     }
 
     @Override
-    public void setVolume(float volume) {
+    public void modifySetVolume(float volume) {
         makeTry(() -> {
             if(!isNull()){
                 media.setVolume(volume);
@@ -254,7 +254,7 @@ public abstract class Exo extends Player {
     }
 
     @Override
-    protected void pauseBeforeRelease(){}
+    protected void modifyPauseBeforeRelease(){}
 
     /*@Override
     public void release()
