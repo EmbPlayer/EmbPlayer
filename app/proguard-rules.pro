@@ -28,3 +28,7 @@
 -dontwarn java.awt.**
 -dontwarn javax.swing.**
 -dontwarn org.slf4j.impl.StaticLoggerBinder
+
+-keep class j$.util.** { *; }
+-dontwarn java.util.Base64
+-dontwarn j$.util.Base64

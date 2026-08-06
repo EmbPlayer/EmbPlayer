@@ -18,6 +18,7 @@
 package app.tools.activity;
 
 import android.app.Application;
+import androidx.multidex.MultiDexApplication;
 
 public class MyApp extends Application {/*
 

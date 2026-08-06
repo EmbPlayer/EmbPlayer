@@ -22,7 +22,7 @@ boolean battery = true;
 
 android {
     compileSdkVersion 35
-    buildToolsVersion '33.0.0'
+    //buildToolsVersion '33.0.0'
     namespace 'com.emb.player'
 
     sourceSets {
@@ -258,22 +258,22 @@ dependencies {
     }
     else if(allTasksForFlavor("L16V"))
     {
-        implementation 'com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-05-24'
+        //implementation 'com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-05-24'
         vlc = true;
     }
     else if(allTasksForFlavor("L16")){
-        implementation 'com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-05-24'
+        //implementation 'com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-05-24'
     }
     else if(allTasksForFlavor("L14"))
     {
         battery = false;
-        implementation 'com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-05-24'
+        //implementation 'com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-05-24'
         exo = false
     }
     else{
         vlc = true
-        implementation("com.github.teamnewpipe:newpipeextractor:v0.26.3")
     }
+    implementation("com.github.teamnewpipe:newpipeextractor:v0.26.4")
 
     if(exo)
     {
@@ -340,7 +340,7 @@ dependencies {
     implementation 'io.reactivex.rxjava3:rxjava:3.1.12'
 
     /** Desugaring **/
-    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.0.2'
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.5'
 
     //implementation 'com.github.judemanutd:autostarter:1.1.0'
     //implementation 'com.guolindev.permissionx:permissionx:1.8.1'
