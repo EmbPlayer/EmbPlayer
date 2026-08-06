@@ -245,35 +245,30 @@ dependencies {
     // includes jars and aars in libs/ijkplayer/libsLegacy
     implementation fileTree(dir: 'libs/ijkplayer/libsLegacy', include: ['*.aar', '*.jar'], exclude: [])
 
+    implementation("com.github.teamnewpipe:newpipeextractor:v0.26.4")
     if(allTasksForFlavor("M21"))
     {
-        implementation("com.github.teamnewpipe:newpipeextractor:v0.26.3")
         implementation fileTree(dir: 'libs/ijkplayer/libsLegacy/arm64', include: ['*.aar', '*.jar'], exclude: [])
     }
     else if(allTasksForFlavor("M21V"))
     {
-        implementation("com.github.teamnewpipe:newpipeextractor:v0.26.3")
         implementation fileTree(dir: 'libs/ijkplayer/libsLegacy/arm64', include: ['*.aar', '*.jar'], exclude: [])
         vlc = true;
     }
     else if(allTasksForFlavor("L16V"))
     {
-        //implementation 'com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-05-24'
         vlc = true;
     }
     else if(allTasksForFlavor("L16")){
-        //implementation 'com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-05-24'
     }
     else if(allTasksForFlavor("L14"))
     {
         battery = false;
-        //implementation 'com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-05-24'
         exo = false
     }
     else{
         vlc = true
     }
-    implementation("com.github.teamnewpipe:newpipeextractor:v0.26.4")
 
     if(exo)
     {
