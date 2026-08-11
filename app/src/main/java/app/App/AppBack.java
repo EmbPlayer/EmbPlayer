@@ -2171,10 +2171,10 @@ public class AppBack extends AppWeb {
                                 //ErrorCodeApp.getCurrentAppMemoryUsage();
 
                                 //ErrorCodeApp.code23 = ErrorCodeApp.code23+SData.GetLong(SData.Data.SavedSeek)+" ";
-                                ErrorCodeApp.stoppingTime = "stoping time: " + SData.getLong(SData.Data.StoppingTime);
-                                ErrorCodeApp.disposableErrors = "Disposable Errors: "+SData.getString(SData.Data.SavedDisposableErrors);
-                                ErrorCodeApp.mediaPlayerErrors = "MediaPlayer Errors: "+SData.getString(SData.Data.SavedListenersErrors);
-                                ErrorCodeApp.dataLoader = SData.getString(SData.Data.SavedDataLoaderActions);
+                                ErrorCodeApp.stoppingTime.set("stoping time: " + SData.getLong(SData.Data.StoppingTime));
+                                ErrorCodeApp.disposableErrors.set("Disposable Errors: "+SData.getString(SData.Data.SavedDisposableErrors));
+                                ErrorCodeApp.mediaPlayerErrors.set("MediaPlayer Errors: "+SData.getString(SData.Data.SavedListenersErrors));
+                                ErrorCodeApp.dataLoader.set(SData.getString(SData.Data.SavedDataLoaderActions));
 
                                 if(globalGenerator!=null&&!globalGenerator.mediaError.started && setUp.get() && timer.get() && AndroidOsUpdatesListener.isHaveConnection())
                                 {
