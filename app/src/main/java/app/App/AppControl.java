@@ -68,7 +68,7 @@ public class AppControl extends HttpServletAdvanced {
         disposeWorkingStopAfterTimeout();
         workingStopAfterTimeoutStart();
 
-        ErrorCodeApp.postResiver = StaticFunctions.getInfo("currentAction")+System.lineSeparator();
+        ErrorCodeApp.postResiver.set(StaticFunctions.getInfo("currentAction")+System.lineSeparator());
         try {
             Wait.webUIWaitStart();
 
