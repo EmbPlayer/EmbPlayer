@@ -2128,7 +2128,7 @@ public class AppBack extends AppWeb {
                             if(!AndroidOsUpdatesListener.isHaveConnection())
                                 return true;
 
-                            ErrorCodeApp.detector = "RecoveryError: " + e.getMessage();
+                            ErrorCodeApp.detector.set("RecoveryError: " + e.getMessage());
                             //TryIP();
                             if (playlist.get()&& playlistLoopOn())
                                 videoChanger.updateChanger(1);
