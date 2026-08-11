@@ -2249,7 +2249,7 @@ public class AppBack extends AppWeb {
                                             if(!globalGenerator.isLive())
                                                 return;
 
-                                            ErrorCodeApp.detector = ErrorCodeApp.detector + " - Recovering";
+                                            ErrorCodeApp.detector.append(" - Recovering");
                                             recover();
 
                                             return;
