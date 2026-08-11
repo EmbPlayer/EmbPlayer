@@ -2147,7 +2147,7 @@ public class AppBack extends AppWeb {
                     }, () -> "RecoverError");
 
                 } else {
-                    ErrorCodeApp.detector = "NoConnection - SkippingRecovery";
+                    ErrorCodeApp.detector.set("NoConnection - SkippingRecovery");
                 }
             }
 
