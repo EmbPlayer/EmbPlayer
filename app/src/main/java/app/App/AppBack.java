@@ -2204,7 +2204,7 @@ public class AppBack extends AppWeb {
                                                 return;
                                             }
                                             countOfChecksOfNotCreated++;
-                                            ErrorCodeApp.detector = "PlayerNotLoaded - SkippingDetection";
+                                            ErrorCodeApp.detector.set("PlayerNotLoaded - SkippingDetection");
                                             return;
                                         }
                                     }
