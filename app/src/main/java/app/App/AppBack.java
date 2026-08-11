@@ -913,8 +913,8 @@ public class AppBack extends AppWeb {
             return;
         }
 
-        ErrorCodeApp.currentDebug = ErrorCodeApp.currentDebug + "_" +" Name:"+recovered.getName()+
-                " URL"+recovered.getURL()+" Seek"+recovered.getSeek()+" ProviderID"+recovered.getProviderID();
+        ErrorCodeApp.currentDebug.append("_" +" Name:"+recovered.getName()+
+                " URL"+recovered.getURL()+" Seek"+recovered.getSeek()+" ProviderID"+recovered.getProviderID());
 
         sender.sendUrlStart(()->{
             if(recovered==null)
