@@ -65,7 +65,7 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
             if(BaseServer.isDestroying())
                 return;
 
-            ErrorCodeApp.macAddressUpdate = "MAC_ADDRESS: "+ getCurrentRouterMac();
+            ErrorCodeApp.macAddressUpdate.set("MAC_ADDRESS: "+ getCurrentRouterMac());
             if(AppBack.appStarted())
             {
                 if(!ipIsChanged()&& app().setUp.get()&& app().globalGenerator.isLive())
