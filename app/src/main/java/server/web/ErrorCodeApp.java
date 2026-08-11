@@ -27,26 +27,30 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import app.Main;
-import app.tools.SData;
 import server.tools.HttpServletAdvanced;
 
 public class ErrorCodeApp extends HttpServletAdvanced {
-    public static String ramUsageInApp = "ramUsageInApp";
 
-    public static String detector = "detector";
-    public static String disposableErrors = "disposableErrors";
-    public static String stoppingTime = "stoppingTime";
-    public static String mediaPlayerErrors = "mediaPlayerErrors";
-    public static String macAddressUpdate = "macAddressUpdate";
+    // 1. Configuration Variables
+    private static final int TRIGGER_LENGTH = 10000;
+    private static final int RETAIN_LENGTH = 2000;
 
-    public static String errorAdditional = "errorAdditional";
-    public static String dataLoader = "dataLoader";
+    // 3. Initialize properties using the new SmartString class
+    public static final SmartString ramUsageInApp = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "ramUsageInApp");
 
-    public static String currentDebug = "currentDebug: ";
-    public static String postResiver = "";
+    public static final SmartString detector = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "detector");
+    public static final SmartString disposableErrors = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "disposableErrors");
+    public static final SmartString stoppingTime = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "stoppingTime");
+    public static final SmartString mediaPlayerErrors = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "mediaPlayerErrors");
+    public static final SmartString macAddressUpdate = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "macAddressUpdate");
+
+    public static final SmartString errorAdditional = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "errorAdditional");
+    public static final SmartString dataLoader = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "dataLoader");
+
+    public static final SmartString currentDebug = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "currentDebug: ");
+    public static final SmartString postResiver = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "");
 
     public static void getSystemMemoryInfo(Context context) {
-
         String output = "[[System]";
 
         ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
@@ -59,8 +63,6 @@ public class ErrorCodeApp extends HttpServletAdvanced {
         boolean isLowMemory = memoryInfo.lowMemory;
         long threshold = memoryInfo.threshold;
 
-
-
         output = output + System.lineSeparator() + "SystemMemory " + "Total RAM: " + formatSize(totalMemory);
         output = output + System.lineSeparator() + "SystemMemory " + "Available RAM: " + formatSize(availableMemory);
         output = output + System.lineSeparator() + "SystemMemory " + "Used RAM: " + formatSize(usedMemory);
@@ -68,12 +70,14 @@ public class ErrorCodeApp extends HttpServletAdvanced {
         output = output + System.lineSeparator() + "SystemMemory " + "Low Memory Threshold: " + formatSize(threshold);
         output = output + "]";
 
-        ramUsageInApp = ramUsageInApp + System.lineSeparator() + output;
+        // Use .append() instead of redefining the string
+        ramUsageInApp.append(System.lineSeparator() + output);
     }
 
     // Get current app's memory usage
     public static void getCurrentAppMemoryUsage() {
-        ramUsageInApp = "";
+        // Reset the value instead of setting to ""
+        ramUsageInApp.set("");
 
         Runtime runtime = Runtime.getRuntime();
 
@@ -84,25 +88,27 @@ public class ErrorCodeApp extends HttpServletAdvanced {
 
         String output = "[[RamInApp]";
 
-        output = output + System.lineSeparator() + "totalMemory: " +formatSize(totalMemory);
-        output = output + System.lineSeparator() + "freeMemory: " +formatSize(freeMemory);
-        output = output + System.lineSeparator() + "usedMemory: " +formatSize(usedMemory);
-        output = output + System.lineSeparator() + "maxMemory: " +formatSize(maxMemory);
+        output = output + System.lineSeparator() + "totalMemory: " + formatSize(totalMemory);
+        output = output + System.lineSeparator() + "freeMemory: " + formatSize(freeMemory);
+        output = output + System.lineSeparator() + "usedMemory: " + formatSize(usedMemory);
+        output = output + System.lineSeparator() + "maxMemory: " + formatSize(maxMemory);
         output = output + "]";
 
-        ramUsageInApp = output;
+        ramUsageInApp.append(output);
 
         getSystemMemoryInfo(Main.getContext());
     }
 
     @Override
     protected void doGetAdvanced(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        String k = ramUsageInApp+
-                System.lineSeparator()+ errorAdditional +System.lineSeparator()+ macAddressUpdate +
-                System.lineSeparator()+ detector +System.lineSeparator()+ disposableErrors +
-                System.lineSeparator()+ mediaPlayerErrors +System.lineSeparator()+ stoppingTime +
-                System.lineSeparator()+ dataLoader+System.lineSeparator()+currentDebug+
-                System.lineSeparator()+ postResiver;
+        // Pull .getString() when building the response
+        String k = ramUsageInApp.getString() +
+                System.lineSeparator() + errorAdditional.getString() + System.lineSeparator() + macAddressUpdate.getString() +
+                System.lineSeparator() + detector.getString() + System.lineSeparator() + disposableErrors.getString() +
+                System.lineSeparator() + mediaPlayerErrors.getString() + System.lineSeparator() + stoppingTime.getString() +
+                System.lineSeparator() + dataLoader.getString() + System.lineSeparator() + currentDebug.getString() +
+                System.lineSeparator() + postResiver.getString();
+
         resp.getWriter().write(k);
     }
 
@@ -121,5 +127,50 @@ public class ErrorCodeApp extends HttpServletAdvanced {
             suffix = "GB";
         }
         return size + " " + suffix;
+    }
+
+    // 2. Custom "String" Wrapper to automatically clean old characters
+    public static class SmartString {
+        private final StringBuilder builder;
+        private final int triggerLimit;
+        private final int retainLimit;
+
+        public SmartString(int triggerLimit, int retainLimit, String initialValue) {
+            this.triggerLimit = triggerLimit;
+            this.retainLimit = retainLimit;
+            this.builder = new StringBuilder(initialValue != null ? initialValue : "");
+        }
+
+        // Set overwrites the whole string
+        public void set(String text) {
+            builder.setLength(0);
+            if (text != null) {
+                builder.append(text);
+                enforceLimits();
+            }
+        }
+
+        // Append adds to the string and cleans up if it gets too big
+        public void append(String text) {
+            if (text != null) {
+                builder.append(text);
+                enforceLimits();
+            }
+        }
+
+        // Checks and cuts old chars automatically
+        private void enforceLimits() {
+            if (builder.length() > triggerLimit) {
+                int cutIndex = builder.length() - retainLimit;
+                if (cutIndex < 0) cutIndex = 0;
+                builder.delete(0, cutIndex); // Deletes from index 0 to cutIndex
+            }
+        }
+
+        // This is the custom getString() you requested
+        public String getString() {
+            enforceLimits(); // Double check before returning just in case
+            return builder.toString();
+        }
     }
 }
