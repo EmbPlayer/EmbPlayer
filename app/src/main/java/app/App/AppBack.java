@@ -2245,7 +2245,7 @@ public class AppBack extends AppWeb {
                                         // Check if player is actually paused
                                         if(!mediaPlayer.isPlaying())
                                         {
-                                            ErrorCodeApp.detector = "PlayerStarting - Healthy - Paused";
+                                            ErrorCodeApp.detector.set("PlayerStarting - Healthy - Paused");
                                             if(!globalGenerator.isLive())
                                                 return;
 
