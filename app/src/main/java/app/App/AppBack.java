@@ -2089,7 +2089,7 @@ public class AppBack extends AppWeb {
                 //ErrorCodeApp.code40 = ErrorCodeApp.code40 + System.lineSeparator() + report;
 
                 if (AndroidOsUpdatesListener.isHaveConnection()) {
-                    ErrorCodeApp.detector = "StartingRecovery";
+                    ErrorCodeApp.detector.set("StartingRecovery");
                     errorHandel.errorFixerIsRan = true;
 
                     // Single recovery attempt with proper cleanup
