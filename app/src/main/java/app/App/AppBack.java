@@ -2117,7 +2117,7 @@ public class AppBack extends AppWeb {
                             else
                                 globalGenerator.mediaErrorRun();
 
-                            ErrorCodeApp.detector = "RecoveryCompleted";
+                            ErrorCodeApp.detector.set("RecoveryCompleted");
                             return true;
 
                         } catch (Exception e) {
