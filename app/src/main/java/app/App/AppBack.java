@@ -2183,7 +2183,7 @@ public class AppBack extends AppWeb {
 
                                     if(mediaIsNull())
                                     {
-                                        ErrorCodeApp.detector = "Detection - Player Is - Null1";
+                                        ErrorCodeApp.detector.set("Detection - Player Is - Null1");
                                         return;
                                     }
                                     else
