@@ -2163,7 +2163,7 @@ public class AppBack extends AppWeb {
                             {
                                 //mediaIsChanged.run();
 
-                                ErrorCodeApp.detector = "DetectionTick: " + System.currentTimeMillis();
+                                ErrorCodeApp.detector.set("DetectionTick: " + System.currentTimeMillis());
                                 //ErrorCodeApp.code40 = Wait.lastStopCallerInfo;
                                 //ErrorCodeApp.code16 = "MaxSeek: "+mediaPlayer.GetDuration();
 
