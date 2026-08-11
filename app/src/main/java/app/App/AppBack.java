@@ -2238,7 +2238,7 @@ public class AppBack extends AppWeb {
                                         return;
                                     }
 
-                                    ErrorCodeApp.detector = "CheckingPlayerState";
+                                    ErrorCodeApp.detector.set("CheckingPlayerState");
 
                                     if (!mediaIsNull()) {
 
