@@ -39,6 +39,7 @@ import app.tools.Generators.Requirements.Piped.VideoResolution;
 import io.reactivex.rxjava3.disposables.Disposable;
 import okhttp3.OkHttpClient;
 import server.tools.File;
+import server.web.LogsDisplay;
 import ssl.MediaProxyClientFactory;
 import server.tools.MediaProxyServlet;
 import server.web.ErrorCodeApp;
