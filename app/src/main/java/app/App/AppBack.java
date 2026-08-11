@@ -2097,7 +2097,7 @@ public class AppBack extends AppWeb {
                         if (globalGenerator.mediaError.started)
                             return true;
                         try {
-                            ErrorCodeApp.detector = "RecoveryStarted";
+                            ErrorCodeApp.detector.set("RecoveryStarted");
 
                             // Dispose current player
                             if (!mediaIsNull()) {
