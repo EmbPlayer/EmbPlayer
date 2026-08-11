@@ -2234,7 +2234,7 @@ public class AppBack extends AppWeb {
 
                                     // Check if already in recovery mode
                                     if (errorFixerIsRan) {
-                                        ErrorCodeApp.detector = "RecoveryInProgress - Skipping";
+                                        ErrorCodeApp.detector.set("RecoveryInProgress - Skipping");
                                         return;
                                     }
 
