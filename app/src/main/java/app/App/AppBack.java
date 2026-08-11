@@ -2271,7 +2271,7 @@ public class AppBack extends AppWeb {
                                             return;
                                         }
                                     } else {
-                                        ErrorCodeApp.detector = "MediaPlayerIsNull";
+                                        ErrorCodeApp.detector.set("MediaPlayerIsNull");
                                     }
 
 
