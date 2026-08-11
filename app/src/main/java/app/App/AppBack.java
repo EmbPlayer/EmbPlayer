@@ -2263,7 +2263,7 @@ public class AppBack extends AppWeb {
 
                                         // Check if player is actually playing
                                         if (mediaPlayer.isPlayingDynamic(dynamicTryCount, dynamicDetectionDelayMS,()->{
-                                            ErrorCodeApp.detector = "PlayerIsPlaying - Healthy";
+                                            ErrorCodeApp.detector.set("PlayerIsPlaying - Healthy");
                                             SData.setLong(SData.Data.StoppingTime,System.currentTimeMillis());
                                             if(!globalGenerator.isLive())
                                                 SData.setLong(SData.Data.SavedSeek,mediaPlayer.getSeekAfterIsPlayingDynamic());
