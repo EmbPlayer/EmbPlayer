@@ -2190,7 +2190,7 @@ public class AppBack extends AppWeb {
                                     {
                                         if(mediaPlayer.actionStarted())
                                         {
-                                            ErrorCodeApp.detector = "PlayerAction-NotCompleted";
+                                            ErrorCodeApp.detector.set("PlayerAction-NotCompleted");
                                             return;
                                         }
 
