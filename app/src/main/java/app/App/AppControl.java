@@ -184,7 +184,7 @@ public class AppControl extends HttpServletAdvanced {
     public static boolean waitAndIsWorkingStop(){
         //isWorking.set(false);
         workingStopAfter();
-        ErrorCodeApp.postResiver = ErrorCodeApp.postResiver+StaticFunctions.getInfo("waitAndIsWorkingStop")+System.lineSeparator();
+        ErrorCodeApp.postResiver.append(StaticFunctions.getInfo("waitAndIsWorkingStop")+System.lineSeparator());
         return waitStop();
     }
 
