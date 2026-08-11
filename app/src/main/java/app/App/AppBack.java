@@ -2285,7 +2285,7 @@ public class AppBack extends AppWeb {
                                 if(mediaIsNull())
                                 {
                                     //OnErrorSave("Player-Null-StartDetection",e);
-                                    ErrorCodeApp.detector = "Detection - Player Is - Null";
+                                    ErrorCodeApp.detector.set("Detection - Player Is - Null");
                                     //OnException();
                                 }
                             }
