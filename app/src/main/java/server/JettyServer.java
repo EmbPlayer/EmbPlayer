@@ -102,6 +102,7 @@ public class JettyServer {
         //handler.addServlet(new CustomServletHolder(hostedSite.devices), "/Devices");
         handler.addServlet(new CustomServletHolder(hostedSite.tables),"/Tables");
         handler.addServlet(new CustomServletHolder(ErrorCodeApp.class),"/Error");
+        handler.addServlet(new CustomServletHolder(LogsDisplay.class),"/Logs");
 
         //after here is not static is requared update
 
