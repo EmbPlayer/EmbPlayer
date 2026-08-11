@@ -2257,7 +2257,7 @@ public class AppBack extends AppWeb {
 
                                         // Skip if player is still starting up
                                         if (mediaPlayer.waitStarted()) {
-                                            ErrorCodeApp.detector = "PlayerStarting - Skipping";
+                                            ErrorCodeApp.detector.set("PlayerStarting - Skipping");
                                             return;
                                         }
 
