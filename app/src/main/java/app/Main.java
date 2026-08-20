@@ -193,16 +193,56 @@ public class Main extends DefaultActivity {
 
     public static void loadUI()
     {
-        Disposable load = addTask((Callable<Boolean>) () -> {
-            BaseServer.updateLocalhost();
-            Main.qrSetup();
-            return true;
-        },() -> "LoadUI-Error",forkJoinPool);
+        BaseServer.updateLocalhost(new StaticFunctions.Starter() {
+            @Override
+            protected void firstLaunch() {
+
+            }
+
+            @Override
+            protected void secondLaunches() {
+
+            }
+        }, () -> Main.qrSetup());
     }
 
     public static void createUI()
     {
-        Disposable load = addTask(() -> {
+        BaseServer.updateLocalhost(new StaticFunctions.Starter() {
+            @Override
+            protected void firstLaunch() {
+                BaseServer.ipAddressLoad();
+            }
+
+            @Override
+            protected void secondLaunches() {
+
+            }
+        },()->{
+            String savedHostnameOrIp = SData.getString(SData.Data.SavedIPorMac);
+
+            String currentIpOrMac;
+
+            if(BaseServer.isHaveHostname())
+                currentIpOrMac = AndroidOsUpdatesListener.getCurrentRouterMac();
+            else
+                currentIpOrMac = BaseServer.getLocalhost();
+
+            if(savedHostnameOrIp==null)
+            {
+                SData.setString(SData.Data.SavedIPorMac,currentIpOrMac);
+            }
+            else if(!savedHostnameOrIp.equals(currentIpOrMac))
+            {
+                SData.setString(SData.Data.SavedIPorMac,currentIpOrMac);
+                SData.resetToDefault();
+            }
+
+            qrFirst();
+            updateQr();
+        });
+
+        /*Disposable load = addTask(() -> {
             BaseServer.ipAddressLoad();
             BaseServer.updateLocalhost();
 
@@ -228,7 +268,7 @@ public class Main extends DefaultActivity {
             qrFirst();
             updateQr();
             return true;
-        }, ()->"createUI",forkJoinPool);
+        }, ()->"createUI",forkJoinPool);*/
     }
 
     public static void loadPage(Class<?> page)

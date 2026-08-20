@@ -642,18 +642,22 @@ public abstract class Vlc extends Player
                 isFound = false;
                 retryCount = 0;
 
-                voutDisposable = DisposableTools.addTaskAfterWait(500,()-> voutDisposable = DisposableTools.addPollingTask(
+                voutDisposable = DisposableTools.addTaskAfterWait(500,()-> voutDisposable = DisposableTools.addPollingTaskWithTimeOut(
                         // 1. conditionToContinue (runs every 150ms)
                         conditionToContinue,
                         // 2. onTick
                         StaticFunctions.Empty.r, // Not needed, we do the work inside conditionToContinue
                         // 3. onComplete
                         onComplete,
-                        // 4. onError
+                        // 4. onTimeout
+                        StaticFunctions.Empty.r,
+                        // 5. onError
                         () -> "voutReadyTask",
-                        // 5. intervalMs
-                        150,
-                        // 6. scheduler
+                        // 6. intervalMs
+                        200,
+                        // 7. timeout
+                        -1,
+                        // 8. scheduler
                         forkJoinPool
                 ),()->"VoutDisposableTimeOut",forkJoinPool);
             }

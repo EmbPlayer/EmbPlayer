@@ -28,9 +28,11 @@ import org.schabi.newpipe.extractor.stream.VideoStream;
 
 import java.io.IOException;
 
+import app.App.AppBack;
 import app.tools.Generators.Requirements.GeneratorWithExpire;
 //import server.tools.HostedContents;
 import app.tools.Players.all.PlayerControllerBase;
+import app.tools.Players.all.PlayersCollection;
 import app.tools.StaticFunctions;
 import server.tools.VideoSettings;
 
@@ -44,6 +46,7 @@ import app.tools.Players.all.Listeners;
 import app.tools.Generators.Requirements.YouTubeExpireExtractor;
 
 import server.web.ErrorCodeApp;
+import server.web.HLSLiveData;
 
 import static server.Home.app;
 
@@ -227,7 +230,9 @@ public class YoutubeGenerator extends GeneratorWithExpire {
 
                 if (!info.getHlsUrl().isEmpty()){
                     displayOn = videoSettings.resolutionLive() != VideoResolution.Audio;
-                    return hlsAdd(info.getHlsUrl());
+                    String m = info.getHlsUrl();
+                    ErrorCodeApp.newpipe.append(m+", ");
+                    return hlsAdd(m);
                 }
 
                 /*
@@ -243,14 +248,13 @@ public class YoutubeGenerator extends GeneratorWithExpire {
 
     private boolean hlsAdd(String url)
     {
-        boolean qualityOn = videoSettings.quality() == VideoQuality.BEST_QUALITY;
         try
         {
-            audioOrBaseStream = HlsSelector.addLiveSource(url,qualityOn, HlsSelector.getRes(1), HlsSelector.getRes(videoSettings.resolutionLive().ordinal()));
+            audioOrBaseStream = HLSLiveData.updateAndGetLink(url,HlsSelector.getRes(videoSettings.resolutionLive().ordinal()));
 
             //HostedContents.GetAudioOrBase().UpdateContent(audioOrBaseStream);
 
-            expireSeconds = Integer.parseInt(YouTubeExpireExtractor.extractExpire(audioOrBaseStream));
+            expireSeconds = Integer.parseInt(YouTubeExpireExtractor.extractExpire(url));
 
             isLive = true;
             //contentType = ContentTypes.TYPE_HLS;

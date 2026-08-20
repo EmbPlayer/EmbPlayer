@@ -44,6 +44,7 @@ import java.util.Enumeration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static app.tools.DisposableTools.forServer;
+import static app.tools.DisposableTools.forkJoinPool;
 import static app.tools.DisposableTools.waitMS;
 import static server.Home.app;
 
@@ -180,31 +181,41 @@ public class BaseServer extends ServiceBackgroud {
         }
     }
 
-    public static void updateLocalhost() throws UnknownHostException {
+    public static void updateLocalhost(@Nullable StaticFunctions.Starter onCheking,Runnable make){
+        Runnable onErrorTriggered = ()->restart();
+        tasks.addPollingTaskWithTimeOut(
+                ()->{
+                    try
+                    {
+                        onCheking.run();
+                        localhostHostName = InetAddress.getByName(localhostIP).getHostName();
+                        return false;
+                    }
+                    catch (Exception e){
+                        return true;
+                    }
+                },
+                StaticFunctions.Empty.r,
+                ()->{
+                    if(localhostIP.equals(localhostHostName))
+                        hostname = false;
+                    else
+                    {
+                        hostname = true;
 
-        for(int i = 0; i<60; i++)
-        {
-            try
-            {
-                localhostHostName = InetAddress.getByName(localhostIP).getHostName();
-                break;
-            }
-            catch (Exception e)
-            {
-                waitMS(500);
-            }
-        }
-
-        if(localhostIP.equals(localhostHostName))
-            hostname = false;
-        else
-        {
-            hostname = true;
-
-            //remove .lan
-            if(localhostHostName.endsWith(".lan"))
-                localhostHostName = localhostHostName.substring(0,localhostHostName.length()-4);
-        }
+                        //remove .lan
+                        if(localhostHostName.endsWith(".lan"))
+                            localhostHostName = localhostHostName.substring(0,localhostHostName.length()-4);
+                    }
+                    make.run();
+                },
+                onErrorTriggered,
+                onErrorTriggered,
+                StaticFunctions.Empty.r,
+                500,
+                30000,
+                forkJoinPool,
+                "updateLocalHost");
     }
 
     public static String getIP()

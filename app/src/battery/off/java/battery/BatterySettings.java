@@ -22,24 +22,27 @@ import android.content.Context;
 import android.view.View;
 import android.app.AlertDialog;
 import app.tools.activity.DefaultActivity;
+import app.tools.StaticFunctions.StarterEmpty;
 
 public class BatterySettings{
 
-    public static View.OnClickListener onClickBatterySettingsButton(Context context){
-        return view -> {
-          showUnsupportedPopup(context);
-        };
-    }
+    private final static StarterEmpty change = new StarterEmpty() {
+        @Override
+        protected void firstLaunch() {
+            app.PermissionsFunctionality.batteryOptimizationNotSupportingText();
+        }
 
-    private static void showUnsupportedPopup(Context context) {
-        new AlertDialog.Builder(context)
-                .setTitle("Unsupported")
-                .setMessage("Your device does not support managing battery optimization.")
-                .setPositiveButton("OK", (dialog, which) -> dialog.dismiss())
-                .setCancelable(true)
-                .show();
-    }
+        @Override
+        protected void secondLaunches() {
 
-    public static class Doki extends DefaultActivity{}
+        }
+    };
+
+    private final static View.OnClickListener click = view -> change.run();
+
+    public static View.OnClickListener onClickBatterySettingsButton(){
+        change.reset();
+        return click;
+    }
 }
 

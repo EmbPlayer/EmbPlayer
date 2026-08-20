@@ -17,10 +17,9 @@
  */
 package app.tools.activity;
 
-import android.app.Application;
 import androidx.multidex.MultiDexApplication;
 
-public class MyApp extends Application {/*
+public class MyApp extends MultiDexApplication {/*
 
     private static Consumer<Activity> hideNavigationButtons = (curr)->{
         Consumer<Activity> temp;

@@ -37,7 +37,7 @@ import kotlin.jvm.functions.Function1;
 
 public class BatterySettings{
 
-    public static View.OnClickListener onClickBatterySettingsButton(Context context){
+    public static View.OnClickListener onClickBatterySettingsButton(){
         return view -> {
             Main.loadPage(Doki.class);
         };

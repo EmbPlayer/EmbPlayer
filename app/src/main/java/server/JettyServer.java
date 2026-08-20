@@ -39,6 +39,7 @@ import app.tools.Generators.Requirements.Piped.VideoResolution;
 import io.reactivex.rxjava3.disposables.Disposable;
 import okhttp3.OkHttpClient;
 import server.tools.File;
+import server.web.HLSLiveData;
 import server.web.LogsDisplay;
 import ssl.MediaProxyClientFactory;
 import server.tools.MediaProxyServlet;
@@ -104,6 +105,9 @@ public class JettyServer {
         handler.addServlet(new CustomServletHolder(hostedSite.tables),"/Tables");
         handler.addServlet(new CustomServletHolder(ErrorCodeApp.class),"/Error");
         handler.addServlet(new CustomServletHolder(LogsDisplay.class),"/Logs");
+        String hlsDirectory = "/HLSLive";
+        HLSLiveData.updateDirectory(hlsDirectory);
+        handler.addServlet(new CustomServletHolder(HLSLiveData.class),hlsDirectory);
 
         //after here is not static is requared update
 

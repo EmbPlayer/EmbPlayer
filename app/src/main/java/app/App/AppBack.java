@@ -20,7 +20,6 @@ package app.App;
 
 import com.emb.player.R;
 
-import org.eclipse.jetty.io.EofException;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -41,7 +40,6 @@ import app.tools.Generators.Requirements.GeneratorWithExpire;
 import app.tools.Generators.Requirements.MediaSourceProviders;
 import app.tools.Generators.SiteGenerator;
 import app.tools.LinksDbHelper;
-import app.tools.Players.PlayerControllerChangeable;
 import app.tools.Players.all.PlayerControllerBase;
 import app.tools.Generators.Requirements.Generator;
 import app.tools.Players.all.IVideoPlayer;
@@ -62,8 +60,8 @@ import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
-import io.reactivex.rxjava3.exceptions.UndeliverableException;
 import io.reactivex.rxjava3.functions.Action;
+import io.reactivex.rxjava3.functions.BiConsumer;
 import io.reactivex.rxjava3.functions.Consumer;
 import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
@@ -130,6 +128,7 @@ public class AppBack extends AppWeb {
     }
 
     public static void recreate() {
+        app().forceStopActivate();
         getApp().sendURLWithoutCleanData(() -> new AppBack());
     }
 
@@ -396,7 +395,7 @@ public class AppBack extends AppWeb {
         cleaningInBackground.add(() -> {
             mediaClientSideProvider = MediaSourceProviders.values()[MediaProviderID];
             loadData(url, mediaClientSideProvider, nameOfMedia);
-        }, () -> sender.sendUrlStartedResetOnlyBoolean(), () -> {
+        }, () -> sender.sendUrlStartedResetOnlyBooleanWithoutUIWait(), () -> {
         }, forGenerators, "Extractor");
     }
 
@@ -494,7 +493,8 @@ public class AppBack extends AppWeb {
 
                 updateVideoSettings(audioOrVideoP, videoP, getLivePlayer());
 
-                YoutubeGenerator youtubeGenerator = new YoutubeGenerator(baseUrl, videoSettings, new ListenersYoutube(), hardware.get());
+                ListenersYoutube listenn = new ListenersYoutube();
+                YoutubeGenerator youtubeGenerator = new YoutubeGenerator(baseUrl, videoSettings, listenn, hardware.get());
                 YoutubeGeneratorTryAndType current = null;
 
                 int i = 0;
@@ -515,11 +515,15 @@ public class AppBack extends AppWeb {
 
                 YoutubeGenerator.Size videoSize = youtubeGenerator.getSize();
 
-                if (!globalGenerator.isLive())
+                if (globalGenerator.isLive())
+                    listenn.activateUpdater();
+                else if(videoSize.getWidth() < 1 || videoSize.getHeight() < 1)
+                    listenn.activateUpdater();
+                else
                     Panel.aspectChange(videoSize.getWidth(), videoSize.getHeight());
 
-                startPanel();
                 seekMax(globalGenerator.getMaxSeek());
+                startPanel();
 
                 if (current.type == StreamingService.LinkType.PLAYLIST) {
                     // Start background loading of next few videos (not all)
@@ -583,7 +587,7 @@ public class AppBack extends AppWeb {
         return false;
     }
 
-    public void startVideo() {
+    public void startVideo(Runnable onEnd) {
         /*
         if(!GetTimer()&&!Connection.isHaveInternet()) {
             ErrorHandel.MediaErrorRun();
@@ -597,8 +601,10 @@ public class AppBack extends AppWeb {
 
         mediaPlayer.start(seekLoad());
 
-        mediaPlayer.waitPlay();
-        timer.set(true);
+        mediaPlayer.waitPlay(()->{
+            timer.set(true);
+            onEnd.run();
+        });
     }
 
     public void stopVideo(String value) {
@@ -866,8 +872,6 @@ public class AppBack extends AppWeb {
         selectedTable(LinksDbHelper.TableName.URLS.getIndex());
 
         startPanel();
-
-        seekMax(urlGenerator.getMaxSeek());
     }
 
     private boolean extractorLoader(String nameOfMedia)
@@ -897,7 +901,6 @@ public class AppBack extends AppWeb {
             return false;
 
         startPanel();
-        seekMax(globalGenerator.getMaxSeek());
 
         return true;
     }
@@ -1081,13 +1084,19 @@ public class AppBack extends AppWeb {
                     }
                 };
 
-                cleaningInBackground.addPolling(
+                cleaningInBackground.addPollingTaskWithTimeOut(
                         check,
                         StaticFunctions.Empty.r,
                         onComp,
-                        StaticFunctions.Empty.r,
+                        onComp,
+                        ()->{
+                            try {
+                                onComp.run();
+                            } catch (Exception e) {}
+                        },
                         StaticFunctions.Empty.r,
                         1500,
+                        20000,
                         forkJoinPool,
                         "mediaKillOnly");
 
@@ -1576,7 +1585,6 @@ public class AppBack extends AppWeb {
             protected void secondLaunches() {}
         };
 
-        @CallSuper
         @Override
         public void onVideoSizeChangedListener(int width, int height)
         {
@@ -1591,8 +1599,16 @@ public class AppBack extends AppWeb {
         }
 
         @Override
-        public final void onStarted(){
-            badSoundFixer.stop();
+        public void onStarted(){
+            try {
+                badSoundFixer.stop();
+                globalGenerator.waitMake(() -> mediaPlayer,globalGenerator.isLive(),cleaningInBackground,()->{
+                    seekMax(globalGenerator.getMaxSeek());
+                    AppControl.waitAndIsWorkingStop();
+                });
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override
@@ -1635,6 +1651,8 @@ public class AppBack extends AppWeb {
     }
     public class ListenersYoutube extends ListenersSet
     {
+        private BiConsumer<Integer,Integer> screenUpdate = StaticFunctions.Empty.bC;
+
         private final StaticFunctions.Starter playlistLoopTask = new StaticFunctions.Starter() {
             @Override
             protected void firstLaunch() {
@@ -1651,8 +1669,16 @@ public class AppBack extends AppWeb {
         @Override
         public void onVideoSizeChangedListener(int width, int height)
         {
-            if(globalGenerator.isLive())
-                super.onVideoSizeChangedListener(width,height);
+            try {
+                screenUpdate.accept(width,height);
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        public void activateUpdater(){
+            screenUpdate = (width,height)->
+                    ListenersYoutube.super.onVideoSizeChangedListener(width,height);
         }
 
         @Override
@@ -1660,6 +1686,12 @@ public class AppBack extends AppWeb {
         {
             super.onPlayListLoop();
             playlistLoopTask.run();
+        }
+
+        @Override
+        public void onStarted(){
+            badSoundFixer.stop();
+            AppControl.waitAndIsWorkingStop();
         }
     }
     public abstract class LoaderForPlayer<T extends Generator>
@@ -1712,8 +1744,6 @@ public class AppBack extends AppWeb {
                             waitMS(500);*/
 
                         loadVideo(hol);
-
-                        AppControl.workingStop();
                     });
                 }
                 else
@@ -1721,8 +1751,6 @@ public class AppBack extends AppWeb {
                     mediaPlayer = globalGenerator.startPanel(false,l.getLoop(),l.getPlayListLoop());
 
                     loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),StaticFunctions.Empty.r);
-
-                    AppControl.workingStop();
                 }
             };
         }
@@ -1941,8 +1969,6 @@ public class AppBack extends AppWeb {
                             waitMS(500);*/
 
                         loadVideo(hol);
-
-                        AppControl.workingStop();
                     });
                 }
                 else
@@ -1953,14 +1979,6 @@ public class AppBack extends AppWeb {
                     //urlPlayer.Load();
 
                     loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),StaticFunctions.Empty.r);
-
-                    AppControl.workingStop();
-                }
-
-                try {
-                    globalGenerator.waitMake(() -> mediaPlayer,globalGenerator.isLive());
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
                 }
             };
         }
@@ -2509,6 +2527,11 @@ public class AppBack extends AppWeb {
             sender.resetStateAndUIWait();
         }
 
+        public synchronized void sendUrlStartedResetOnlyBooleanWithoutUIWait()
+        {
+            sender.resetState();
+        }
+
         private class SenderFuncuanality extends StaticFunctions.ActionWait{
 
             private void onDisposeBase(){
@@ -2634,22 +2657,29 @@ public class AppBack extends AppWeb {
 
                 PlayerControllerBase oldPlayer = mediaPlayer;
 
+                Runnable onComple = ()->{
+                    tick.run();
+                    oldPlayer.release();
+                    mediaPlayer = null;
+                    make();
+                };
+
                 videoChanger.disposeChanger();
 
                 if(oldPlayer !=null){
-                    cleaningInBackground.addPolling(
+                    cleaningInBackground.addPollingTaskWithTimeOut(
                             ()->oldPlayer.notClosable(),
                             tick,
+                            onComple,
+                            onComple,
                             ()->{
-
-                                tick.run();
-                                oldPlayer.release();
-                                mediaPlayer = null;
-                                make();
+                                try {
+                                    onComple.run();
+                                } catch (Exception e) {}
                             },
                             StaticFunctions.Empty.r,
-                            StaticFunctions.Empty.r,
                             1500,
+                            20000,
                             forkJoinPool,
                             "mediaSessionStop"
                     );

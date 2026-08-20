@@ -335,8 +335,8 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
     }
 
     @Override
-    public void waitPlay() {
-        audio.waitPlay();
+    public void waitPlay(Runnable onEnd) {
+        audio.waitPlay(onEnd);
     }
 
     @Override
@@ -635,7 +635,6 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
             baseData().seeking = false;
             onMediaSeeked.run();
             syncInBackGroud();
-            Wait.webUIWaitStop();
             return;
         }
 
@@ -710,21 +709,7 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
         }
     }
 
-    private void refresh(boolean runInAnotherThread, Callable<Boolean> onTrue, Callable<Boolean> onFalse) throws Exception {
-        if(baseData().seeking||!isPlaying())
-        {
-            onTrue.call();
-            return;
-        }
-
-        boolean currPosUpdate;
-        if(runInAnotherThread && notClosable()){
-            waitActionCompleteAndStart();
-            currPosUpdate = false;
-        } else {
-            currPosUpdate = true;
-        }
-
+    private void makeRefreshing(boolean currPosUpdate,boolean runInAnotherThread, Callable<Boolean> onTrue, Callable<Boolean> onFalse) throws Exception {
         reSeekOrLoad(runInAnotherThread,()->
         {
             if(currPosUpdate)
@@ -756,7 +741,6 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
             if(!displayOFF())
                 syncInBackGroud();
 
-            Wait.webUIWaitStop();
             return true;
         },()->{
             loadVolume();
@@ -764,11 +748,51 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
         });
     }
 
+    private void refresh(boolean runInAnotherThread, Callable<Boolean> onTrue, Callable<Boolean> onFalse) throws Exception {
+        if(baseData().seeking||!isPlaying())
+        {
+            onTrue.call();
+            return;
+        }
+
+        if(runInAnotherThread && notClosable()){
+            Refresh refresher = new Refresh(false, true,onTrue,onFalse);
+            waitActionCompleteAndStart(()->{
+                try {
+                    refresher.make();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            return;
+        }
+
+        makeRefreshing(true,runInAnotherThread,onTrue,onFalse);
+    }
+
     protected abstract Player createPlayer(PlayersCollection player, boolean videoOnly);
 
     private enum Display
     {
         DisplayOFF,DisplayON, DisplayONUpdate,DisplayOFFUpdate
+    }
+
+    private class Refresh{
+        private final boolean currPosUpdate;
+        private final boolean runInAnotherThread;
+        private final Callable<Boolean> onTrue;
+        private final Callable<Boolean> onFalse;
+
+        public Refresh(boolean currPosUpdate,boolean runInAnotherThread, Callable<Boolean> onTrue, Callable<Boolean> onFalse){
+            this.currPosUpdate = currPosUpdate;
+            this.runInAnotherThread = runInAnotherThread;
+            this.onTrue = onTrue;
+            this.onFalse = onFalse;
+        }
+
+        public void make() throws Exception {
+            makeRefreshing(currPosUpdate,runInAnotherThread,onTrue,onFalse);
+        }
     }
 
     private abstract static class MediaTools

@@ -25,16 +25,14 @@ import org.schabi.newpipe.extractor.exceptions.ExtractionException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Scanner;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import app.tools.DisposableTools;
 import app.tools.Generators.Requirements.MediaSourceProviders;
 import app.tools.LinksDbHelper;
 import app.tools.StaticFunctions;
-import io.reactivex.rxjava3.disposables.Disposable;
 import server.tools.HttpServletAdvanced;
 import server.web.ErrorCodeApp;
 import server.web.Sources;
@@ -50,46 +48,9 @@ import static server.Home.app;
 public class AppControl extends HttpServletAdvanced {
 
     private static final int MAX_ACTION_WAIT_TIMEOUT = 3000;
+    private static final AtomicBoolean actionStarted = new AtomicBoolean(false);
     private static final String[] LANGUAGES;
-    private static final Runnable workingStopAfterTimeoutStartOnEnd = () -> {
-        app().forceStopActivate();
-        actionReset();
-    };
-
-    private static Disposable workingStopAfterTimeout;
-    private static final Consumer<HttpServletRequest> emptyAction = (httpServletRequest)->{
-        if(workingStopAfterTimeout == null || workingStopAfterTimeout.isDisposed()){
-            workingStopAfterTimeoutStart();
-        }
-    };
-    private static final Consumer<HttpServletRequest> action = (req)-> {
-        currentAction = emptyAction;
-
-        disposeWorkingStopAfterTimeout();
-        workingStopAfterTimeoutStart();
-
-        ErrorCodeApp.postResiver.set(StaticFunctions.getInfo("currentAction")+System.lineSeparator());
-        try {
-            Wait.webUIWaitStart();
-
-            JSONArray jsonArray = new JSONArray(new Scanner(req.getInputStream()).nextLine());
-
-            actions.addWithOnTimeOut(()->{
-                try {
-                    clientAction(jsonArray);
-                } catch (JSONException | ExtractionException | IOException e) {
-                    workingStopAfter();
-                }
-            },()->waitAndIsWorkingStop(),()->{
-                app().forceStopActivate();
-                waitAndIsWorkingStop();
-            },forServer,"ClientAction-Error",5000);
-        } catch (Exception e) {
-            workingStopAfter();
-        }
-    };
-
-    private static Consumer<HttpServletRequest> currentAction = action;
+    private static long maxTimeoutTime;
 
     static{
         LANGUAGES = getAllForJson(Arrays.stream(AppWeb.LANGUAGES).map(String::toUpperCase).toArray(String[]::new));
@@ -115,32 +76,51 @@ public class AppControl extends HttpServletAdvanced {
 
     @Override
     protected void doPostAdvanced(HttpServletRequest req, HttpServletResponse resp) throws IOException {
-        currentAction.accept(req);
-        resp.setStatus(HttpServletResponse.SC_ACCEPTED);
-    }
+        try {
+            long currentTime = System.currentTimeMillis();
 
-    private static void disposeWorkingStopAfterTimeout(){
-        if(workingStopAfterTimeout != null && !workingStopAfterTimeout.isDisposed())
-            workingStopAfterTimeout.dispose();
-    }
+            if(actionStarted.getAndSet(true)){
+                try{
+                    long waitTime = maxTimeoutTime - currentTime;
 
-    private static void actionReset(){
-        currentAction = action;
-    }
+                    if(waitTime>MAX_ACTION_WAIT_TIMEOUT){
+                        maxTimeoutTime = currentTime+MAX_ACTION_WAIT_TIMEOUT;
+                        return;
+                    }
+                    if(waitTime>0){
+                        return;
+                    }
+                    app().forceStopActivate();
+                }
+                catch (Exception e){
+                    app().forceStopActivate();
+                    actionReset();
+                    return;
+                }
+            }
 
-    private static void workingStopAfterTimeoutStart(){
-        workingStopAfterTimeout = DisposableTools.addTaskAfterWait(
-                MAX_ACTION_WAIT_TIMEOUT,
-                ()->{
-                    workingStopAfterTimeoutStartOnEnd.run();
-                    return true;
-                },
-                ()->{
-                    workingStopAfterTimeoutStartOnEnd.run();
-                    return "workStop";
-                },
-                workingStopAfterTimeoutStartOnEnd,
-                forkJoinPool,500);
+            maxTimeoutTime = currentTime+MAX_ACTION_WAIT_TIMEOUT;
+
+            ErrorCodeApp.postResiver.set(StaticFunctions.getInfo("currentAction")+System.lineSeparator());
+            Wait.webUIWaitStart();
+
+            JSONArray jsonArray = new JSONArray(new Scanner(req.getInputStream()).nextLine());
+
+            actions.addWithOnTimeOut(()->{
+                try {
+                    clientAction(jsonArray);
+                } catch (JSONException | ExtractionException | IOException e) {
+                    actionReset();
+                }
+            },()->waitAndIsWorkingStop(),()->{
+                app().forceStopActivate();
+                waitAndIsWorkingStop();
+            },forServer,"ClientAction-Error",5000);
+
+            resp.setStatus(HttpServletResponse.SC_ACCEPTED);
+        } catch (Exception e) {
+            actionReset();
+        }
     }
 
     private static int getInt(JSONArray ReceivedInputs, int Index) throws JSONException {
@@ -151,9 +131,9 @@ public class AppControl extends HttpServletAdvanced {
         return receivedInputs.getString(index);
     }
 
-    private static void waitLinkGenerate()
+    private static void waitLinkGenerate(Runnable canRun)
     {
-        for(int i = 0; i<15; i++)
+        /*for(int i = 0; i<15; i++)
         {
             if(app().globalGenerator.waitStarted())
             {
@@ -161,31 +141,38 @@ public class AppControl extends HttpServletAdvanced {
             }
             else
                 break;
-        }
+        }*/
+
+        actions.addPollingTaskWithTimeOut(
+                ()->app().globalGenerator.waitStarted(),
+                StaticFunctions.Empty.r,
+                canRun,
+                StaticFunctions.Empty.r,
+                StaticFunctions.Empty.r,
+                StaticFunctions.Empty.r,
+                1000,
+                15000,
+                forkJoinPool,
+                "waitLinkGenerate");
     }
 
-    private static boolean waitStop(){
-        Wait.webUIWaitStop();
-        return true;
-    }
-
-    private static void workingStopAfter(){
-        actionReset();
-        disposeWorkingStopAfterTimeout();
+    private static void actionReset(){
+        actionStarted.set(false);
     }
 
     public static boolean workingStop(){
         //isWorking.set(false);
-        workingStopAfter();
+        actionReset();
         ErrorCodeApp.postResiver.append(StaticFunctions.getInfo("workingStop")+System.lineSeparator());
         return true;
     }
 
     public static boolean waitAndIsWorkingStop(){
         //isWorking.set(false);
-        workingStopAfter();
+        actionReset();
         ErrorCodeApp.postResiver.append(StaticFunctions.getInfo("waitAndIsWorkingStop")+System.lineSeparator());
-        return waitStop();
+        Wait.webUIWaitStop();
+        return true;
     }
 
     private static boolean empty(){
@@ -193,10 +180,11 @@ public class AppControl extends HttpServletAdvanced {
     }
 
     private static boolean sendLoop(){
-        waitLinkGenerate();
-
-        app().loopSwitch(1);
-        return waitAndIsWorkingStop();
+        waitLinkGenerate(()->{
+            app().loopSwitch(1);
+            waitAndIsWorkingStop();
+        });
+        return true;
     }
 
     private static boolean sendVolume(JSONArray Obj) throws JSONException {
@@ -244,35 +232,48 @@ public class AppControl extends HttpServletAdvanced {
                 {
                     case Action.sendValue:
 
-                        waitLinkGenerate();
+                        waitLinkGenerate(()->{
+                            int seek = 0;
+                            try {
+                                seek = getInt(Obj,1)+1;
+                            } catch (JSONException e) {}
 
-                        int seek = getInt(Obj,1)+1;
+                            if(app().getSeekMax()<seek){
+                                waitAndIsWorkingStop();
+                                return;
+                            }
 
-                        if(app().getSeekMax()<seek)
-                            return waitAndIsWorkingStop();
+                            app().seekPosition(seek);
 
-                        app().seekPosition(seek);
+                            if(!app().timer.get()&&!app().mediaSeekStart()){
+                                waitAndIsWorkingStop();
+                                return;
+                            }
 
-                        if(!app().timer.get()&&!app().mediaSeekStart())
-                            return waitAndIsWorkingStop();
+                            app().startVideo(()->workingStop());
+                        });
 
-                        app().startVideo();
-                        return workingStop();
+                        return true;
 
                     case Action.sendStop:
 
-                        waitLinkGenerate();
+                        waitLinkGenerate(()->{
+                            if(app().timer.get())
+                            {
+                                String ou = "";
+                                try {
+                                    ou = getString(Obj,1);
+                                } catch (JSONException e) {}
 
-                        if(app().timer.get())
-                        {
-                            app().stopVideo(getString(Obj,1));
-                            return waitAndIsWorkingStop();
-                        }
-                        else
-                        {
-                            app().startVideo();
-                            return workingStop();
-                        }
+                                app().stopVideo(ou);
+                                waitAndIsWorkingStop();
+                            }
+                            else
+                            {
+                                app().startVideo(()->workingStop());
+                            }
+                        });
+                        return true;
 
                     case Action.sendLoop:
                         return sendLoop();
@@ -312,9 +313,11 @@ public class AppControl extends HttpServletAdvanced {
                         return sendDeleteLink(Obj);
 
                     case Action.sendCollectionLoop:
-                        waitLinkGenerate();
-                        app().loopSwitch(2);
-                        return waitAndIsWorkingStop();
+                        waitLinkGenerate(()->{
+                            app().loopSwitch(2);
+                            waitAndIsWorkingStop();
+                        });
+                        return true;
                 }
             }
             else

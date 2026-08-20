@@ -20,7 +20,10 @@ package app.tools.Generators.Requirements;
 import java.util.concurrent.Callable;
 import app.tools.DisposableTools.WaitDisposable;
 import app.tools.Players.all.PlayerControllerBase;
+import app.tools.Recyclable;
+import app.tools.StaticFunctions;
 
+import static app.tools.DisposableTools.forkJoinPool;
 import static app.tools.DisposableTools.waitMS;
 
 public abstract class Generator {
@@ -32,6 +35,8 @@ public abstract class Generator {
     protected boolean isLive;
     protected String videoURL;
     protected Callable<Boolean> onError;
+
+    private WaitMake maker;
 
     public Generator()
     {
@@ -95,53 +100,10 @@ public abstract class Generator {
         return (int)maxSeek.maxSeek/1000;
     }
 
-    public void waitMake(Callable<PlayerControllerBase> playerGetter, boolean isLive) throws Exception {
-        int count = 60;
-        int mills = 50;
-        int i = 0;
+    public void waitMake(Callable<PlayerControllerBase> playerGetter, boolean isLive, Recyclable.ListDisposable disposableCollection, Runnable onEnd) throws Exception {
 
-        PlayerControllerBase player = playerGetter.call();
-
-        if(isLive)
-        {
-            count = 3;
-        }
-
-        while (i<count)
-        {
-            waitMS(mills);
-
-            if(player==null)
-                player = playerGetter.call();
-            else
-            {
-                try
-                {
-                    if(player.getError())
-                    {
-                        return;
-                    }
-                    else
-                    {
-                        i++;
-                    }
-                }
-                catch (Exception ignored)
-                {
-
-                }
-            }
-        }
-
-        if(!isLive)
-        {
-            count = 100;
-            mills = 150;
-
-            if(player.isPlaying()&&player.isPlayingDynamic(count,mills))
-                maxSeek.UpdateMaxSeekWithTryCountdown(count,mills,player);
-        }
-
+        maker = new WaitMake(playerGetter,isLive,disposableCollection,onEnd,15,200);
+        maker.make();
         /*
         if(maxSeek.UpdateMaxSeek(player))
             break;*/
@@ -159,6 +121,75 @@ public abstract class Generator {
 
     public abstract PlayerControllerBase startPanel(boolean DisplayOn, boolean loop, boolean playListLoop);
     public abstract String nameOfMedia();
+
+    private class WaitMake{
+        private Callable<PlayerControllerBase> playerGetter;
+        private boolean isLive;
+        private Recyclable.ListDisposable disposableCollection;
+        private Runnable onEnd;
+        private int count;
+        private int mills;
+
+        private PlayerControllerBase player;
+        private int i;
+        private boolean isHaveError;
+
+        public WaitMake(Callable<PlayerControllerBase> playerGetter, boolean isLive, Recyclable.ListDisposable disposableCollection, Runnable onEnd, int count, int mills) throws Exception {
+
+            this.playerGetter = playerGetter;
+            this.isLive = isLive;
+            this.disposableCollection = disposableCollection;
+            this.player = playerGetter.call();
+            this.onEnd = onEnd;
+            if(isLive)
+                this.count = 3;
+            else
+                this.count = count;
+            this.mills = mills;
+        }
+
+        private void make(){
+            disposableCollection.addPollingTaskWithTimeOut(()->{
+                if(i>=count)
+                    return false;
+
+                if(player==null)
+                    player = playerGetter.call();
+                else
+                {
+                    try
+                    {
+                        if(player.getError())
+                        {
+                            isHaveError = true;
+                            return false;
+                        }
+                        else
+                        {
+                            i++;
+                        }
+                    }
+                    catch (Exception ignored)
+                    {
+
+                    }
+                }
+
+                return true;
+            }, StaticFunctions.Empty.r,()->{
+                if(!isHaveError&&!isLive)
+                {
+                    int count = 100;
+                    int mills = 150;
+
+                    if(player.isPlaying()&&player.isPlayingDynamic(count,mills))
+                        maxSeek.UpdateMaxSeekWithTryCountdown(count,mills,player);
+                }
+
+                onEnd.run();
+            },StaticFunctions.Empty.r,StaticFunctions.Empty.r,StaticFunctions.Empty.r,mills,-1,forkJoinPool,"waitMake");
+        }
+    }
 
     public static class MaxSeek
     {

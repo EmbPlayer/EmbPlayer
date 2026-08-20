@@ -20,16 +20,9 @@ package app.tools;
 
 import android.util.Log;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.StringReader;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 import ssl.SiteLoader;
 import server.web.ErrorCodeApp;
@@ -37,25 +30,42 @@ import server.web.ErrorCodeApp;
 import static app.tools.DisposableTools.waitMS;
 
 public class HlsSelector {
-    /**
-     * Adds a live stream source with automatic quality selection.
-     *
-     * @param url                 Master stream URL (e.g., M3U8 with variants)
-     * @param preferHigherQuality true = highest quality within constraints, false = lowest
-     * @param minHeight           Minimum resolution height (0 = no minimum)
-     * @param maxHeight           Maximum resolution height (0 = no maximum)
-     */
 
     private final static int[] RESOLUTIONS = new int[] {1,144, 240, 360, 480, 720, 1080, 1440, 2160};
 
     private static String result;
 
-    public static int getRes(int index)
-    {
+    public static int getRes(int index) {
         return RESOLUTIONS[index];
     }
 
+    /**
+     * Overloaded method for backwards compatibility with code using String resolutions.
+     * Parses the String (e.g., "1080p", "720", "1") into an int and calls the main method.
+     *
+     * @param playlistUrl The absolute URL of the master M3U8 playlist
+     * @param resolution The target maximum resolution as a String (e.g., "1080p")
+     * @return The entire modified M3U8 content with absolute URLs
+     */
     public static String getCorrectUrl(String playlistUrl, String resolution) {
+        int targetHeight;
+        try {
+            targetHeight = extractDigitsAsInt(resolution);
+        } catch (Exception e) {
+            // If string parsing fails, set to max so nothing gets filtered and playback continues safely
+            targetHeight = Integer.MAX_VALUE;
+        }
+        return getCorrectUrl(playlistUrl, targetHeight);
+    }
+
+    /**
+     * Fetches the M3U8 playlist and filters out streams to keep strictly the selected resolution.
+     *
+     * @param playlistUrl The absolute URL of the master M3U8 playlist
+     * @param resolution The target maximum resolution height (e.g., 1080, or 1 for audio/lowest)
+     * @return The entire modified M3U8 content with absolute URLs
+     */
+    public static String getCorrectUrl(String playlistUrl, int resolution) {
         result = null;
 
         SiteLoader loadM3 = new SiteLoader(playlistUrl, new SiteLoader.Listeners() {
@@ -71,11 +81,10 @@ public class HlsSelector {
             @Override
             public void onMainSiteLoaded(String m3u8Content) {
                 try {
-                    // Parse the M3U8 content to find the correct resolution
-                    String correctedUrl = parseM3U8ForResolution(playlistUrl, resolution, m3u8Content);
-                    result = correctedUrl;
+                    // Filter the entire M3U8 playlist directly using the integer maxResolution
+                    result = filterM3U8ByResolution(playlistUrl, resolution, m3u8Content);
                 } catch (Exception e) {
-                    StaticFunctions.onErrorSave("onMainSiteLoaded",e);
+                    StaticFunctions.onErrorSave("onMainSiteLoaded", e);
                 }
             }
 
@@ -85,15 +94,12 @@ public class HlsSelector {
         });
 
         try {
-            // Start loading the M3U8 playlist
             loadM3.startCapture();
 
             int i = 0;
-            while (i<10)
-            {
+            while (i < 10) {
                 waitMS(1000);
-                if(result!=null)
-                    break;
+                if (result != null) break;
                 i++;
             }
 
@@ -108,85 +114,18 @@ public class HlsSelector {
         }
     }
 
-    public static String addLiveSource(String url, boolean preferHigherQuality,
-                                       int minHeight, int maxHeight) {
-        Map<String, String> variants = getStreamMap(url);
-        if (variants == null || variants.isEmpty()) {
-            Log.e("StreamSelector", "No variants found in stream map");
-            return null;
-        }
-
-        // Parse all available resolutions
-        List<Integer> availableHeights = new ArrayList<>();
-        Map<Integer, String> heightToUrlMap = new HashMap<>();
-
-        for (Map.Entry<String, String> entry : variants.entrySet()) {
-            int height = extractHeight(entry.getKey());
-            if (height > 0) {
-                availableHeights.add(height);
-                heightToUrlMap.put(height, entry.getValue());
-            }
-        }
-
-        if (availableHeights.isEmpty()) {
-            Log.e("StreamSelector", "No valid resolutions found");
-            return null;
-        }
-
-        // Sort resolutions ascending
-        Collections.sort(availableHeights);
-
-        // Filter by constraints
-        List<Integer> validHeights = new ArrayList<>();
-        for (int height : availableHeights) {
-            boolean meetsMin = (minHeight <= 0) || (height >= minHeight);
-            boolean meetsMax = (maxHeight <= 0) || (height <= maxHeight);
-            if (meetsMin && meetsMax) {
-                validHeights.add(height);
-            }
-        }
-
-        // Select appropriate quality
-        int selectedHeight;
-        if (validHeights.isEmpty()) {
-            Log.w("StreamSelector", "No streams match constraints - using fallback");
-            selectedHeight = preferHigherQuality ?
-                    availableHeights.get(availableHeights.size() - 1) : // Highest available
-                    availableHeights.get(0);                            // Lowest available
-        } else {
-            selectedHeight = preferHigherQuality ?
-                    validHeights.get(validHeights.size() - 1) :        // Highest in constraints
-                    validHeights.get(0);                                // Lowest in constraints
-        }
-
-        // Add the selected stream
-        String selectedStream = heightToUrlMap.get(selectedHeight);
-        if (selectedStream != null) {/*
-            Log.i("StreamSelector", "Selected " + selectedHeight + "p stream (" +
-                    (preferHigherQuality ? "highest" : "lowest") + " quality)");*/
-            return selectedStream;
-        } else {
-            Log.e("StreamSelector", "Selected stream not found in variants");
-        }
-        return null;
-    }
     /**
      * Extracts and returns only the digits from the input string.
-     * @param input The string from which digits are to be extracted.
-     * @return A string containing only the digits from the input.
      */
     public static String extractDigits(String input) {
         if (input == null || input.isEmpty()) {
-            return ""; // Handle null or empty input
+            return "";
         }
-        return input.replaceAll("\\D", ""); // Remove all non-digit characters
+        return input.replaceAll("\\D", "");
     }
 
     /**
      * Extracts digits and returns them as an integer.
-     * @param input The string from which digits are to be extracted.
-     * @return The numeric value of the extracted digits.
-     * @throws NumberFormatException If no digits are found (resulting in an empty string).
      */
     public static int extractDigitsAsInt(String input) {
         String digits = extractDigits(input);
@@ -196,118 +135,183 @@ public class HlsSelector {
         return Integer.parseInt(digits);
     }
 
-    private static String parseM3U8ForResolution(String playlistUrl, String resolution, String m3u8Content) {
+    /**
+     * Processes an M3U8 string to strictly keep ONLY the requested resolution.
+     * If there is only one stream available, it keeps it without filtering.
+     */
+    private static String filterM3U8ByResolution(String playlistUrl, int targetHeight, String m3u8Content) {
         try {
-            BufferedReader reader = new BufferedReader(new StringReader(m3u8Content));
-            String line;
-            int lineNumber = 0;
-            int streamInfoCount = 0;
+            String[] lines = m3u8Content.split("\n");
 
-            while ((line = reader.readLine()) != null) {
-                lineNumber++;
-                line = line.trim();
+            // Pass 1: Find all heights and count streams
+            List<Integer> heights = new ArrayList<>();
+            int streamCount = 0;
+            int videoStreamCount = 0;
+            int minHeight = Integer.MAX_VALUE;
 
-                if (line.contains("#EXT-X-STREAM-INF")) {
-                    streamInfoCount++;
+            for (String line : lines) {
+                if (line.trim().startsWith("#EXT-X-STREAM-INF")) {
+                    streamCount++;
+                    int h = parseStreamInfHeight(line);
+                    heights.add(h);
 
-                    // Check multiple possible resolution formats
-                    boolean nameWithP = line.contains("NAME=\"" + resolution + "p\"") ||
-                            line.contains("NAME=" + resolution + "p");
-                    boolean nameWithoutP = line.contains("NAME=\"" + resolution + "\"") ||
-                            line.contains("NAME=" + resolution);
-                    boolean resolutionFormat = line.contains("RESOLUTION=") && line.contains("x" + resolution);
+                    if (h < minHeight) {
+                        minHeight = h;
+                    }
 
-                    boolean matchesResolution = nameWithP || nameWithoutP || resolutionFormat;
+                    // Count only streams that have a valid video resolution (h > 0)
+                    if (h > 0) {
+                        videoStreamCount++;
+                    }
+                }
+            }
 
-                    if (matchesResolution) {
+            boolean canFilter = false;
+            int bestHeight = -1;
 
-                        // Read the next line which should contain the URL
-                        String urlLine = reader.readLine();
-                        lineNumber++;
+            // Safety Check: Filter ONLY if there is MORE than 1 video stream,
+            // OR if the user explicitly wants the lowest/audio (targetHeight == 1) and there are multiple streams total.
+            if ((videoStreamCount > 1 || (targetHeight == 1 && streamCount > 1)) && minHeight != Integer.MAX_VALUE) {
+                canFilter = true;
 
-                        if (urlLine != null) {
-                            urlLine = urlLine.trim();
+                if (targetHeight == 1) {
+                    // User requested absolute lowest (e.g., audio)
+                    bestHeight = minHeight;
+                } else {
+                    // Find the exact target height or the closest one below it
+                    int maxValid = -1;
+                    for (int h : heights) {
+                        if (h <= targetHeight && h > maxValid) {
+                            maxValid = h;
+                        }
+                    }
 
-                            // Skip any comment lines and get the actual URL
-                            while (urlLine != null &&
-                                    (urlLine.isEmpty() || urlLine.startsWith("#"))) {
-                                urlLine = reader.readLine();
-                                lineNumber++;
-                                if (urlLine != null) {
-                                    urlLine = urlLine.trim();
-                                }
-                            }
+                    if (maxValid != -1) {
+                        bestHeight = maxValid;
+                    } else {
+                        // Edge case: All streams are higher than requested. Keep the lowest available to avoid breaking.
+                        bestHeight = minHeight;
+                    }
+                }
+            }
 
-                            if (urlLine != null && !urlLine.isEmpty()) {
-                                // Resolve relative URL to absolute URL
-                                URL baseUrl = new URL(playlistUrl);
-                                URL resolvedUrl = new URL(baseUrl, urlLine);
-                                String resolvedUrlString = resolvedUrl.toString();
+            URL baseUrl = new URL(playlistUrl);
+            StringBuilder sb = new StringBuilder();
+            boolean skipNextUrl = false;
+            boolean resolveNextUrl = false;
 
-                                return resolvedUrlString;
-                            }
+            for (String originalLine : lines) {
+                String line = originalLine;
+                if (line.endsWith("\r")) {
+                    line = line.substring(0, line.length() - 1);
+                }
+                String trimmed = line.trim();
+
+                if (trimmed.isEmpty()) {
+                    sb.append(originalLine).append("\n");
+                    continue;
+                }
+
+                if (skipNextUrl) {
+                    if (!trimmed.startsWith("#")) {
+                        // This is the relative URL line matching the skipped stream variant.
+                        skipNextUrl = false;
+                    }
+                    continue;
+                }
+
+                if (trimmed.startsWith("#EXT-X-STREAM-INF")) {
+                    int h = parseStreamInfHeight(trimmed);
+                    boolean shouldSkip = false;
+
+                    if (canFilter) {
+                        // Strictly keep ONLY streams that match the chosen optimal height
+                        if (h != bestHeight) {
+                            shouldSkip = true;
+                        }
+                    }
+
+                    if (shouldSkip) {
+                        skipNextUrl = true;
+                        continue;
+                    } else {
+                        sb.append(originalLine).append("\n");
+                        resolveNextUrl = true;
+                        continue;
+                    }
+                }
+
+                if (resolveNextUrl && !trimmed.startsWith("#")) {
+                    // This is a stream variant URL we are keeping. Resolve to absolute URL.
+                    try {
+                        URL resolved = new URL(baseUrl, trimmed);
+                        sb.append(resolved.toString()).append("\n");
+                    } catch (Exception e) {
+                        sb.append(originalLine).append("\n");
+                    }
+                    resolveNextUrl = false;
+                    continue;
+                }
+
+                // Make relative URLs in master tags (e.g., Audio tracks) absolute
+                if (trimmed.startsWith("#EXT-X-") && trimmed.contains("URI=\"")) {
+                    int uriStart = trimmed.indexOf("URI=\"") + 5;
+                    int uriEnd = trimmed.indexOf("\"", uriStart);
+                    if (uriStart > 4 && uriEnd > uriStart) {
+                        String relUri = trimmed.substring(uriStart, uriEnd);
+                        try {
+                            URL resolved = new URL(baseUrl, relUri);
+                            String newTag = originalLine.substring(0, uriStart) + resolved.toString() + originalLine.substring(uriEnd);
+                            sb.append(newTag).append("\n");
+                            continue;
+                        } catch (Exception e) {
+                            // Silently ignore format issue and append the original
                         }
                     }
                 }
+
+                // Append any other line (like `#EXTM3U` header, comments, etc)
+                sb.append(originalLine).append("\n");
             }
 
-            return null;
+            return sb.toString();
 
         } catch (Exception e) {
-            StaticFunctions.onErrorSave("parseM3U8ForResolution",e);
-            return null;
+            StaticFunctions.onErrorSave("filterM3U8ByResolution", e);
+            return m3u8Content; // Safety fallback: return raw content so playback still works
         }
     }
 
-    private static Map<String, String> getStreamMap(String m3u8Url) {
-        Map<String, String> streamMap = new LinkedHashMap<>();
-        try {
-            URL url = new URL(m3u8Url);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream()));
-
-            String baseUrl = m3u8Url.substring(0, m3u8Url.lastIndexOf("/") + 1);
-            String line;
-            String lastResolution = null;
-
-            while ((line = reader.readLine()) != null) {
-                if (line.startsWith("#EXT-X-STREAM-INF")) {
-                    // Extract resolution
-                    int resIndex = line.indexOf("RESOLUTION=");
-                    if (resIndex != -1) {
-                        int commaIndex = line.indexOf(",", resIndex);
-                        if (commaIndex == -1) commaIndex = line.length();
-                        lastResolution = line.substring(resIndex + 11, commaIndex).trim();
-                    } else {
-                        lastResolution = "unknown";
-                    }
-                } else if (!line.startsWith("#") && line.endsWith(".m3u8")) {
-                    String fullUrl = line.startsWith("http") ? line : baseUrl + line;
-                    if (lastResolution != null) {
-                        streamMap.put(lastResolution, fullUrl);
-                    }
-                }
+    /**
+     * Parses the height from an #EXT-X-STREAM-INF tag either using RESOLUTION= or NAME= attributes.
+     */
+    private static int parseStreamInfHeight(String line) {
+        // Try RESOLUTION=1920x1080
+        int resIndex = line.indexOf("RESOLUTION=");
+        if (resIndex != -1) {
+            int xIndex = line.indexOf('x', resIndex);
+            if (xIndex != -1) {
+                int commaIndex = line.indexOf(',', xIndex);
+                if (commaIndex == -1) commaIndex = line.length();
+                try {
+                    return Integer.parseInt(line.substring(xIndex + 1, commaIndex).trim());
+                } catch (NumberFormatException ignored) {}
             }
-            reader.close();
-        } catch (Exception e) {
-            StaticFunctions.onErrorSave("getStreamMap",e);
         }
 
-        return streamMap;
-    }
-
-    // Helper method to extract height from resolution string
-    private static int extractHeight(String resolution) {
-        try {
-            if (resolution.contains("x")) {
-                return Integer.parseInt(resolution.split("x")[1]);  // "1920x1080" → 1080
-            } else if (resolution.endsWith("p")) {
-                return Integer.parseInt(resolution.substring(0, resolution.indexOf("p"))); // "720p" → 720
-            } else if (resolution.endsWith("kbps")) {
-                return Integer.parseInt(resolution.substring(0, resolution.indexOf("kbps"))); // "3000kbps" → 3000
+        // Try NAME="1080p"
+        int nameIndex = line.indexOf("NAME=\"");
+        if (nameIndex != -1) {
+            int quoteIndex = line.indexOf('"', nameIndex + 6);
+            if (quoteIndex != -1) {
+                String nameVal = line.substring(nameIndex + 6, quoteIndex);
+                try {
+                    return extractDigitsAsInt(nameVal);
+                } catch (Exception ignored) {}
             }
-        } catch (Exception e) {
-            StaticFunctions.onErrorSave("extractHeight",e);
         }
+
+        // Returns 0 if it's an audio stream with no RESOLUTION= or recognizable NAME=
         return 0;
     }
 }

@@ -33,6 +33,7 @@ import app.tools.Players.PlayerControllerChangeable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.UndeliverableException;
 import io.reactivex.rxjava3.functions.Action;
+import io.reactivex.rxjava3.functions.BiConsumer;
 import server.web.Wait;
 
 import org.apache.commons.net.ntp.NTPUDPClient;
@@ -352,6 +353,7 @@ public class StaticFunctions {
     }
 
     public static class Empty{
+        public final static BiConsumer bC = (w,h)->{};
         public final static Runnable r = ()->{};
         public final static Action a = ()->{};
         public final static Consumer c = (n)->{};

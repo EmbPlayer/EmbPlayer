@@ -48,10 +48,15 @@ public class PermissionsFunctionality {
     private boolean notSupportOverAppAsk;
     private boolean isTv;
     private boolean supportBatteryOptions;
+    private static TextView batteryText;
 
     public static boolean isTV(Context context) {
         UiModeManager uiModeManager = (UiModeManager) context.getSystemService(Context.UI_MODE_SERVICE);
         return uiModeManager.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION;
+    }
+
+    public static void batteryOptimizationNotSupportingText(){
+        batteryText.setText("Your device does not support managing battery optimization.");
     }
 
     void baseFunction(AppCompatActivity activity)
@@ -79,7 +84,8 @@ public class PermissionsFunctionality {
         else
             autoStart.setOnClickListener(view -> autoStartClick());
 
-        batterySettings.setOnClickListener(BatterySettings.onClickBatterySettingsButton(activity.getBaseContext()));
+        batteryText = activity.findViewById(R.id.batteryText);
+        batterySettings.setOnClickListener(BatterySettings.onClickBatterySettingsButton());
 
         /*if (supportBatteryOptions)
             batterySettings.setOnClickListener(view -> OverlayPermissionHelper.requestBatterySaverSettings(activity));

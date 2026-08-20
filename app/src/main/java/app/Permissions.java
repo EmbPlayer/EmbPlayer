@@ -23,6 +23,8 @@ import android.os.Bundle;
 
 import com.emb.player.R;
 
+import java.net.ServerSocket;
+
 import app.services.BaseServer;
 import app.tools.SData;
 import app.tools.activity.DefaultActivity;
@@ -75,18 +77,40 @@ public class Permissions extends DefaultActivity {
         pBase.portInfo.setText("AFTER SET RESTART");
 
         pBase.portSet.setOnClickListener(view -> {
-            pBase.port = Integer.parseInt(pBase.portInput.getText().toString());
-
-            if(pBase.port!=-1)
-            {
-                SData.setInt(SData.Data.Port, pBase.port);
-                //BaseServer.Port(pBase.port);
-                //ProcessPhoenix.triggerRebirth(getContext());
-
-                app().sendURL();
-                Main.loadUI();
-            }
+            updatePort();
+            //BaseServer.Port(pBase.port);
+            //ProcessPhoenix.triggerRebirth(getContext());
+            app().sendURL();
+            Main.loadUI();
         });
+    }
+
+    protected void updatePort(){
+        String txt = pBase.portInput.getText().toString();
+        try {
+            pBase.port = Integer.parseInt(txt);
+
+            if(pBase.port < 1)
+                updatePortNext();
+        }
+        catch (Exception e){
+            updatePortNext();
+        }
+
+        pBase.portInput.setText(Integer.toString(pBase.port));
+
+        SData.setInt(SData.Data.Port, pBase.port);
+    }
+
+    private void updatePortNext(){
+        try {
+            pBase.port = new ServerSocket(0).getLocalPort();
+
+            if(pBase.port < 1)
+                pBase.port = 8080;
+        } catch (Exception e) {
+            pBase.port = 8080;
+        }
     }
 
     @Override

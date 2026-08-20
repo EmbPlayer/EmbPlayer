@@ -22,7 +22,10 @@ import org.schabi.newpipe.extractor.exceptions.ExtractionException;
 
 import java.io.IOException;
 
+import app.App.AppBack;
 import app.tools.Generators.Requirements.GeneratorWithExpire;
+import app.tools.Players.all.PlayersCollection;
+import server.web.HLSLiveData;
 import ssl.SiteLoader;
 import app.tools.HlsSelector;
 import app.tools.Players.all.Listeners;
@@ -87,8 +90,10 @@ public class SiteGenerator extends GeneratorWithExpire {
                 break;
         }
 
-        if(selectedRes!=null)
-            audioOrBaseStream = HlsSelector.getCorrectUrl(audioOrBaseStream,selectedRes);
+        if(selectedRes!=null){
+
+            audioOrBaseStream = HLSLiveData.updateAndGetLink(audioOrBaseStream,selectedRes);
+        }
 
         loader.stop();
     }

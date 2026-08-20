@@ -22,16 +22,21 @@ import java.io.IOException;
 import java.lang.ref.WeakReference;
 
 import androidx.annotation.CallSuper;
+import app.tools.DisposableTools;
 import app.tools.Players.PlayerController;
+import app.tools.StaticFunctions;
+import io.reactivex.rxjava3.disposables.Disposable;
 import server.web.ErrorCodeApp;
 import server.web.Wait;
 
+import static app.tools.DisposableTools.forkJoinPool;
 import static app.tools.DisposableTools.waitMS;
 import static server.Home.app;
 
 public abstract class Media<T extends Player> extends PlayerController {
     protected T data;
     protected final Listeners listeners;
+    private Disposable waitPlay;
 
     public Media(Listeners listeners) {
         super(listeners);
@@ -41,9 +46,11 @@ public abstract class Media<T extends Player> extends PlayerController {
         runInConstructor();
     }
 
+    @CallSuper
     @Override
     public void dispose()
     {
+        waitPlayDispose();
         super.dispose();
     }
 
@@ -72,11 +79,17 @@ public abstract class Media<T extends Player> extends PlayerController {
     }
 
     @Override
-    public void waitPlay() {
-        do {
-            waitMS(500);
-        }
-        while (app().globalGenerator.waitStarted());
+    public void waitPlay(Runnable onEnd) {
+        waitPlayDispose();
+        waitPlay = DisposableTools.addPollingTaskWithTimeOut(
+                ()->app().globalGenerator.waitStarted(),
+                StaticFunctions.Empty.r,
+                onEnd,
+                StaticFunctions.Empty.r,
+                ()->"waitPlay",
+                500,
+                -1,
+                forkJoinPool);
     }
 
     @Override
@@ -161,7 +174,6 @@ public abstract class Media<T extends Player> extends PlayerController {
     public void isPlayingDynamic()
     {
         isPlayingDynamic(100,50);
-        Wait.webUIWaitStop();
     }
 
     @Override
@@ -221,7 +233,6 @@ public abstract class Media<T extends Player> extends PlayerController {
         data.start(mills);
         super.modifyStart(mills);
         baseData().seeking = false;
-        isPlayingDynamic();
     }
 
     @Override
@@ -231,7 +242,6 @@ public abstract class Media<T extends Player> extends PlayerController {
         data.start();
         super.modifyStart();
         baseData().seeking = false;
-        isPlayingDynamic();
     }
 
     @Override
@@ -245,5 +255,12 @@ public abstract class Media<T extends Player> extends PlayerController {
     protected void modifyRelease() {
         dispose();
         data.release();
+    }
+
+    private void waitPlayDispose(){
+        if(waitPlay==null||waitPlay.isDisposed())
+            return;
+
+        waitPlay.dispose();
     }
 }

@@ -19,6 +19,7 @@ def allTasksForFlavor(String flavor) {
 boolean vlc = false
 boolean exo = true
 boolean battery = true;
+boolean modern = false;
 
 android {
     compileSdkVersion 35
@@ -120,8 +121,8 @@ android {
         resValue "integer", "YoutubeAudioEngineID", "2"
         resValue "integer", "YoutubeVideoEngineID", "2"
 
-        versionName "1.08"    // digits of the *fractional part* shall NOT be > than "9"
-        versionCode 108
+        versionName "1.10"
+        versionCode 110
         vectorDrawables.useSupportLibrary true
         multiDexEnabled true    // as we have over 65536 lines of code...
     }
@@ -248,10 +249,12 @@ dependencies {
     implementation("com.github.teamnewpipe:newpipeextractor:v0.26.4")
     if(allTasksForFlavor("M21"))
     {
+        modern = true;
         implementation fileTree(dir: 'libs/ijkplayer/libsLegacy/arm64', include: ['*.aar', '*.jar'], exclude: [])
     }
     else if(allTasksForFlavor("M21V"))
     {
+        modern = true;
         implementation fileTree(dir: 'libs/ijkplayer/libsLegacy/arm64', include: ['*.aar', '*.jar'], exclude: [])
         vlc = true;
     }
@@ -324,15 +327,22 @@ dependencies {
     implementation 'io.apisense:rhino-android:1.1.1'
     implementation 'commons-net:commons-net:3.8.0'
 
+    if(modern){
+        // Source: https://mvnrepository.com/artifact/io.reactivex.rxjava3/rxandroid
+        implementation 'io.reactivex.rxjava3:rxandroid:3.0.2'
+        // Source: https://mvnrepository.com/artifact/io.reactivex.rxjava3/rxjava
+        implementation 'io.reactivex.rxjava3:rxjava:3.1.12'
+    }
+    else{
+        // Reactive extensions for Java VM
+        implementation 'com.github.SkyTubeTeam:RxAndroid:3.0.1.SkyTubeTeam'
+        // RxJava 3.1 needs API 21
+        implementation 'io.reactivex.rxjava3:rxjava:3.0.13'
+    }
+
     //ForkJoinPool library for missing devices
     // Source: https://mvnrepository.com/artifact/org.glassfish.jersey.bundles.repackaged/jersey-jsr166e
     implementation 'org.glassfish.jersey.bundles.repackaged:jersey-jsr166e:2.25.1'
-
-    // Source: https://mvnrepository.com/artifact/io.reactivex.rxjava3/rxandroid
-    implementation 'io.reactivex.rxjava3:rxandroid:3.0.2'
-
-    // Source: https://mvnrepository.com/artifact/io.reactivex.rxjava3/rxjava
-    implementation 'io.reactivex.rxjava3:rxjava:3.1.12'
 
     /** Desugaring **/
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.5'

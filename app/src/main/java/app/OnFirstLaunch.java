@@ -20,6 +20,8 @@ package app;
 
 import android.os.Bundle;
 
+import java.net.ServerSocket;
+
 import app.tools.SData;
 import io.reactivex.rxjava3.disposables.Disposable;
 
@@ -38,25 +40,18 @@ public class OnFirstLaunch extends Permissions{
         setup();
 
         pBase.portSet.setOnClickListener(view -> {
-
-            pBase.port = Integer.parseInt(pBase.portInput.getText().toString());
-
-            if(pBase.port!=-1)
-            {
-                SData.setInt(SData.Data.Port, pBase.port);
-
-                pBase.close.setOnClickListener(view1 -> {
-                    appLoader = addTask(()->{
-                        Main.startServiceFromDifferentActivityOrHere();
-                        appLoader = addTaskUI(()->{
-                            finish();
-                            return true;
-                        },()->"OnFirstLoaderClose");
+            updatePort();
+            pBase.close.setOnClickListener(view1 -> {
+                appLoader = addTask(()->{
+                    Main.startServiceFromDifferentActivityOrHere();
+                    appLoader = addTaskUI(()->{
+                        finish();
                         return true;
-                    },()->"OnFirstLoader",forServer);
-                });
-                pBase.close.setEnabled(true);
-            }
+                    },()->"OnFirstLoaderClose");
+                    return true;
+                },()->"OnFirstLoader",forServer);
+            });
+            pBase.close.setEnabled(true);
         });
 
         SData.set(SData.Data.FirstStartMade,true);

@@ -202,7 +202,7 @@ public class DisposableTools {
                 });
     }
 
-    public static Disposable addPollingTask(
+    /*public static Disposable addPollingTask(
             Callable<Boolean> conditionToContinue,
             Runnable onTick,
             Runnable onComplete,
@@ -240,6 +240,95 @@ public class DisposableTools {
                     } catch (Exception ignored) {}
                 })
                 .subscribe();
+    }*/
+
+
+    public static Disposable addPollingTaskWithTimeOut(
+            Callable<Boolean> conditionToContinue,
+            Runnable onTick,
+            Runnable onComplete,
+            Runnable onTimeout,
+            Callable<String> onError,
+            long intervalMs,
+            long timeOutMS,
+            Scheduler scheduler) {
+
+        if(timeOutMS < 1){
+            return Observable.interval(0, intervalMs, TimeUnit.MILLISECONDS, Schedulers.computation())
+                    .observeOn(scheduler)
+                    .takeWhile(tick -> {
+                        try {
+                            return conditionToContinue.call();
+                        } catch (Exception e) {
+                            return false; // Stop polling if the condition check throws an error
+                        }
+                    })
+                    .subscribe(
+                            // onNext (Replaces doOnNext)
+                            tick -> {
+                                if (onTick != null) {
+                                    try {
+                                        onTick.run();
+                                    } catch (Exception ignored) {}
+                                }
+                            },
+                            // onError (Replaces doOnError)
+                            error -> {
+                                try {
+                                    onErrorSave("PollingTask-" + onError.call() + ": ", error);
+                                } catch (Exception ignored) {}
+                            },
+                            // onComplete (Replaces doOnComplete)
+                            () -> {
+                                if (onComplete != null) {
+                                    try {
+                                        onComplete.run();
+                                    } catch (Exception ignored) {}
+                                }
+                            }
+                    );
+        }
+
+        return Observable.interval(0, intervalMs, TimeUnit.MILLISECONDS, Schedulers.computation())
+                // The "Self-Destruct" timer
+                .takeUntil(Observable.timer(timeOutMS, TimeUnit.MILLISECONDS, Schedulers.computation())
+                        .flatMap(t -> Observable.error(new java.util.concurrent.TimeoutException())))
+                .observeOn(scheduler)
+                .takeWhile(tick -> {
+                    try {
+                        return conditionToContinue.call();
+                    } catch (Exception e) {
+                        return false; // Stop polling if the condition check throws an error
+                    }
+                })
+                .subscribe(
+                        // onNext (Replaces doOnNext)
+                        tick -> {
+                            if (onTick != null) {
+                                try {
+                                    onTick.run();
+                                } catch (Exception ignored) {}
+                            }
+                        },
+                        // onError (Replaces doOnError)
+                        error -> {
+                            try {
+                                if (error instanceof java.util.concurrent.TimeoutException && onTimeout != null) {
+                                    onTimeout.run();
+                                } else {
+                                    onErrorSave("PollingTask-" + onError.call() + ": ", error);
+                                }
+                            } catch (Exception ignored) {}
+                        },
+                        // onComplete (Replaces doOnComplete)
+                        () -> {
+                            if (onComplete != null) {
+                                try {
+                                    onComplete.run();
+                                } catch (Exception ignored) {}
+                            }
+                        }
+                );
     }
 
     public static Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Consumer<Boolean> onSuccess,Runnable onNotStartedAndTimeOuted, Scheduler scheduler, int timeOutMS)

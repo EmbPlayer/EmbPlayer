@@ -24,6 +24,7 @@ import java.util.function.BiConsumer;
 
 import androidx.annotation.NonNull;
 import app.App.AppBack;
+import app.tools.DisposableTools;
 import app.tools.SData;
 import app.tools.StaticFunctions;
 import io.reactivex.rxjava3.core.Scheduler;
@@ -35,6 +36,7 @@ import server.web.Wait;
 
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.forMainMedia;
+import static app.tools.DisposableTools.forkJoinPool;
 import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.onErrorSave;
 import static server.Home.app;
@@ -78,6 +80,8 @@ public abstract class PlayerControllerBase {
     };
 
     protected Listeners listeners;
+
+    private Disposable waitActionCompleteAndStartDisposable;
     private Loading loading = Loading.Loading;
 
     public PlayerControllerBase(Listeners listeners)
@@ -174,6 +178,7 @@ public abstract class PlayerControllerBase {
     public final void release()
     {
         AppBack.Panel.blackPanelFix = false;
+        disposeWaitActionCompleteAndStart();
         onClean();
         modifyRelease();
         System.gc();
@@ -420,7 +425,28 @@ public abstract class PlayerControllerBase {
     }
 
     protected final void waitActionCompleteAndStart(Runnable base){
-        for(int i = 0; i<1000; i++)
+
+        disposeWaitActionCompleteAndStart();
+
+        Runnable onTimeout = ()->{
+            baseData().waitSeek.currentStopAndResetState();
+            base.run();
+        };
+
+        waitActionCompleteAndStartDisposable = DisposableTools.addPollingTaskWithTimeOut(
+                ()->notClosable(),
+                StaticFunctions.Empty.r,
+                base,
+                onTimeout,
+                ()->{
+                    onTimeout.run();
+                    return "WaitActionCompleteAndStart";
+                },
+                200,
+                20000,
+                forkJoinPool
+                );
+        /*for(int i = 0; i<1000; i++)
         {
             waitMS(50);
             if(!notClosable())
@@ -430,20 +456,7 @@ public abstract class PlayerControllerBase {
             }
         }
         baseData().waitSeek.currentStopAndResetState();
-        base.run();
-    }
-
-
-    protected final void waitActionCompleteAndStart(){
-        for(int i = 0; i<1000; i++)
-        {
-            waitMS(50);
-            if(!notClosable())
-            {
-                return;
-            }
-        }
-        baseData().waitSeek.currentStopAndResetState();
+        base.run();*/
     }
 
     protected final boolean loadAndWait()
@@ -528,6 +541,13 @@ public abstract class PlayerControllerBase {
         mediaStart();
     }
 
+    private void disposeWaitActionCompleteAndStart(){
+        if(waitActionCompleteAndStartDisposable == null || waitActionCompleteAndStartDisposable.isDisposed())
+            return;
+
+        waitActionCompleteAndStartDisposable.dispose();
+    }
+
     private void onNotLoaded()
     {
         baseData().pauseAfterLoad = true;
@@ -543,7 +563,7 @@ public abstract class PlayerControllerBase {
     public abstract boolean getError();
     public abstract boolean isPlayingDynamic(int tryCount, int millSecond);
     public abstract boolean isPlayingDynamic(int tryCount, int millSecond, Runnable ifMaked);
-    public abstract void waitPlay();
+    public abstract void waitPlay(Runnable onEnd);
     public abstract void addData(String audioUrl, String videoUrl);
     public abstract boolean prepared();
     public abstract boolean secondBufferingStarted();
@@ -639,10 +659,13 @@ public abstract class PlayerControllerBase {
             if(runInAnotherThread)
                 onStartOrPause(()->{
                     reSeekBase(seeking,CanLoad,afterLoadIfIsPlaying,OnTrue,OnFalse);
+                    listeners.onStarted();
                     return true;
                 },()->"Error-Seek");
-            else
+            else{
                 reSeekBase(seeking,CanLoad,afterLoadIfIsPlaying,OnTrue,OnFalse);
+                listeners.onStarted();
+            }
         }
 
         public boolean isTryingToStartOrStop()

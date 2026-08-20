@@ -55,7 +55,7 @@ public class Recyclable {
          * before the internal storage and free-index queue are wiped clean.
          * * @param onClear A consumer logic to execute for every active item (e.g., Disposable::dispose).
          */
-        private final void clear(Consumer<T> onClear) {
+        private synchronized final void clear(Consumer<T> onClear) {
             // 1. Iterate through the elements directly
             for (int i = 0; i < elements.size(); i++) {
                 T cur = elements.get(i);
@@ -83,14 +83,17 @@ public class Recyclable {
          *
          * @param item A function that takes the assigned index as input and returns the item to be stored.
          */
-        private void add(Function<Integer,T> item) {
+        private synchronized void add(Function<Integer,T> item) {
             if (!freeIndices.isEmpty()) {
                 // Reuse the lowest available index
                 int targetIndex = freeIndices.poll();
                 elements.set(targetIndex, item.apply(targetIndex));
             } else {
-                // No free indices, append to the end of the list
-                elements.add(item.apply(elements.size()));
+                // No free indices, reserve the space first to prevent race conditions
+                int targetIndex = elements.size();
+                elements.add(null);
+                // Now safely evaluate the item and place it in the reserved slot
+                elements.set(targetIndex, item.apply(targetIndex));
             }
         }
 
@@ -99,7 +102,7 @@ public class Recyclable {
          * @param index The index of the item to remove.
          * @return The removed item, or null if it was already empty.
          */
-        private T remove(int index) {
+        private synchronized T remove(int index) {
             if (index < 0 || index >= elements.size()) {
                 throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + elements.size());
             }
@@ -120,7 +123,7 @@ public class Recyclable {
          * @param index The index to retrieve.
          * @return The item, or null if the slot is empty (removed).
          */
-        public T get(int index) {
+        public synchronized T get(int index) {
             if (index < 0 || index >= elements.size()) {
                 throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + elements.size());
             }
@@ -130,7 +133,7 @@ public class Recyclable {
         /**
          * Prints the internal state for debugging purposes.
          */
-        public void printState() {
+        public synchronized void printState() {
             System.out.println("Elements: " + elements);
             System.out.println("Free Indices Queue: " + freeIndices);
             System.out.println("---");
@@ -177,22 +180,28 @@ public class Recyclable {
             list.add((index)->makeDisposable(index,make,onError,onNotStartedAndTimeOuted,scheduler,taskName,timeOutMS));
         }
 
-        public final void addPolling(
+        public final void addPollingTaskWithTimeOut(
                 Callable<Boolean> conditionToContinue,
                 Runnable onTick,
                 Runnable onComplete,
+                Runnable onTimeout,
                 Runnable onError,
                 Runnable onDispose,
                 long intervalMs,
+                long timeOutMS,
                 Scheduler scheduler,
                 String taskName) {
 
             list.add((index) -> new DisposableOnDisposing(
-                    DisposableTools.addPollingTask(
+                    DisposableTools.addPollingTaskWithTimeOut(
                             conditionToContinue,
                             onTick,
                             () -> {
                                 onComplete.run();
+                                remove(index);
+                            },
+                            () -> {
+                                onTimeout.run();
                                 remove(index);
                             },
                             () -> {
@@ -201,6 +210,7 @@ public class Recyclable {
                                 return name + taskName;
                             },
                             intervalMs,
+                            timeOutMS,
                             scheduler
                     ),
                     onDispose
