@@ -472,6 +472,7 @@ public class AppBack extends AppWeb {
         errorHandel.detection.dynamicDetectionDelayMS = 500;
         errorHandel.detection.dynamicTryCount = 15;
 
+        loop.switchToNormal();
         switch (sourceProvider) {
             case YOUTUBE:
 
@@ -523,9 +524,14 @@ public class AppBack extends AppWeb {
                     Panel.aspectChange(videoSize.getWidth(), videoSize.getHeight());
 
                 seekMax(globalGenerator.getMaxSeek());
+
+                boolean playlistOn = current.type == StreamingService.LinkType.PLAYLIST;
+                if (playlistOn)
+                    loop.switchToPlaylist();
+
                 startPanel();
 
-                if (current.type == StreamingService.LinkType.PLAYLIST) {
+                if (playlistOn) {
                     // Start background loading of next few videos (not all)
                     YoutubePlayList.loadInitialVideosInBackground(baseUrl, Math.min(3, YoutubePlayList.streamInfoItem.size() - 1));
 
@@ -634,7 +640,6 @@ public class AppBack extends AppWeb {
             mediaPlayer.loop(l.getLoop());
             mediaPlayer.playListLoop(l.getPlayListLoop());
         }
-        SData.setInt(SData.Data.SavedLoop, loop.getSave());
     }
 
     public Loops loopDefault() {
@@ -1126,6 +1131,8 @@ public class AppBack extends AppWeb {
             public boolean generate;
 
             public ChangerData(int plusOrMinus) {
+                SData.setLong(SData.Data.SavedSeek,0);
+                mediaPlayer.resetOnlyIsEnded();
                 this.plusOrMinus = plusOrMinus;
             }
         }
@@ -1591,13 +1598,6 @@ public class AppBack extends AppWeb {
             Panel.updateScreen(width, height);
         }
 
-        @CallSuper
-        @Override
-        public void onPlayListLoop()
-        {
-            setToNull();
-        }
-
         @Override
         public void onStarted(){
             try {
@@ -1641,12 +1641,8 @@ public class AppBack extends AppWeb {
         public final void onCompletionListener()
         {
             badSoundFixer.run();
-            setToNull();
-        }
-
-        private void setToNull()
-        {
             SData.setLong(SData.Data.SavedSeek,0);
+            timer.set(false);
         }
     }
     public class ListenersYoutube extends ListenersSet
@@ -1657,7 +1653,6 @@ public class AppBack extends AppWeb {
             @Override
             protected void firstLaunch() {
                 cleaningInBackground.add(()->{
-                    ListenersYoutube.super.onPlayListLoop();
                     videoChanger.updateChanger(1,10,1000);
                 },()->reset(),StaticFunctions.Empty.r,forkJoinPool,"PlayListLoop");
             }

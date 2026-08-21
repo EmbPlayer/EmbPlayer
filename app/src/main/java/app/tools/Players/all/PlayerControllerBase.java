@@ -262,6 +262,10 @@ public abstract class PlayerControllerBase {
         }, ()->"LoadAndStart-Error");
     }
 
+    public final void resetOnlyIsEnded(){
+        baseData().seekAndEnd.resetOnlyIsEnded();
+    }
+
     public final void playListLoop(boolean on)
     {
         baseData().playListLoop = on;
@@ -590,6 +594,10 @@ public abstract class PlayerControllerBase {
         public final boolean isEnded()
         {
             return isEnded;
+        }
+
+        public final void resetOnlyIsEnded(){
+            isEnded = false;
         }
 
         public final void updateTemp(long tempSeek)

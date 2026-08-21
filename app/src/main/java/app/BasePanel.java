@@ -21,6 +21,7 @@ package app;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.graphics.Rect;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.SurfaceHolder;
@@ -122,7 +123,7 @@ public abstract class BasePanel extends DefaultActivity {
         videoPanel = findViewById(R.id.videoOutput);
         layoutParams = videoPanel.getLayoutParams();
 
-        displaySize = new DisplaySize();
+        displaySize = new DisplaySize(getResources().getConfiguration().orientation);
 
         videoController = new SurfaceController(videoPanel.getHolder());
         refreshDisplayWithoutChecking();
@@ -175,7 +176,7 @@ public abstract class BasePanel extends DefaultActivity {
             return;
         }
 
-        displaySize.rotate();
+        displaySize.rotate(newConfig.orientation);
 
         refreshDisplayWithoutChecking();/*
         if(newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE)
@@ -401,10 +402,12 @@ public abstract class BasePanel extends DefaultActivity {
 
     public class DisplaySize
     {
-        private int screenWidth;
-        private int screenHeight;
+        private final int screenWidth;
+        private final int screenHeight;
+        private final int rotation;
+        private boolean rotated;
 
-        public DisplaySize()
+        public DisplaySize(int rotation)
         {/*
             DisplayMetrics metrics = context.getResources().getDisplayMetrics();
             screenWidth = metrics.widthPixels;
@@ -415,23 +418,28 @@ public abstract class BasePanel extends DefaultActivity {
 
             screenWidth = usableRect.width();
             screenHeight = usableRect.height();
+            this.rotation = rotation;
         }
 
 
-        public void rotate()
+        public void rotate(int orientation)
         {
-            int data = screenWidth;
-            screenWidth = screenHeight;
-            screenHeight = data;
+            rotated = orientation != rotation;
         }
 
         public int width()
         {
+            if(rotated)
+                return screenHeight;
+
             return screenWidth;
         }
 
         public int height()
         {
+            if(rotated)
+                return screenWidth;
+
             return screenHeight;
         }
     }

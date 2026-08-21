@@ -64,7 +64,7 @@ public class AppWeb{
     public final ButtonInteger youtubePlayerVideoID;
     public final ButtonInteger videoLanguageID;
     public final ButtonInteger mediaProviderClientSideID;
-    public final ButtonInteger loop;
+    public final ButtonForLoop loop;
     public final ButtonInteger volumePosition;
 
     public final ButtonBoolean timer;
@@ -91,7 +91,7 @@ public class AppWeb{
         onIJK = new IJKPlayerOnly();
         onExo = new ExoPlayerOnly();
         isSavable = new SavedButtonBoolean(SData.Data.IsSavable,false);
-        loop =  new SavedButtonInteger(SData.Data.SavedLoop,0);
+        loop =  new ButtonForLoop(SData.Data.SavedAsPlaylist);
         hardware = new SavedButtonBoolean(SData.Data.HardwareDecoding,false);
         checkMacAddress = new SavedButtonBoolean(SData.Data.CheckMacAddress,false);
 
@@ -321,6 +321,42 @@ public class AppWeb{
         public int getInt(){return get() ? 1 : 0;}
     }
 
+    public static class ButtonForLoop extends SavedButtonInteger{
+        private final SData.Data savedAsPlaylist;
+        private boolean playlistOn;
+
+        public ButtonForLoop(SData.Data savedAsPlaylist){
+            super();
+            this.savedAsPlaylist = savedAsPlaylist;
+            playlistOn = SData.get(savedAsPlaylist);
+
+            if(playlistOn)
+                update(SData.Data.SavedLoopForPlaylist,0);
+            else
+                update(SData.Data.SavedLoop,0);
+        }
+
+        public void switchToPlaylist(){
+
+            if(playlistOn)
+                return;
+
+            playlistOn = true;
+            SData.set(savedAsPlaylist,true);
+            update(SData.Data.SavedLoopForPlaylist,0);
+        }
+
+        public void switchToNormal(){
+
+            if(!playlistOn)
+                return;
+
+            playlistOn = false;
+            SData.set(savedAsPlaylist, false);
+            update(SData.Data.SavedLoop,0);
+        }
+    }
+
     public static class ButtonInteger
     {
         private int on;
@@ -333,9 +369,16 @@ public class AppWeb{
 
     public static class SavedButtonInteger extends ButtonInteger
     {
-        private final SData.Data data;
+        private SData.Data data;
+
+        public SavedButtonInteger(){}
 
         public SavedButtonInteger(SData.Data data, int ifNull)
+        {
+            update(data,ifNull);
+        }
+
+        protected void update(SData.Data data, int ifNull)
         {
             this.data = data;
             super.set((SData.getInt(data,ifNull)));
