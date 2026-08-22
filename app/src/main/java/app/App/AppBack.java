@@ -1167,6 +1167,7 @@ public class AppBack extends AppWeb {
 
         public synchronized void stop() {
             disposeChanger();
+            current = updateInNewTask;
             playlistLoop.reset();
         }
 
