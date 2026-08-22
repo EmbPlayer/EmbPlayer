@@ -95,6 +95,7 @@ public class AppBack extends AppWeb {
 
     private final MediaStopOrSwitch onStop = new MediaStopOrSwitch();
     public final ChangeVideo videoChanger = new ChangeVideo();
+
     public final MediaReload mediaReload = new MediaReload();
     private final Sender sender = new Sender();
 
@@ -1066,7 +1067,7 @@ public class AppBack extends AppWeb {
 
             PlayerControllerBase oldPlayer = mediaPlayer;
 
-            videoChanger.disposeChanger();
+            videoChanger.stop();
 
             globalGenerator.mediaErrorStop();
 
@@ -1115,11 +1116,24 @@ public class AppBack extends AppWeb {
     }
 
     public class ChangeVideo {
+
+        private final Runnable pureUpdate = ()->updateChanger(1,10,1000);
+        private final Runnable updateInNewTask = ()->cleaningInBackground.add(pureUpdate,StaticFunctions.Empty.r,StaticFunctions.Empty.r,forkJoinPool,"PlayListLoop");
+        private final StaticFunctions.Starter playlistLoop = new StaticFunctions.Starter() {
+            @Override
+            protected void firstLaunch() {
+                current.run();
+            }
+
+            @Override
+            protected void secondLaunches() {}
+        };
+
         /*
          * Per-run immutable state container.
          * Made static to avoid accidental capture of outer instance.
          */
-
+        private Runnable current = updateInNewTask;
         private Disposable mediaChanger;
         private ChangerData data;
 
@@ -1131,8 +1145,10 @@ public class AppBack extends AppWeb {
             public boolean generate;
 
             public ChangerData(int plusOrMinus) {
-                SData.setLong(SData.Data.SavedSeek,0);
+                badSoundFixer.run();
+                disposeChanger();
                 mediaPlayer.resetOnlyIsEnded();
+                SData.setLong(SData.Data.SavedSeek,0);
                 this.plusOrMinus = plusOrMinus;
             }
         }
@@ -1142,12 +1158,26 @@ public class AppBack extends AppWeb {
          * Synchronized to avoid races with Dispose().
          */
         public synchronized Disposable updateChanger(int plusOrMinus) {
-            badSoundFixer.run();
-            disposeChanger();
             data = new ChangerData(plusOrMinus);
             // start immediately and return the Disposable so caller can keep a handle if desired
             return start(throwable -> onErrorSave("ChangeVideo-Error", throwable),
                     () -> {});
+        }
+
+
+        public synchronized void stop() {
+            disposeChanger();
+            playlistLoop.reset();
+        }
+
+        public synchronized void onPlaylistLoop(){
+            playlistLoop.run();
+        }
+
+        public synchronized void onPlaylistLoopInCurrentTask(){
+            current = pureUpdate;
+            playlistLoop.run();
+            current = updateInNewTask;
         }
 
         /*
@@ -1155,9 +1185,7 @@ public class AppBack extends AppWeb {
          * It constructs a fresh ChangerData with the requested plusOrMinus.
          * (We create a new ChangerData rather than mutating the provided one.)
          */
-        public synchronized Disposable updateChanger(int plusOrMinus, int maxTry, long delayMills) {
-            badSoundFixer.run();
-            disposeChanger();
+        private synchronized Disposable updateChanger(int plusOrMinus, int maxTry, long delayMills) {
             data = new ChangerData(plusOrMinus);
             return startWithRetry(maxTry, delayMills,
                     throwable -> onErrorSave("ChangeVideo-Error", throwable),
@@ -1168,7 +1196,7 @@ public class AppBack extends AppWeb {
          * Dispose the currently running flow (if any).
          * Synchronized to avoid races with UpdateChanger.
          */
-        private synchronized void disposeChanger() {
+        private synchronized void disposeChanger(){
             if (mediaChanger != null && !mediaChanger.isDisposed()) {
                 mediaChanger.dispose();
             }
@@ -1460,6 +1488,7 @@ public class AppBack extends AppWeb {
             preloadAdjacentVideos(data.newIndex);
 
             Wait.webUIWaitStop();
+            playlistLoop.reset();
             return true;
         }
 
@@ -1570,7 +1599,7 @@ public class AppBack extends AppWeb {
                                 mediaPlayer.getDuration()<mediaPlayer.getSeekAfterIsPlayingDynamic()+10)
                         {
                             //videoChanger.UpdateChanger(1);
-                            videoChanger.updateChanger(1,10,1000);
+                            videoChanger.onPlaylistLoopInCurrentTask();
                             return;
                         }
 
@@ -1649,18 +1678,6 @@ public class AppBack extends AppWeb {
     {
         private BiConsumer<Integer,Integer> screenUpdate = StaticFunctions.Empty.bC;
 
-        private final StaticFunctions.Starter playlistLoopTask = new StaticFunctions.Starter() {
-            @Override
-            protected void firstLaunch() {
-                cleaningInBackground.add(()->{
-                    videoChanger.updateChanger(1,10,1000);
-                },()->reset(),StaticFunctions.Empty.r,forkJoinPool,"PlayListLoop");
-            }
-
-            @Override
-            protected void secondLaunches() {}
-        };
-
         @Override
         public void onVideoSizeChangedListener(int width, int height)
         {
@@ -1680,7 +1697,7 @@ public class AppBack extends AppWeb {
         public void onPlayListLoop()
         {
             super.onPlayListLoop();
-            playlistLoopTask.run();
+            videoChanger.onPlaylistLoop();
         }
 
         @Override
@@ -2659,7 +2676,7 @@ public class AppBack extends AppWeb {
                     make();
                 };
 
-                videoChanger.disposeChanger();
+                videoChanger.stop();
 
                 if(oldPlayer !=null){
                     cleaningInBackground.addPollingTaskWithTimeOut(
