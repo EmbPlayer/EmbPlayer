@@ -192,10 +192,10 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
 
     @CallSuper
     @Override
-    public void loadVolume()
+    public void modifyLoadVolume()
     {
         video.emptyPanelClose();
-        super.loadVolume();
+        super.modifyLoadVolume();
     }
 
     @CallSuper

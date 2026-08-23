@@ -79,6 +79,18 @@ public abstract class PlayerControllerBase {
         }
     };
 
+    private final StaticFunctions.Starter loadVolume = new StaticFunctions.Starter() {
+        @Override
+        protected void firstLaunch() {
+            modifyLoadVolume();
+        }
+
+        @Override
+        protected void secondLaunches() {
+
+        }
+    };
+
     protected Listeners listeners;
 
     private Disposable waitActionCompleteAndStartDisposable;
@@ -134,6 +146,7 @@ public abstract class PlayerControllerBase {
             baseData().updateSeekSecondAndResetEndState(mills);
             modifyStart(baseData().getSeekSecond());
             listeners.onStarted();
+            loadVolume();
             return true;
         },()->"Start-Seek-Error");
     }
@@ -143,6 +156,7 @@ public abstract class PlayerControllerBase {
         baseData().waitSeek.onStartOrPause(()->{
             modifyStart();
             listeners.onStarted();
+            loadVolume();
             return true;
         },()->"Start-Error");
     }
@@ -266,6 +280,12 @@ public abstract class PlayerControllerBase {
         baseData().seekAndEnd.resetOnlyIsEnded();
     }
 
+    @CallSuper
+    public final void loadVolume()
+    {
+        loadVolume.run();
+    }
+
     public final void playListLoop(boolean on)
     {
         baseData().playListLoop = on;
@@ -275,12 +295,6 @@ public abstract class PlayerControllerBase {
     public boolean actionStarted()
     {
         return notClosable()|| baseData().waitSeek.isTryingToStartOrStop();
-    }
-
-    @CallSuper
-    public void loadVolume()
-    {
-        app().loadVolume();
     }
 
     @CallSuper
@@ -330,6 +344,7 @@ public abstract class PlayerControllerBase {
 
     protected void onClean()
     {
+        loadVolume.reset();
         mediaStop();
         onCleanWithoutResetPlayingState();
     }
@@ -560,6 +575,11 @@ public abstract class PlayerControllerBase {
     private Callable<Boolean> canLoad()
     {
         return () -> loadAndWait() && !notPreparedInLoadAndStarting();
+    }
+
+    @CallSuper
+    protected void modifyLoadVolume(){
+        app().loadVolume();
     }
 
     public abstract boolean isNull();

@@ -45,10 +45,10 @@ public abstract class Video<T extends Player> extends Audio<T> implements IVideo
 
     @CallSuper
     @Override
-    public void loadVolume()
+    public void modifyLoadVolume()
     {
         data.emptyPanelClose();
-        super.loadVolume();
+        super.modifyLoadVolume();
     }
 
     @CallSuper
