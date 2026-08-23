@@ -79,7 +79,7 @@ public abstract class PlayerControllerBase {
         }
     };
 
-    private final StaticFunctions.Starter loadVolume = new StaticFunctions.Starter() {
+    private final StaticFunctions.StarterEmpty loadVolume = new StaticFunctions.StarterEmpty() {
         @Override
         protected void firstLaunch() {
             modifyLoadVolume();
@@ -205,6 +205,7 @@ public abstract class PlayerControllerBase {
     public final void load()
     {
         baseData().waitSeek.actionStart(()->{
+            loadVolume.reset();
             modifyLoad();
             Wait.webUIWaitStop();
             return true;
@@ -270,6 +271,7 @@ public abstract class PlayerControllerBase {
         baseData().waitSeek.loadAndAfter(canLoad(),()->{
 
             baseData().updateSeekSecondAndResetEndState(seek);
+            loadVolume.reset();
             afterLoad_StartAndSeek().run();
             listeners.onStarted();
 
@@ -344,7 +346,6 @@ public abstract class PlayerControllerBase {
 
     protected void onClean()
     {
-        loadVolume.reset();
         mediaStop();
         onCleanWithoutResetPlayingState();
     }
