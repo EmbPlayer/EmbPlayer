@@ -47,6 +47,20 @@
                     android:textColor="#343434"
                     android:textSize="24sp" />
 
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Verify Time Before Use:"
+                    android:textColor="#141414"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Please ensure your device date and clock match the real-time data for your location before continuing. Out-of-sync settings will break YouTube extractors and other features."
+                    android:textColor="#343434"
+                    android:textSize="24sp" />
 
                 <TextView
                     android:layout_width="match_parent"
