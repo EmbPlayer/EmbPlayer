@@ -162,21 +162,21 @@ public class StaticFunctions {
         SData.setString(SData.Data.SavedDisposableErrors,SData.getString(SData.Data.SavedDisposableErrors,"")+"["+output+"] ");
     }
 
-    public static void makeTry(Runnable tryMake){
-        StaticFunctions.makeTry(tryMake,StaticFunctions.Empty.r,-1);
+    public static void makeTry(Runnable task){
+        do{
+            try {
+                task.run();
+                return;
+            } catch (Exception e) {
+                waitMS(100);
+            }
+        }while(true);
     }
 
     public static void makeTry(@NonNull Runnable task,@NonNull Runnable onTimeOut,int maxWaitCentiseconds){
 
         if(maxWaitCentiseconds<0)
-            do{
-                try {
-                    task.run();
-                    return;
-                } catch (Exception e) {
-                    waitMS(100);
-                }
-            }while(true);
+            makeTry(task);
         else
             for(int i = 0; i<maxWaitCentiseconds; i++){
                 try {
