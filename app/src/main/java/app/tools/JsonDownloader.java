@@ -37,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static app.services.BaseServer.restart;
+import static app.services.BaseServer.restartWithClean;
 import static app.tools.DisposableTools.addTask;
 
 public class JsonDownloader {
@@ -136,10 +136,10 @@ public class JsonDownloader {
                             }
 
                             SData.setString(SData.Data.SavedDataLoaderActions, SData.getString(SData.Data.SavedDataLoaderActions) + "[All downloads completed (with successes/errors/timeouts), restarting app]");
-                            restart();
+                            restartWithClean();
                         }, throwable -> {
                             SData.setString(SData.Data.SavedDataLoaderActions, SData.getString(SData.Data.SavedDataLoaderActions) + "[Batch aggregator error: " + throwable.getMessage() + "]");
-                            restart();
+                            restartWithClean();
                         })
         );
     }

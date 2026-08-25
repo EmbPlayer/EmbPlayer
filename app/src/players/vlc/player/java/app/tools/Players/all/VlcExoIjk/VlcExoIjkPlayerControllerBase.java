@@ -25,6 +25,8 @@ import app.tools.Players.all.ExoIjk.ExoIjkPlayerControllerBase;
 
 import server.web.ErrorCodeApp;
 
+import static app.tools.StaticFunctions.makeTry;
+
 public abstract class VlcExoIjkPlayerControllerBase extends ExoIjkPlayerControllerBase {
     public VlcExoIjkPlayerControllerBase(Listeners listeners) {
         super(listeners);
@@ -119,14 +121,16 @@ public abstract class VlcExoIjkPlayerControllerBase extends ExoIjkPlayerControll
         @Override
         public long modifyGetDuration()
         {
-            if(isNull())
-                return 0;
+            return makeTry(()->{
+                if(isNull())
+                    return 0L;
 
-            long max = media.getLength();
-            if(max>500)
-                return max;
-            else
-                return baseData().getMaxSeek();
+                long max = media.getLength();
+                if(max>500)
+                    return max;
+                else
+                    return baseData().getMaxSeek();
+            },0L,3);
         }
 
         @Override

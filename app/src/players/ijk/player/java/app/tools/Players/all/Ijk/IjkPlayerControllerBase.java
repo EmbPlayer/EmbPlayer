@@ -28,6 +28,7 @@ import app.tools.SData;
 import app.tools.StaticFunctions;
 
 import static app.tools.DisposableTools.waitMS;
+import static app.tools.StaticFunctions.makeTry;
 import static tv.danmaku.ijk.media.player.IMediaPlayer.MEDIA_INFO_BUFFERING_END;
 import static tv.danmaku.ijk.media.player.IMediaPlayer.MEDIA_INFO_BUFFERING_START;
 
@@ -53,13 +54,13 @@ public abstract class IjkPlayerControllerBase extends OemPlayerControllerBase {
         @Override
         public final void modifyStart() {
             super.modifyStart();
-            panelFix.run();
+            makeTry(panelFix,StaticFunctions.Empty.r,1);
         }
 
         @Override
         protected final void afterCheckingStart(long seek){
             super.afterCheckingStart(seek);
-            panelFix.run();
+            makeTry(panelFix,StaticFunctions.Empty.r,1);
         }
 
         @CallSuper
@@ -121,11 +122,14 @@ public abstract class IjkPlayerControllerBase extends OemPlayerControllerBase {
         }
 
         @Override
+        @CallSuper
         public void modifySetDisplaySurface(SurfaceHolder holder)
         {
-            isDisplaying = true;
-            media.setOnVideoSizeChangedListener((mp, width, height, sarNum, sarDen) -> {
-                listeners.onVideoSizeChangedListener(width,height);
+            makeTry(() -> {
+                isDisplaying = true;
+                media.setOnVideoSizeChangedListener((mp, width, height, sarNum, sarDen) -> {
+                    listeners.onVideoSizeChangedListener(width,height);
+                });
             });
             super.modifySetDisplaySurface(holder);
         }

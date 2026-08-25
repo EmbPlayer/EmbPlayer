@@ -403,7 +403,7 @@ public abstract class Exo extends Player {
         return onFalse;
     }*/
 
-    private <T> T makeTry(Callable<T> tryGetFromExoThread, T onFalse, int maxWaitSeconds) {
+    private <T> T makeTry(Callable<T> tryGetFromExoThread, T onFalse, int maxWaitCentiseconds) {
         // 1. Capture a local reference to avoid concurrent modification nulls
         HandlerCustom handler = playerHandler;
 
@@ -424,7 +424,7 @@ public abstract class Exo extends Player {
         });
 
         try {
-            if(maxWaitSeconds == -1) {
+            if(maxWaitCentiseconds == -1) {
                 while (true) {
                     waitMS(100);
                     T curr = wait.get();
@@ -432,9 +432,9 @@ public abstract class Exo extends Player {
                 }
             }
 
-            maxWaitSeconds = maxWaitSeconds * 10;
+            maxWaitCentiseconds = maxWaitCentiseconds * 10;
 
-            for(int p = 0; p < maxWaitSeconds; p++) {
+            for(int p = 0; p < maxWaitCentiseconds; p++) {
                 waitMS(100);
                 T curr = wait.get();
                 if(curr != null) return curr;

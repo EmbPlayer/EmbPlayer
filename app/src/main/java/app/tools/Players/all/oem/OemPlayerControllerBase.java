@@ -26,6 +26,8 @@ import app.tools.Players.all.Listeners;
 import app.tools.Players.all.PlayerControllerBase;
 import app.tools.SData;
 
+import static app.tools.StaticFunctions.makeTry;
+
 public abstract class OemPlayerControllerBase extends PlayerControllerBase {
     public OemPlayerControllerBase(Listeners listeners) {
         super(listeners);
@@ -95,9 +97,12 @@ public abstract class OemPlayerControllerBase extends PlayerControllerBase {
         @Override
         public void modifySetDisplaySurface(SurfaceHolder holder)
         {
-            media.setOnVideoSizeChangedListener((mediaPlayer, i, i1) -> {
-                listeners.onVideoSizeChangedListener(i, i1);
+            makeTry(() -> {
+                media.setOnVideoSizeChangedListener((mediaPlayer, i, i1) -> {
+                    listeners.onVideoSizeChangedListener(i, i1);
+                });
             });
+
             super.modifySetDisplaySurface(holder);
         }
 

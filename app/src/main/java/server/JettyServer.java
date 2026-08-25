@@ -50,7 +50,7 @@ import server.web.ErrorCodeApp;
 import app.tools.StaticFunctions;
 import server.web.Sources;
 
-import static app.services.BaseServer.restart;
+import static app.services.BaseServer.restartWithClean;
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.forkJoinPool;
 import static app.tools.DisposableTools.waitMS;
@@ -229,7 +229,7 @@ public class JettyServer {
                 if(restarter==null||restarter.isDisposed())
                     restarter = addTask(()->{
                         waitMS(1500);
-                        restart();
+                        restartWithClean();
                         return true;
                     },()->"JettyError",forkJoinPool);
 

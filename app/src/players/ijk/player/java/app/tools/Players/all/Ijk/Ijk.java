@@ -30,11 +30,13 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
+import java.util.concurrent.Callable;
 
 import androidx.annotation.CallSuper;
 import app.EmptyActivity;
 import app.tools.Generators.Requirements.Piped.OkHttpDownloader;
 import app.tools.Players.all.Player;
+import app.tools.StaticFunctions;
 import server.tools.MediaProxyServlet;
 import tv.danmaku.ijk.media.player.IMediaPlayer;
 import tv.danmaku.ijk.media.player.IjkMediaPlayer;
@@ -43,6 +45,7 @@ import tv.danmaku.ijk.media.player.misc.IMediaDataSource;
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.ioThreadPoolScheduler;
 import static app.tools.DisposableTools.waitMS;
+import static app.tools.StaticFunctions.makeTry;
 import static app.tools.StaticFunctions.onErrorSave;
 
 public abstract class Ijk extends Player
@@ -613,36 +616,39 @@ public abstract class Ijk extends Player
     @Override
     public long modifyGetDuration()
     {
-        if(isNull())
-            return 0;
+        return makeTry(()->{
+            if(isNull())
+                return 0L;
 
-        return media.getDuration();
+            return media.getDuration();
+        },0L,3);
     }
 
     @Override
     public void seekTo(long seek)
     {
-        media.seekTo(seek);
+        makeTry(()->media.seekTo(seek),StaticFunctions.Empty.r,1);
     }
 
     @Override
     public void audioNormal()
     {
-        media.setAudioStreamType(AudioManager.STREAM_MUSIC);
+        makeTry(()->media.setAudioStreamType(AudioManager.STREAM_MUSIC));
     }
 
     @Override
     @CallSuper
     public void modifyStart()
     {
-        media.start();
+        makeTry(() -> media.start(),StaticFunctions.Empty.r,1);
     }
 
     public final void modifyStart(long seek)
     {
         if(onEndTriggered(seek))
             return;
-        afterCheckingStart(seek);
+
+        makeTry(() -> afterCheckingStart(seek),StaticFunctions.Empty.r,1);
     }
 
     @CallSuper
@@ -654,7 +660,7 @@ public abstract class Ijk extends Player
     @Override
     public boolean modifyIsPlaying()
     {
-        return media.isPlaying();
+        return makeTry(()-> media != null && media.isPlaying(),false,-1);
     }
 
     @Override
@@ -672,28 +678,30 @@ public abstract class Ijk extends Player
     @CallSuper
     public void modifySetDisplaySurface(SurfaceHolder holder)
     {
-        media.setDisplay(holder);
+        makeTry(() -> media.setDisplay(holder));
     }
 
     @Override
     @CallSuper
     public void modifyNullDisplay() {
-        media.setDisplay(null);
+        makeTry(() -> media.setDisplay(null));
     }
 
     @Override
     public void modifyPause()
     {
-        media.pause();
+        makeTry(() -> media.pause(),StaticFunctions.Empty.r,1);
     }
 
     @Override
     public long modifyGetCurrentPosition()
     {
-        if(isNull())
-            return 0;
+        return makeTry(()->{
+            if(isNull())
+                return 0L;
 
-        return media.getCurrentPosition();
+            return media.getCurrentPosition();
+        },0L,3);
     }
 
     @Override
@@ -707,9 +715,11 @@ public abstract class Ijk extends Player
     @Override
     public void newMedia()
     {
-        media = new IjkMediaPlayer();
+        makeTry(()->{
+            media = new IjkMediaPlayer();
 
-        listenersUpdate();
+            listenersUpdate();
+        });
     }
 
     @Override
@@ -773,15 +783,17 @@ public abstract class Ijk extends Player
     public void reset()
     {
         super.reset();
-        media.reset();
+        makeTry(()->media.reset());
     }
 
     @Override
     public void modifySetVolume(float volume) {
-        if(isNull())
-            return;
+        makeTry(()->{
+            if(isNull())
+                return;
 
-        media.setVolume(volume,volume);
+            media.setVolume(volume,volume);
+        });
     }
 
     @Override
@@ -821,15 +833,18 @@ public abstract class Ijk extends Player
     @Override
     public void load(boolean HardwareDecoding) throws IOException {
         super.load(HardwareDecoding);
-        setOptionsAfterPlayerCreated(HardwareDecoding);
-        startOnPrepared();
+        makeTry(()->{
+            setOptionsAfterPlayerCreated(HardwareDecoding);
+            startOnPrepared();
 
-        media.setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "user_agent", OkHttpDownloader.USER_AGENT);
+            media.setOption(IjkMediaPlayer.OPT_CATEGORY_FORMAT, "user_agent", OkHttpDownloader.USER_AGENT);
 
-        media.setDataSource(MediaProxyServlet.getPure(link,videoOnly));
-
-        media.setVolume(0.0f,0.0f);
-        media.prepareAsync();
+            try {
+                media.setDataSource(MediaProxyServlet.getPure(link,videoOnly));
+                media.setVolume(0.0f,0.0f);
+                media.prepareAsync();
+            } catch (IOException e) {}
+        });
     }
 
     // Helper method to get what error as string

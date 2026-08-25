@@ -39,13 +39,11 @@ import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
-import java.net.UnknownHostException;
 import java.util.Enumeration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static app.tools.DisposableTools.forServer;
 import static app.tools.DisposableTools.forkJoinPool;
-import static app.tools.DisposableTools.waitMS;
 import static server.Home.app;
 
 public class BaseServer extends ServiceBackgroud {
@@ -123,7 +121,7 @@ public class BaseServer extends ServiceBackgroud {
             return;
 
         tasks.add(()->{
-            app().sendURLWithoutCleanData(StaticFunctions.Empty.r);
+            app().sendURLWithoutCleanData();
             super.onDestroy();
         },forServer,"onDestroying");
     }
@@ -142,6 +140,15 @@ public class BaseServer extends ServiceBackgroud {
         if(isDestroying.getAndSet(true))
             return;
 
+        createServer.run();
+    }
+
+    public static void restartWithClean(){
+
+        if(isDestroying.getAndSet(true))
+            return;
+
+        createServer.reCreator.reset();
         createServer.run();
     }
 
@@ -255,6 +262,18 @@ public class BaseServer extends ServiceBackgroud {
             }
         };
 
+        private final StaticFunctions.StarterSecondWay reCreator = new StaticFunctions.StarterSecondWay() {
+            @Override
+            protected void firstLaunch() {
+                AppBack.recreateWithCleanData();
+            }
+
+            @Override
+            protected void secondLaunches() {
+                AppBack.recreateWithoutCleanData();
+            }
+        };
+
         @Override
         protected void firstLaunch() {
             tasks.add(()->{
@@ -288,7 +307,7 @@ public class BaseServer extends ServiceBackgroud {
 
                 Main.createUI();
 
-                AppBack.recreate();
+                reCreator.run();
 
                 try {
                     server.recreateServer(port);

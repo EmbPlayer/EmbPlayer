@@ -26,6 +26,7 @@ import java.util.Date;
 import java.util.List;
 
 import androidx.annotation.CallSuper;
+import androidx.annotation.NonNull;
 import app.services.BaseServer;
 import app.tools.Generators.Requirements.Piped.VideoQuality;
 import app.tools.Generators.YoutubeGenerator;
@@ -48,6 +49,7 @@ import java.util.function.Consumer;
 import static app.Main.getContext;
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.forkJoinPool;
+import static app.tools.DisposableTools.waitMS;
 
 public class StaticFunctions {
     public static void onThrows(Thread thread, Throwable throwable){
@@ -158,6 +160,53 @@ public class StaticFunctions {
     private static void saveError(String output)
     {
         SData.setString(SData.Data.SavedDisposableErrors,SData.getString(SData.Data.SavedDisposableErrors,"")+"["+output+"] ");
+    }
+
+    public static void makeTry(Runnable tryMake){
+        StaticFunctions.makeTry(tryMake,StaticFunctions.Empty.r,-1);
+    }
+
+    public static void makeTry(@NonNull Runnable task,@NonNull Runnable onTimeOut,int maxWaitCentiseconds){
+
+        if(maxWaitCentiseconds<0)
+            do{
+                try {
+                    task.run();
+                    return;
+                } catch (Exception e) {
+                    waitMS(100);
+                }
+            }while(true);
+        else
+            for(int i = 0; i<maxWaitCentiseconds; i++){
+                try {
+                    task.run();
+                    return;
+                } catch (Exception e) {
+                    waitMS(100);
+                }
+            }
+        onTimeOut.run();
+    }
+
+    public static <T> T makeTry(@NonNull Callable<T> task, @NonNull T onTimeOut, int maxWaitCentiseconds){
+        if(maxWaitCentiseconds<0)
+            do{
+                try {
+                    return task.call();
+                } catch (Exception e) {
+                    waitMS(100);
+                }
+            }while (true);
+        else
+            for(int i = 0; i<maxWaitCentiseconds; i++){
+                try {
+                    return task.call();
+                } catch (Exception e) {
+                    waitMS(100);
+                }
+            }
+        return onTimeOut;
     }
 
     public static String asJsonFormat(VideoQuality value)
@@ -343,6 +392,12 @@ public class StaticFunctions {
         public void setToSecond()
         {
             run = () -> secondLaunches();
+        }
+    }
+
+    public static abstract class StarterSecondWay extends Starter{
+        public StarterSecondWay(){
+            setToSecond();
         }
     }
 

@@ -63,7 +63,7 @@ public class Permissions extends DefaultActivity {
             appLoader = addTask(()->{
                 if(savedPort != pBase.port)
                 {
-                    BaseServer.restart();
+                    BaseServer.restartWithClean();
                 }
                 appLoader = addTaskUI(()->{
                     finish();

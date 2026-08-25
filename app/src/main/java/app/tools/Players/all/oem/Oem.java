@@ -29,12 +29,15 @@ import androidx.annotation.CallSuper;
 import app.App.AppBack;
 import app.EmptyActivity;
 import app.tools.Players.all.Player;
+import app.tools.StaticFunctions;
 import server.tools.MediaProxyServlet;
 import server.web.ErrorCodeApp;
+import tv.danmaku.ijk.media.player.IjkMediaPlayer;
 
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.ioThreadPoolScheduler;
 import static app.tools.DisposableTools.waitMS;
+import static app.tools.StaticFunctions.makeTry;
 import static app.tools.StaticFunctions.onErrorSave;
 
 public abstract class Oem extends Player {
@@ -78,28 +81,30 @@ public abstract class Oem extends Player {
     @Override
     public long modifyGetDuration()
     {
-        if(isNull())
-            return 0;
+        return makeTry(()->{
+            if(isNull())
+                return 0L;
 
-        return media.getDuration();
+            return (long)media.getDuration();
+        },0L,3);
     }
 
     @Override
     public void seekTo(long seek)
     {
-        media.seekTo((int)seek);
+        makeTry(()->media.seekTo((int)seek), StaticFunctions.Empty.r,1);
     }
 
     @Override
     public void audioNormal()
     {
-        media.setAudioStreamType(AudioManager.STREAM_MUSIC);
+        makeTry(()->media.setAudioStreamType(AudioManager.STREAM_MUSIC));
     }
 
     @Override
     public void modifyStart()
     {
-        media.start();
+        makeTry(() -> media.start(),StaticFunctions.Empty.r,1);
     }
 
     @Override
@@ -108,8 +113,10 @@ public abstract class Oem extends Player {
         if(onEndTriggered(seek))
             return;
 
-        seekTo(seek);
-        start();
+        makeTry(() -> {
+            seekTo(seek);
+            start();
+        },StaticFunctions.Empty.r,1);
     }
 
     @Override
@@ -125,7 +132,7 @@ public abstract class Oem extends Player {
     @Override
     public boolean modifyIsPlaying()
     {
-        return media.isPlaying();
+        return makeTry(()-> media != null && media.isPlaying(),false,-1);
     }
 
     @Override
@@ -143,27 +150,29 @@ public abstract class Oem extends Player {
     @CallSuper
     public void modifySetDisplaySurface(SurfaceHolder holder)
     {
-        media.setDisplay(holder);
+        makeTry(() -> media.setDisplay(holder));
     }
 
     @Override
     public void modifyNullDisplay() {
-        media.setDisplay(null);
+        makeTry(() -> media.setDisplay(null));
     }
 
     @Override
     public void modifyPause()
     {
-        media.pause();
+        makeTry(() -> media.pause(),StaticFunctions.Empty.r,1);
     }
 
     @Override
     public long modifyGetCurrentPosition()
     {
-        if(isNull())
-            return 0;
+        return makeTry(()->{
+            if(isNull())
+                return 0L;
 
-        return media.getCurrentPosition();
+            return (long)media.getCurrentPosition();
+        },0L,3);
     }
 
     @Override
@@ -177,9 +186,11 @@ public abstract class Oem extends Player {
     @Override
     public void newMedia()
     {
-        media = new MediaPlayer();
+        makeTry(()->{
+            media = new MediaPlayer();
 
-        listenersUpdate();
+            listenersUpdate();
+        });
     }
 
     @Override
@@ -198,17 +209,21 @@ public abstract class Oem extends Player {
     public void reset()
     {
         super.reset();
-        media.pause();
-        media.stop();
-        media.reset();
+        makeTry(()->{
+            media.pause();
+            media.stop();
+            media.reset();
+        });
     }
 
     @Override
     public void modifySetVolume(float volume) {
-        if(isNull())
-            return;
+        makeTry(()->{
+            if(isNull())
+                return;
 
-        media.setVolume(volume,volume);
+            media.setVolume(volume,volume);
+        });
     }
 
     @Override
@@ -246,12 +261,14 @@ public abstract class Oem extends Player {
     @Override
     public void load(boolean HardwareDecoding) throws IOException {
         super.load(HardwareDecoding);
-        setOptionsAfterPlayerCreated(HardwareDecoding);
-
-        media.setDataSource(MediaProxyServlet.getPure(link,videoOnly));
-
-        media.setVolume(0.0f,0.0f);
-        media.prepareAsync();
+        makeTry(()->{
+            setOptionsAfterPlayerCreated(HardwareDecoding);
+            try {
+                media.setDataSource(MediaProxyServlet.getPure(link,videoOnly));
+                media.setVolume(0.0f,0.0f);
+                media.prepareAsync();
+            } catch (IOException e) {}
+        });
     }
 
     // Helper method to get what error as string

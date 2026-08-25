@@ -48,6 +48,7 @@ import server.JettyServer;
 import server.tools.HttpServletAdvanced;
 
 import static app.Main.getContext;
+import static app.services.BaseServer.restartWithClean;
 import static app.tools.DisposableTools.forServer;
 
 public class Sources extends HttpServletAdvanced {
@@ -128,7 +129,7 @@ public class Sources extends HttpServletAdvanced {
     private void restart(Runnable uiStopper){
         SData.setString(SData.Data.SavedJsonNames, null);
         uiStopper.run();
-        BaseServer.restart();
+        restartWithClean();
     }
 
     public void recreate(Runnable uiStopper)

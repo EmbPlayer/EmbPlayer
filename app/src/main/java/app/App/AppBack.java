@@ -128,11 +128,25 @@ public class AppBack extends AppWeb {
         new AppBack().loadMedia();
     }
 
-    public static void recreate() {
+    public static void recreateWithCleanData() {
         app().forceStopActivate();
-        getApp().sendURLWithoutCleanData(() -> new AppBack());
+
+        cleaningInBackground.clear();
+        getApp().closePanel(() -> getApp().sendURLBeforeDestroy(),() -> {
+            getApp().sendURLAfterDestroy();
+            new AppBack();
+        }, StaticFunctions.Empty.r);
     }
 
+    public static void recreateWithoutCleanData() {
+        app().forceStopActivate();
+
+        cleaningInBackground.clear();
+        getApp().closePanel(() -> getApp().sendURLBeforeDestroyWithoutCleanData(), () -> {
+            getApp().sendURLAfterDestroy();
+            create();
+        }, StaticFunctions.Empty.r);
+    }
 
     public String nameOfMedia() {
         if (globalGenerator == null || globalGenerator.nameOfMedia() == null)
@@ -184,14 +198,13 @@ public class AppBack extends AppWeb {
         });
     }
 
-    public void sendURLWithoutCleanData(Runnable task) {
+    public void sendURLWithoutCleanData() {
         cleaningInBackground.clear();
 
         closePanel(() -> {
             sendURLBeforeDestroyWithoutCleanData();
         }, () -> {
             sendURLAfterDestroy();
-            task.run();
         }, () -> {
         });
     }

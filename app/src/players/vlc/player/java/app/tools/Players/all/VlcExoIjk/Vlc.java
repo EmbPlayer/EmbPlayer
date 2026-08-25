@@ -48,6 +48,7 @@ import static app.tools.DisposableTools.forSecondMedia;
 import static app.tools.DisposableTools.forkJoinPool;
 import static app.tools.DisposableTools.ioThreadPoolScheduler;
 import static app.tools.DisposableTools.waitMS;
+import static app.tools.StaticFunctions.makeTry;
 import static app.tools.StaticFunctions.onErrorSave;
 
 public abstract class Vlc extends Player
@@ -191,16 +192,18 @@ public abstract class Vlc extends Player
     @Override
     public long modifyGetDuration()
     {
-        if(isNull())
-            return 0;
+        return makeTry(()->{
+            if(isNull())
+                return 0L;
 
-        return media.getLength();
+            return media.getLength();
+        },0L,3);
     }
 
     @Override
     public void seekTo(long seek)
     {
-        media.setTime(seek);
+        makeTry(()->{media.setTime(seek);}, StaticFunctions.Empty.r,1);
     }
 
     @Override
@@ -211,7 +214,7 @@ public abstract class Vlc extends Player
     @Override
     public void modifyStart()
     {
-        media.play();
+        makeTry(() -> media.play(),StaticFunctions.Empty.r,1);
     }
 
     @Override
@@ -220,14 +223,16 @@ public abstract class Vlc extends Player
         if(onEndTriggered(seek))
             return;
 
-        start();
-        seekTo(seek);
+        makeTry(() -> {
+            start();
+            seekTo(seek);
+        },StaticFunctions.Empty.r,1);
     }
 
     @Override
     public boolean modifyIsPlaying()
     {
-        return media.isPlaying();
+        return makeTry(()-> media != null && media.isPlaying(),false,-1);
     }
 
     @Override
@@ -246,16 +251,15 @@ public abstract class Vlc extends Player
     public void modifySetDisplaySurface(SurfaceHolder Holder)
     {
         holder = Holder;
-
-        displayUpdate(()->{
+        makeTry(() -> displayUpdate(()->{
             holderOfVLC.setVideoSurface(holder.getSurface(),holder);
             holderOfVLC.attachViews();
-        });
+        }));
     }
 
     @Override
     public void modifyNullDisplay() {
-        displayUpdate(()-> holderOfVLC.detachViews());
+        makeTry(() -> displayUpdate(()-> holderOfVLC.detachViews()));
 
         holder = null;
     }
@@ -263,16 +267,18 @@ public abstract class Vlc extends Player
     @Override
     public void modifyPause()
     {
-        media.pause();
+        makeTry(() -> media.pause(),StaticFunctions.Empty.r,1);
     }
 
     @Override
     public long modifyGetCurrentPosition()
     {
-        if(isNull())
-            return 0;
+        return makeTry(()->{
+            if(isNull())
+                return 0L;
 
-        return media.getTime();
+            return media.getTime();
+        },0L,3);
     }
 
     @Override
@@ -296,7 +302,7 @@ public abstract class Vlc extends Player
     @Override
     public void newMedia()
     {
-        loader = () -> {
+        loader = () -> makeTry(()->{
             libVLC = new LibVLC(Main.getContext(),vlcOptions);
 
             media = new MediaPlayer(libVLC);
@@ -311,13 +317,13 @@ public abstract class Vlc extends Player
                 holder.setKeepScreenOn(sleep);
             }
 /*
-                SetOnPreparedListener();*/
+            SetOnPreparedListener();*/
 
             //Loop(loop);
 
             listenersUpdate();
-            loader = null;
-        };
+            loader = StaticFunctions.Empty.r;
+        });
     }
 
     @Override
@@ -354,9 +360,11 @@ public abstract class Vlc extends Player
     @Override
     public void reset()
     {
-        handleVoutReady.dispose();
         super.reset();
-        media.stop();
+        makeTry(()->{
+            handleVoutReady.dispose();
+            media.stop();
+        });
     }
 
     @Override
@@ -421,28 +429,32 @@ public abstract class Vlc extends Player
 
     @Override
     public void modifySetVolume(float volume) {
-        if(!isNull())
-            media.setVolume((int)(volume*maxVolumeLevel));
+        makeTry(()->{
+            if(!isNull())
+                media.setVolume((int)(volume*maxVolumeLevel));
+        });
     }
 
     @Override
     public void load(boolean HardwareDecoding) throws IOException {
         super.load(HardwareDecoding);
-        setOptionsBeforePlayerCreated(HardwareDecoding);
+        makeTry(()->{
+            setOptionsBeforePlayerCreated(HardwareDecoding);
 
-        if(loader!=null)
-            loader.run();
+            if(loader!=StaticFunctions.Empty.r)
+                loader.run();
 
-        media.setVolume(0);
+            media.setVolume(0);
 
-        media.setMedia(new Media(libVLC, Uri.parse(MediaProxyServlet.getPure(link,videoOnly))));
+            media.setMedia(new Media(libVLC, Uri.parse(MediaProxyServlet.getPure(link,videoOnly))));
 
-        if(audioLink!=null)
-            media.addSlave(
-                    Media.Slave.Type.Audio, // Or the correct integer value, likely 1
-                    Uri.parse(MediaProxyServlet.getPure(audioLink,false)),
-                    true // Select this track immediately
-            );
+            if(audioLink!=null)
+                media.addSlave(
+                        Media.Slave.Type.Audio, // Or the correct integer value, likely 1
+                        Uri.parse(MediaProxyServlet.getPure(audioLink,false)),
+                        true // Select this track immediately
+                );
+        });
     }
 
     /**
