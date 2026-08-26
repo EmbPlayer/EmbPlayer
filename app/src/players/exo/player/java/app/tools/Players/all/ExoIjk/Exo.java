@@ -18,6 +18,7 @@
 
 package app.tools.Players.all.ExoIjk;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
@@ -512,13 +513,23 @@ public abstract class Exo extends Player {
 
         public void clean()
         {
-            // Quit the underlying thread loop to prevent severe memory/thread leaks
-            if (looper != null) {
-                looper.quitSafely();
-            }
+            Looper tmLooper = looper;
+            Handler tmHandler = playerHandlerr;
 
-            playerHandlerr = null;
             looper = null;
+            playerHandlerr = null;
+
+            if (tmLooper != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+                    tmLooper.quitSafely();
+                } else if (tmHandler != null) {
+                    // Fallback for API 16: Queue the exit action so that
+                    // remaining pending tasks finish processing first.
+                    tmHandler.post(() -> tmLooper.quit());
+                } else {
+                    tmLooper.quit();
+                }
+            }
         }
     }
 }
