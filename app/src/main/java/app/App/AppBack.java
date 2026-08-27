@@ -80,6 +80,7 @@ import static server.Home.app;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.view.SurfaceHolder;
+import server.tools.MediaProxyServlet;
 import server.tools.VideoSettings;
 import server.web.ErrorCodeApp;
 import server.web.Sources;
@@ -300,6 +301,13 @@ public class AppBack extends AppWeb {
 
             switch (object.getString("sourceType")) {
                 case "SiteEx":
+
+                    try {
+                        if(!object.getBoolean("mediaProxy"))
+                            MediaProxyServlet.mediaProxy(false);
+                    }
+                    catch (Exception e){}
+
                     extractorPattern(object.getString("defaultPatternExtractStream"));
                     extractorExpirePattern(object.getString("defaultPatternExtractExpire"));
 
@@ -847,6 +855,7 @@ public class AppBack extends AppWeb {
     private void sendURLBeforeDestroy()
     {
         mediaReload.reset();
+        MediaProxyServlet.mediaProxy(true);
         SData.resetToDefault();
 
         jsonSelectedRes = null;

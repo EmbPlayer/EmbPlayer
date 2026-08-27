@@ -78,6 +78,7 @@ public class MediaProxyServlet extends HttpServletAdvanced {
     public final static MediaElements videoOnly = new MediaElements(true);
     public final static MediaElements combinedOrAudio = new MediaElements(false);
 
+    private static boolean mediaProxy = true;
     private final OkHttpClient httpClient;
     private final int timeoutSeconds = 6;
     private final int maxRetries = 3;
@@ -90,6 +91,10 @@ public class MediaProxyServlet extends HttpServletAdvanced {
     // Helper: build MediaProxy URL with optional bufferSize enum (stores only enum ordinal)
     // Build MediaProxy URL with a videoOnly flag (no bufferSize parameter)
     public static String getPure(String url, boolean videoOnly) {
+
+        if(!mediaProxy)
+            return url;
+
         if(videoOnly) {
             MediaProxyServlet.videoOnly.source = url;
             return MediaProxyServlet.videoOnly.correctData();
@@ -97,6 +102,10 @@ public class MediaProxyServlet extends HttpServletAdvanced {
 
         MediaProxyServlet.combinedOrAudio.source = url;
         return MediaProxyServlet.combinedOrAudio.correctData();
+    }
+
+    public static void mediaProxy(boolean on){
+        mediaProxy = on;
     }
 
 
@@ -151,6 +160,11 @@ public class MediaProxyServlet extends HttpServletAdvanced {
             selectedMedia = videoOnly;
         else
             selectedMedia = combinedOrAudio;
+
+        if(selectedMedia.source==null){
+            response.sendError(HttpServletResponse.SC_BAD_GATEWAY, "null");
+            return;
+        }
 
         // Build a client with the specific timeout for this request
         OkHttpClient retryClient = httpClient.newBuilder()
