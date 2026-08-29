@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import app.services.BaseServer;
 import app.tools.Generators.Requirements.Piped.VideoResolution;
 import app.tools.Players.all.Players;
+import app.tools.SData;
 import okhttp3.Headers;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
@@ -78,12 +79,13 @@ public class MediaProxyServlet extends HttpServletAdvanced {
     public final static MediaElements videoOnly = new MediaElements(true);
     public final static MediaElements combinedOrAudio = new MediaElements(false);
 
-    private static boolean mediaProxy = true;
+    private static boolean mediaProxy;
     private final OkHttpClient httpClient;
     private final int timeoutSeconds = 6;
     private final int maxRetries = 3;
 
     public MediaProxyServlet(OkHttpClient httpClient,String directory) {
+        mediaProxy = SData.get(SData.Data.MediaProxy,true);
         this.httpClient = httpClient;
         directory_ = directory;
     }
@@ -106,6 +108,7 @@ public class MediaProxyServlet extends HttpServletAdvanced {
 
     public static void mediaProxy(boolean on){
         mediaProxy = on;
+        SData.set(SData.Data.MediaProxy,on);
     }
 
 

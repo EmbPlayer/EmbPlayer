@@ -99,12 +99,12 @@ public class AppBack extends AppWeb {
 
     public final MediaReload mediaReload = new MediaReload();
     private final Sender sender = new Sender();
+    private final JsonData jsonData = new JsonData();
 
     public AsyncRun errorHandel;
     public PlayerControllerBase mediaPlayer;
     public Generator globalGenerator;
 
-    private String jsonSelectedRes;
     private VideoSettings videoSettings;
     private Runnable panelRun;
     private boolean mediaSeekStart;
@@ -183,7 +183,7 @@ public class AppBack extends AppWeb {
     }
 
     public void uiReset() {
-        jsonSelectedRes = null;
+        jsonData.jsonSelectedRes=null;
         timer.set(false);
         seekMax(0);
         seekPosition(-1);
@@ -287,11 +287,16 @@ public class AppBack extends AppWeb {
 
         sender.onMediaChangingUse(() -> {
 
+            int wi = 0;
+            int he = 0;
+            String jsRes = null;
+
             Sources.Source selectedSource = Sources.getSourcesController().getSource(sourceName);
             boolean isRadio = sourceName != null && sourceName.endsWith("_Radio");
             if (selectedSource == null) {
                 sender.sendUrlStartedResetOnlyBoolean();
-                return AppControl.workingStop();
+                AppControl.workingStop();
+                return jsonData.fullUpdate(wi,he,jsRes);
             }
             JSONArray loadJson = selectedSource.jsonFile;
             JSONObject object = loadJson.getJSONObject(subCollectionIndex);
@@ -299,14 +304,22 @@ public class AppBack extends AppWeb {
 
             MediaData link = null;
 
+            try {
+                MediaProxyServlet.mediaProxy(object.getBoolean("mediaProxy"));
+            }
+            catch (Exception e){}
+
+            try{
+                he = object.getInt("height");
+                wi = object.getInt("width");
+            }
+            catch (Exception e){
+                he = 0;
+                wi = 0;
+            }
+
             switch (object.getString("sourceType")) {
                 case "SiteEx":
-
-                    try {
-                        if(!object.getBoolean("mediaProxy"))
-                            MediaProxyServlet.mediaProxy(false);
-                    }
-                    catch (Exception e){}
 
                     extractorPattern(object.getString("defaultPatternExtractStream"));
                     extractorExpirePattern(object.getString("defaultPatternExtractExpire"));
@@ -340,9 +353,9 @@ public class AppBack extends AppWeb {
                                     isHave = true;
 
                                     String outLink = subDirectory.getString("directryEnd");
-                                    jsonSelectedRes = selectedSource.directoryOfResolution(collectionSeletedItems.selecteditems[itemIndexInSubCollection]);
+                                    jsRes = selectedSource.directoryOfResolution(collectionSeletedItems.selecteditems[itemIndexInSubCollection]);
                                     try {
-                                        outLink = subDirectory.getString("directoryFirst") + jsonSelectedRes + outLink;
+                                        outLink = subDirectory.getString("directoryFirst") + jsonData.jsonSelectedRes + outLink;
                                         link = new MediaData(
                                                 subDirectory.getString("name"),
                                                 outLink,
@@ -361,7 +374,7 @@ public class AppBack extends AppWeb {
 
                                         MediaData finalLink = link;
                                         onStop.onMediaChanging(finalLink.directory, finalLink.provider, finalLink.name);
-                                        return true;
+                                        return jsonData.fullUpdate(wi,he,jsRes);
                                     }
                                 }
                                 break;
@@ -387,14 +400,15 @@ public class AppBack extends AppWeb {
 
             if (link == null){
                 sender.sendUrlStartedResetOnlyBoolean();
-                return AppControl.workingStop();
+                AppControl.workingStop();
+                return jsonData.fullUpdate(wi,he,jsRes);
             }
 
             MediaData finalLink1 = link;
 
             onStop.onMediaChanging(finalLink1.directory, finalLink1.provider, finalLink1.name);
 
-            return true;
+            return jsonData.fullUpdate(wi,he,jsRes);
         }, () -> "StartFromJson-Error");
     }
 
@@ -539,9 +553,9 @@ public class AppBack extends AppWeb {
                 YoutubeGenerator.Size videoSize = youtubeGenerator.getSize();
 
                 if (globalGenerator.isLive())
-                    listenn.activateUpdater();
+                    listenn.setScreenUpdateToDefauth();
                 else if(videoSize.getWidth() < 1 || videoSize.getHeight() < 1)
-                    listenn.activateUpdater();
+                    listenn.setScreenUpdateToDefauth();
                 else
                     Panel.aspectChange(videoSize.getWidth(), videoSize.getHeight());
 
@@ -852,19 +866,21 @@ public class AppBack extends AppWeb {
 
         sender.sendUrlStartedReset();
     }
+    private void beforeDestroy(){
+        SData.set(SData.Data.UndefiledError,false);
+        mediaReload.reset();
+    }
     private void sendURLBeforeDestroy()
     {
-        mediaReload.reset();
+        beforeDestroy();
+
+        jsonData.reset();
         MediaProxyServlet.mediaProxy(true);
         SData.resetToDefault();
-
-        jsonSelectedRes = null;
         timer.set(false);
         seekMax(0);
         seekPosition(-1);
         sendURLBeforeDestroyWithoutCleanData();
-
-        SData.set(SData.Data.UndefiledError,false);
     }
     private boolean isStreamAvailable(String streamUrl) throws IOException {
         URL url = new URL(streamUrl);
@@ -891,9 +907,18 @@ public class AppBack extends AppWeb {
         videoSettings = new VideoSettings(Players.resolutionLive(),Players.resolution(),VideoQuality.BEST_QUALITY, LANGUAGES[videoLanguageID.getSave()]);
     }
 
+    private ListenersSet listenerSet(){
+        ListenersSet newListerForSiteGenerator = new ListenersSet();
+        if(jsonData.height.get()!=0){
+            newListerForSiteGenerator.setScreenUpdateToEmpty();
+            Panel.aspectChange(jsonData.width.get(), jsonData.height.get());
+        }
+        return newListerForSiteGenerator;
+    }
+
     private void urlLoader(boolean isLive,String nameOfMedia)
     {
-        UrlGenerator urlGenerator = new UrlGenerator(isLive,baseUrl, new ListenersSet(), hardware.get(),nameOfMedia);
+        UrlGenerator urlGenerator = new UrlGenerator(isLive,baseUrl, listenerSet(), hardware.get(),nameOfMedia);
 
         new LoaderForPlayerURL(urlGenerator).updateLoaderAndKiller();
 
@@ -908,7 +933,7 @@ public class AppBack extends AppWeb {
             return false;
 
         //"(https?://[^\"']*index\\.m3u8\\?e=[^\"']*)","e=(\\d+)"
-        SiteGenerator siteGenerator = new SiteGenerator(jsonSelectedRes,baseUrl,new ListenersSet(), hardware.get(),true, getExtractorPattern(), getExtractorExpirePattern(),nameOfMedia);
+        SiteGenerator siteGenerator = new SiteGenerator(jsonData.jsonSelectedRes,baseUrl,listenerSet(), hardware.get(),true, getExtractorPattern(), getExtractorExpirePattern(),nameOfMedia);
 
         if(!siteGenerator.generateLink(10))
             return false;
@@ -1581,6 +1606,9 @@ public class AppBack extends AppWeb {
     }
     public class ListenersSet extends Listeners
     {
+        private final BiConsumer<Integer,Integer> screenUpdateDefault =
+                (width,height)->Panel.updateScreen(width, height);
+
         private final StaticFunctions.Starter onNotLoaded = new StaticFunctions.Starter() {
             @Override
             protected void firstLaunch() {
@@ -1644,10 +1672,32 @@ public class AppBack extends AppWeb {
             protected void secondLaunches() {}
         };
 
+        private BiConsumer<Integer,Integer> screenUpdate;
+
+        public ListenersSet(){
+            onCreate();
+        }
+
+        protected void onCreate(){
+            setScreenUpdateToDefauth();
+        }
+        
+        public void setScreenUpdateToDefauth(){
+            screenUpdate = screenUpdateDefault;
+        }
+
+        public void setScreenUpdateToEmpty(){
+            screenUpdate = StaticFunctions.Empty.bC;
+        }
+
         @Override
         public void onVideoSizeChangedListener(int width, int height)
         {
-            Panel.updateScreen(width, height);
+            try {
+                screenUpdate.accept(width,height);
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
         }
 
         @Override
@@ -1699,21 +1749,9 @@ public class AppBack extends AppWeb {
     }
     public class ListenersYoutube extends ListenersSet
     {
-        private BiConsumer<Integer,Integer> screenUpdate = StaticFunctions.Empty.bC;
-
         @Override
-        public void onVideoSizeChangedListener(int width, int height)
-        {
-            try {
-                screenUpdate.accept(width,height);
-            } catch (Throwable e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        public void activateUpdater(){
-            screenUpdate = (width,height)->
-                    ListenersYoutube.super.onVideoSizeChangedListener(width,height);
+        protected void onCreate(){
+            setScreenUpdateToEmpty();
         }
 
         @Override
@@ -2746,7 +2784,7 @@ public class AppBack extends AppWeb {
                 MediaStopOrSwitch.this.sourceProvider = sourceProvider;
                 MediaStopOrSwitch.this.nameOfMedia = nameOfMedia;
 
-                mediaReload.reset();
+                beforeDestroy();
                 closePanel(
                         () -> {
                             SData.resetToDefault();
@@ -2768,6 +2806,54 @@ public class AppBack extends AppWeb {
                 catch (Exception e){
                     mediaSessionStopBase();
                 }
+            }
+        }
+    }
+
+    public static final class JsonData{
+        private final JSize width;
+        private final JSize height;
+        private String jsonSelectedRes;
+
+        public JsonData(){
+            width = new JSize(SData.Data.Jwidth);
+            height = new JSize(SData.Data.Jheight);
+            jsonSelectedRes = null;
+        }
+
+        public void reset(){
+            width.reset();
+            height.reset();
+            jsonSelectedRes = null;
+        }
+
+        public boolean fullUpdate(int wi,int he,String jsRes){
+            width.update(wi);
+            height.update(he);
+            jsonSelectedRes = jsRes;
+            return true;
+        }
+
+        private final class JSize{
+            private final SData.Data savedData;
+            private int data;
+
+            public JSize(SData.Data savedData){
+                this.savedData = savedData;
+                data = SData.getInt(savedData);
+            }
+
+            public int get(){
+                return data;
+            }
+
+            public void update(int data){
+                this.data = data;
+                SData.setInt(savedData,data);
+            }
+
+            public void reset(){
+                update(0);
             }
         }
     }

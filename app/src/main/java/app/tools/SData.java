@@ -330,7 +330,8 @@ public class SData {
         IsSavable, ColorFormatIndex,
         LegacyYoutubePlayer,SavedMedia,
         CheckMacAddress,
-        ExoPlayerOn,VLCPlayerOn
+        ExoPlayerOn,VLCPlayerOn,
+        MediaProxy,Jwidth,Jheight
     }
 
     private static class ArchiveDbHelper extends SQLiteOpenHelper {
