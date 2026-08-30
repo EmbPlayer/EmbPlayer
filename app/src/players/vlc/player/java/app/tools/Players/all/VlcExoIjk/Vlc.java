@@ -302,7 +302,7 @@ public abstract class Vlc extends Player
     @Override
     public void newMedia()
     {
-        loader = () -> makeTry(()->{
+        loader = ()->{
             libVLC = new LibVLC(Main.getContext(),vlcOptions);
 
             media = new MediaPlayer(libVLC);
@@ -323,7 +323,7 @@ public abstract class Vlc extends Player
 
             listenersUpdate();
             loader = StaticFunctions.Empty.r;
-        });
+        };
     }
 
     @Override

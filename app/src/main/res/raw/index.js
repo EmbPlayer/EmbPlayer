@@ -33,6 +33,7 @@ var sendVideoResolutionLivee = 24;
 var sendYoutubeLegacyPlayerrOnn = 25;
 var sendCheckMacAndSsidd = 26;
 var sendRadioPlayerr = 27;
+var sendMediaProxyy = 28;
 
 const volumeMax = 100;
 var nameOfMedia = "";
@@ -54,6 +55,7 @@ var playlistOn = false;
 var loopPlaylist = false;
 var saveLink = false;
 var isLive = false;
+var mediaProxyOn = true;
 var allLanguages = [];
 
 var timerStoped = true;
@@ -129,6 +131,10 @@ ButtonSetup("loop",loopOn);
 function HardwareUp()
 {
     ButtonSetupV2("hardware",hardwareOn);
+}
+function MediaProxyUp()
+{
+    ButtonSetupV2("mediaproxy",mediaProxyOn);
 }
 function YouTubeCachingUp()
 {
@@ -627,7 +633,10 @@ async function loadSettingsVideo()
     
     setList(sendRadioPlayer.name,radioPlayer,selectedOptions[13],allPlayerEngines);
 
+    mediaProxyOn = selectedOptions[14]==1;
+
     HardwareUp();
+    MediaProxyUp();
     YouTubeCachingUp();
     URLCachingUp();
     YoutubeLegacyPlayerOnUP();
@@ -686,6 +695,17 @@ async function sendHardware()
     HardwareUp();
 }
 
+async function sendMediaProxy()
+{
+    WaitOn();
+
+    await SendRequest(SendRequestOff(sendMediaProxyy));
+    mediaProxyOn = !mediaProxyOn;
+
+    await WaitOff();
+    
+    MediaProxyUp();
+}
 
 async function sendYoutubeCaching()
 {

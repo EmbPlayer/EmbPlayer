@@ -1027,130 +1027,143 @@
                     <div class="row g-3"> <!-- Increased to g-3 for better spacing -->
             
                         <!-- Language & Hardware Section -->
-            <div class="col-12 mb-3">
-                <div class="card border-light settings-row-card">
-                    <div class="card-body p-3">
-                        <div class="row g-0 align-items-center">
-                            <!-- Language -->
-                            <div class="col-md-6 pe-md-3">
-                                <div class="d-flex align-items-center h-100">
-                                    <div class="setting-label me-3">
-                                        <div class="setting-title">Language</div>
-                                        <div class="setting-subtitle">Select</div>
-                                    </div>
-                                    <div class="setting-control flex-grow-1">
-                                        <div class="select-container">
-                                            <select class="form-select setting-select" id="languagesList" onchange="sendLanguage(this.value)">
-                                                <option value="en" selected>EN</option>
-                                                <option value="tr">TR</option>
-                                                <option value="fr">FR</option>
-                                                <option value="de">DE</option>
-                                                <option value="es">ES</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
+<div class="col-12 mb-3">
+    <div class="card border-light settings-row-card">
+        <div class="card-body p-3">
+            <div class="row g-0 align-items-center">
+                <!-- Language -->
+                <div class="col-md-6 pe-md-3">
+                    <div class="d-flex align-items-center justify-content-between w-100 h-100">
+                        <div class="setting-label">
+                            <div class="setting-title">Language</div>
+                            <div class="setting-subtitle">Select</div>
+                        </div>
+                        <div class="setting-control">
+                            <div class="select-container">
+                                <select class="form-select setting-select" id="languagesList" onchange="sendLanguage(this.value)">
+                                    <option value="en" selected>EN</option>
+                                    <option value="tr">TR</option>
+                                    <option value="fr">FR</option>
+                                    <option value="de">DE</option>
+                                    <option value="es">ES</option>
+                                </select>
                             </div>
-                            <!-- Hardware -->
-                            <div class="col-md-6 ps-md-3 mt-3 mt-md-0">
-                                <div class="d-flex align-items-center h-100">
-                                    <div class="setting-label me-3">
-                                        <div class="setting-title">Hardware</div>
-                                        <div class="setting-subtitle">Decoding</div>
-                                    </div>
-                                    <div class="setting-control flex-grow-1">
-                                        <div class="form-check form-switch d-flex align-items-center justify-content-center">
-                                            <input class="form-check-input m-0" type="checkbox" role="switch" id='hardware' onclick="sendHardware()">
-                                        </div>
-                                    </div>
-                                </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Hardware -->
+                <div class="col-md-6 ps-md-3 mt-3 mt-md-0">
+                    <div class="d-flex align-items-center justify-content-between w-100 h-100">
+                        <div class="setting-label">
+                            <div class="setting-title">Hardware</div>
+                            <div class="setting-subtitle">Decoding</div>
+                        </div>
+                        <div class="setting-control">
+                            <div class="form-check form-switch m-0 d-flex align-items-center">
+                                <input class="form-check-input m-0" type="checkbox" role="switch" id="hardware" onclick="sendHardware()">
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            
-            
-                        <!-- Youtube & Url Caching -->
-                        <div class="col-12 mb-3">
-                            <div class="card border-light settings-row-card">
-                                <div class="card-body p-3">
-                                    <div class="row g-0 align-items-center">
-                                        
-                                        <!-- Youtube Caching -->
-                            <div class="col-md-6 pe-md-3">
-                                <div class="d-flex align-items-center h-100">
-                                    
-                                    <div class="setting-label me-3">
-                                        <div class="setting-title">YouTube/Live</div>
-                                        <div class="setting-subtitle">Caching</div>
-                                    </div>
-                                    <div class="setting-control flex-grow-1">
-                                        <div class="form-check form-switch d-flex align-items-center justify-content-center">
-                                            <input class="form-check-input m-0" type="checkbox" role="switch" id='youtubeCaching' onclick="sendYoutubeCaching()">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                                        <!-- URL Caching -->
-                                        <div class="col-md-6 ps-md-3 mt-3 mt-md-0">
-                                            <div class="d-flex align-items-center h-100">
-                                                <div class="setting-label me-3">
-                                                    <div class="setting-title">URL/Live</div>
-                                                    <div class="setting-subtitle">Caching</div>
-                                                </div>
-                                                <div class="setting-control flex-grow-1">
-                                                    <div class="form-check form-switch d-flex align-items-center justify-content-center">
-                                                        <input class="form-check-input m-0" type="checkbox" role="switch" id='urlCaching' onclick="sendURLCaching()">
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+        </div>
+    </div>
+</div>
 
-                        <!-- YoutubeLegacyPlayer & Mac -->
-                         
-                        <div class="col-12 mb-3">
-                            <div class="card border-light settings-row-card">
-                                <div class="card-body p-3">
-                                    <div class="row g-0 align-items-center">
-                                        
-                                        <!-- Youtube Leagcy -->
-                            <div class="col-md-6 pe-md-3">
-                                <div class="d-flex align-items-center h-100">
-                                    
-                                    <div class="setting-label me-3">
-                                        <div class="setting-title">Legacy</div>
-                                        <div class="setting-subtitle">YouTube player</div>
-                                    </div>
-                                    <div class="setting-control flex-grow-1">
-                                        <div class="form-check form-switch d-flex align-items-center justify-content-center">
-                                            <input class="form-check-input m-0" type="checkbox" role="switch" id='ytLegacyPlayer' onclick="sendYoutubeLegacyPlayerrOn()">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                                        <!-- Check Mac & Ssid -->
-                                        <div class="col-md-6 ps-md-3 mt-3 mt-md-0">
-                                            <div class="d-flex align-items-center h-100">
-                                                <div class="setting-label me-3">
-                                                    <div class="setting-title">Check</div>
-                                                    <div class="setting-subtitle">Mac & Ssid</div>
-                                                </div>
-                                                <div class="setting-control flex-grow-1">
-                                                    <div class="form-check form-switch d-flex align-items-center justify-content-center">
-                                                        <input class="form-check-input m-0" type="checkbox" role="switch" id='ckMacAndSsid' onclick="sendCheckMacAndSsidOn()">
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
+<!-- Youtube & Url Caching -->
+<div class="col-12 mb-3">
+    <div class="card border-light settings-row-card">
+        <div class="card-body p-3">
+            <div class="row g-0 align-items-center">
+                <!-- Youtube Caching -->
+                <div class="col-md-6 pe-md-3">
+                    <div class="d-flex align-items-center justify-content-between w-100 h-100">
+                        <div class="setting-label">
+                            <div class="setting-title">YouTube/Live</div>
+                            <div class="setting-subtitle">Caching</div>
+                        </div>
+                        <div class="setting-control">
+                            <div class="form-check form-switch m-0 d-flex align-items-center">
+                                <input class="form-check-input m-0" type="checkbox" role="switch" id="youtubeCaching" onclick="sendYoutubeCaching()">
                             </div>
                         </div>
+                    </div>
+                </div>
+                <!-- URL Caching -->
+                <div class="col-md-6 ps-md-3 mt-3 mt-md-0">
+                    <div class="d-flex align-items-center justify-content-between w-100 h-100">
+                        <div class="setting-label">
+                            <div class="setting-title">URL/Live</div>
+                            <div class="setting-subtitle">Caching</div>
+                        </div>
+                        <div class="setting-control">
+                            <div class="form-check form-switch m-0 d-flex align-items-center">
+                                <input class="form-check-input m-0" type="checkbox" role="switch" id="urlCaching" onclick="sendURLCaching()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- YoutubeLegacyPlayer & Mac -->
+<div class="col-12 mb-3">
+    <div class="card border-light settings-row-card">
+        <div class="card-body p-3">
+            <div class="row g-0 align-items-center">
+                <!-- Youtube Legacy -->
+                <div class="col-md-6 pe-md-3">
+                    <div class="d-flex align-items-center justify-content-between w-100 h-100">
+                        <div class="setting-label">
+                            <div class="setting-title">Legacy</div>
+                            <div class="setting-subtitle">YouTube player</div>
+                        </div>
+                        <div class="setting-control">
+                            <div class="form-check form-switch m-0 d-flex align-items-center">
+                                <input class="form-check-input m-0" type="checkbox" role="switch" id="ytLegacyPlayer" onclick="sendYoutubeLegacyPlayerrOn()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Check Mac & Ssid -->
+                <div class="col-md-6 ps-md-3 mt-3 mt-md-0">
+                    <div class="d-flex align-items-center justify-content-between w-100 h-100">
+                        <div class="setting-label">
+                            <div class="setting-title">Check</div>
+                            <div class="setting-subtitle">Mac & Ssid</div>
+                        </div>
+                        <div class="setting-control">
+                            <div class="form-check form-switch m-0 d-flex align-items-center">
+                                <input class="form-check-input m-0" type="checkbox" role="switch" id="ckMacAndSsid" onclick="sendCheckMacAndSsidOn()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+                        
+<!-- MediaProxy (Full Width) -->
+<div class="col-12 mb-3">
+    <div class="card border-light settings-row-card">
+        <div class="card-body p-3">
+            <div class="d-flex align-items-center justify-content-between w-100 h-100">
+                <div class="setting-label">
+                    <div class="setting-title">MediaProxy</div>
+                    <div class="setting-subtitle">On</div>
+                </div>
+                <div class="setting-control">
+                    <div class="form-check form-switch m-0 d-flex align-items-center">
+                        <input class="form-check-input m-0" type="checkbox" role="switch" id="mediaproxy" onclick="sendMediaProxy()">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
                         <!-- Resolution -->
                         <div class="col-md-6">

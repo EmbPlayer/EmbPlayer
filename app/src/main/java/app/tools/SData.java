@@ -331,7 +331,8 @@ public class SData {
         LegacyYoutubePlayer,SavedMedia,
         CheckMacAddress,
         ExoPlayerOn,VLCPlayerOn,
-        MediaProxy,Jwidth,Jheight
+        MediaProxy,MediaProxyDefault,
+        Jwidth,Jheight
     }
 
     private static class ArchiveDbHelper extends SQLiteOpenHelper {

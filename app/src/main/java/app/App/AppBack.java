@@ -307,7 +307,9 @@ public class AppBack extends AppWeb {
             try {
                 MediaProxyServlet.mediaProxy(object.getBoolean("mediaProxy"));
             }
-            catch (Exception e){}
+            catch (Exception e){
+                MediaProxyServlet.mediaProxyDefault();
+            }
 
             try{
                 he = object.getInt("height");
@@ -355,7 +357,7 @@ public class AppBack extends AppWeb {
                                     String outLink = subDirectory.getString("directryEnd");
                                     jsRes = selectedSource.directoryOfResolution(collectionSeletedItems.selecteditems[itemIndexInSubCollection]);
                                     try {
-                                        outLink = subDirectory.getString("directoryFirst") + jsonData.jsonSelectedRes + outLink;
+                                        outLink = subDirectory.getString("directoryFirst") + jsRes + outLink;
                                         link = new MediaData(
                                                 subDirectory.getString("name"),
                                                 outLink,
@@ -875,7 +877,7 @@ public class AppBack extends AppWeb {
         beforeDestroy();
 
         jsonData.reset();
-        MediaProxyServlet.mediaProxy(true);
+        MediaProxyServlet.mediaProxyDefault();
         SData.resetToDefault();
         timer.set(false);
         seekMax(0);

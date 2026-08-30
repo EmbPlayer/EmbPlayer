@@ -85,7 +85,7 @@ public class MediaProxyServlet extends HttpServletAdvanced {
     private final int maxRetries = 3;
 
     public MediaProxyServlet(OkHttpClient httpClient,String directory) {
-        mediaProxy = SData.get(SData.Data.MediaProxy,true);
+        mediaProxy = SData.get(SData.Data.MediaProxy,SData.get(SData.Data.MediaProxyDefault,true));
         this.httpClient = httpClient;
         directory_ = directory;
     }
@@ -109,6 +109,10 @@ public class MediaProxyServlet extends HttpServletAdvanced {
     public static void mediaProxy(boolean on){
         mediaProxy = on;
         SData.set(SData.Data.MediaProxy,on);
+    }
+
+    public static void mediaProxyDefault(){
+        mediaProxy(SData.get(SData.Data.MediaProxyDefault,true));
     }
 
 

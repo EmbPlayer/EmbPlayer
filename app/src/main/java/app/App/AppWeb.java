@@ -34,6 +34,7 @@ import app.tools.Players.all.PlayersCollection;
 import app.tools.SData;
 import app.tools.StaticFunctions;
 import app.tools.StaticFunctions.ItemWithId;
+import server.tools.MediaProxyServlet;
 import server.web.Sources;
 
 import static app.tools.StaticFunctions.onThrows;
@@ -70,6 +71,7 @@ public class AppWeb{
     public final ButtonBoolean timer;
     public final ButtonBoolean setUp;
     public final ButtonBoolean playlist;
+    public final MediaProxyButton proxyOn;
     public final ButtonBoolean hardware;
     public final ButtonBoolean checkMacAddress;
 
@@ -92,6 +94,7 @@ public class AppWeb{
         onExo = new ExoPlayerOnly();
         isSavable = new SavedButtonBoolean(SData.Data.IsSavable,false);
         loop =  new ButtonForLoop(SData.Data.SavedAsPlaylist);
+        proxyOn = new MediaProxyButton(SData.Data.MediaProxyDefault,true);
         hardware = new SavedButtonBoolean(SData.Data.HardwareDecoding,false);
         checkMacAddress = new SavedButtonBoolean(SData.Data.CheckMacAddress,false);
 
@@ -389,6 +392,20 @@ public class AppWeb{
         {
             super.set(On);
             SData.setInt(data,On);
+        }
+    }
+
+    public static class MediaProxyButton extends SavedButtonBoolean{
+
+        public MediaProxyButton(SData.Data data, boolean ifNull) {
+            super(data, ifNull);
+        }
+
+        @Override
+        public void set(boolean On)
+        {
+            super.set(On);
+            MediaProxyServlet.mediaProxy(On);
         }
     }
 

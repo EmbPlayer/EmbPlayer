@@ -22,7 +22,7 @@ boolean battery = true;
 boolean modern = false;
 
 android {
-    compileSdkVersion 35
+    compileSdkVersion 36
     //buildToolsVersion '33.0.0'
     namespace 'com.emb.player'
 
@@ -284,7 +284,7 @@ dependencies {
 
     if(vlc)
     {
-        implementation 'org.videolan.android:libvlc-all:3.6.5'
+        implementation 'org.videolan.android:libvlc-all:3.7.5'
     }
 
     if(battery){

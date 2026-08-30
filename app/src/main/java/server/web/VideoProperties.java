@@ -69,7 +69,8 @@ public class VideoProperties extends HttpServletAdvanced {
                 app().livePlayerID.getSave(), app().youtubePlayerVideoID.getSave(),
                 app().onExo.youtubeCaching.getInt(), app().onExo.urlCaching.getInt(),
                 app().getVideoResolutionLiveID(), app().legacyYoutubePlayer.getInt(),
-                app().checkMacAddress.getInt(), app().radioPlayerID.getSave()
+                app().checkMacAddress.getInt(), app().radioPlayerID.getSave(),
+                app().proxyOn.getInt()
         } );
 
         return setData(new String[] {setData(selected),setData(resolutions),setData(playersCollection),setData(colorFormats)});

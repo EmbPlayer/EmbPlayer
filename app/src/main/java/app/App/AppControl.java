@@ -406,6 +406,10 @@ public class AppControl extends HttpServletAdvanced {
                     app().hardware.set(!app().hardware.get());
                     return waitAndIsWorkingStop();
 
+                case Action.sendMediaProxyDefault:
+                    app().proxyOn.set(!app().proxyOn.get());
+                    return waitAndIsWorkingStop();
+
                 case Action.sendCheckMacAddress:
                     app().checkMacAddress.set(!app().checkMacAddress.get());
                     return waitAndIsWorkingStop();
@@ -463,5 +467,6 @@ public class AppControl extends HttpServletAdvanced {
         private static final int sendYoutubeLegacyPlayer = 25;
         private static final int sendCheckMacAddress = 26;
         private static final int sendRadioPlayer = 27;
+        private static final int sendMediaProxyDefault = 28;
     }
 }
