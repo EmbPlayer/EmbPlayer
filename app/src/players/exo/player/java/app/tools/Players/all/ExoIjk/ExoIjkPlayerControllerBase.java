@@ -20,6 +20,7 @@ package app.tools.Players.all.ExoIjk;
 
 import androidx.annotation.CallSuper;
 import androidx.media3.common.PlaybackException;
+import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
 import app.tools.Players.all.Listeners;
 import app.tools.Players.all.Ijk.IjkPlayerControllerBase;
@@ -77,53 +78,23 @@ public abstract class ExoIjkPlayerControllerBase extends IjkPlayerControllerBase
                 @Override
                 public void onPlaybackStateChanged(int playbackState) {
                     switch (playbackState) {
-
-                        case androidx.media3.common.Player.STATE_BUFFERING:
-                            // Buffering started
-                            if (!bufferingStarted) {
-                                bufferingStarted = true;
-                                bufferingCounter++;
-                                if (!secondPlayer)
-                                    listeners.onBufferingStart();
-                            }
-                            break;
-
-                        case androidx.media3.common.Player.STATE_READY:
-                            // Buffering ended
-                            if (bufferingStarted) {
-                                bufferingStarted = false;
-                                if (!secondPlayer)
-                                    listeners.onBufferingEnd();
-                            }
-                            break;
-
                         case androidx.media3.common.Player.STATE_ENDED:
                             // Playback completed
                             OnEnded();
+                            break;
+
+                        case androidx.media3.common.Player.STATE_BUFFERING:
+                            if(!secondPlayer)
+                                listeners.onBufferingUpdateListener(media.getBufferedPercentage());
                             break;
                     }
                 }
 
                 @Override
                 public void onIsLoadingChanged(boolean isLoading) {
-                    // Additional buffering indicator
-                    if (isLoading && !bufferingStarted) {
-                        bufferingStarted = true;
-                        bufferingCounter++;
-                        if (!secondPlayer)
-                            listeners.onBufferingStart();
-                    } else if (!isLoading && bufferingStarted) {
-                        bufferingStarted = false;
-                        if (!secondPlayer)
-                            listeners.onBufferingEnd();
-                    }
+                    if(!secondPlayer)
+                        listeners.onBufferingUpdateListener(media.getBufferedPercentage());
                 }
-/*
-                @Override
-                public void onVideoSizeChanged(VideoSize videoSize) {
-                    // Equivalent to OnVideoSizeChangedListener in IJKPlayer
-                    listeners.OnVideoSizeChangedListener(videoSize.width, videoSize.height);
-                }*/
             });
 
             return true;

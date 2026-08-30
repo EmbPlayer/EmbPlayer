@@ -95,29 +95,6 @@ public abstract class IjkPlayerControllerBase extends OemPlayerControllerBase {
                 if(!secondPlayer)
                     listeners.onBufferingUpdateListener(percent);
             });
-            media.setOnInfoListener((mp, what, extra) -> {
-                if (what == MEDIA_INFO_BUFFERING_START) {
-                    bufferingStarted = true;
-                    bufferingCounter++;
-                    if(!secondPlayer)
-                        listeners.onBufferingStart();
-                }
-                if (what == MEDIA_INFO_BUFFERING_END) {
-                    if(!secondPlayer)
-                        listeners.onBufferingEnd();
-                    bufferingStarted = false;
-                }
-                return true;
-            });/*
-
-            media.setOnNativeInvokeListener(new IjkMediaPlayer.OnNativeInvokeListener() {
-                @Override
-                public boolean onNativeInvoke(int what, Bundle args) {
-                    // Optional: log or intercept messages
-                    //App().logs.add(what+"");
-                    return false;
-                }
-            });*/
             return true;
         }
 

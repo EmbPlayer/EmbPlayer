@@ -30,10 +30,6 @@ public abstract class Listeners
 
     public void onPlayListLoop(){}
 
-    public void onBufferingStart(){}
-
-    public void onBufferingEnd(){}
-
     public void onVideoSizeChangedListener(int width, int height){}
 
     public abstract void onNotLoadedTryAgainToLoad();

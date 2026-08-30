@@ -65,10 +65,8 @@ public abstract class VlcExoIjkPlayerControllerBase extends ExoIjkPlayerControll
                             break;
 
                         case MediaPlayer.Event.Buffering:
-                            bufferingCounter+=1;
-                            float buffering = event.getBuffering();
                             if(!secondPlayer)
-                                listeners.onBufferingUpdateListener((int)(buffering * 100));
+                                listeners.onBufferingUpdateListener((int)(event.getBuffering() * 100));
                             break;
 
                         case MediaPlayer.Event.Playing:

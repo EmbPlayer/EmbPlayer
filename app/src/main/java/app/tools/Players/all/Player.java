@@ -41,10 +41,8 @@ public abstract class Player {
     protected Disposable releaser;
     protected Runnable preset;
     protected String link;
-    protected boolean bufferingStarted;
     protected boolean prepared;
     protected boolean error;
-    protected float bufferingCounter;
     protected boolean cleaned;
     protected boolean secondPlayer = false;
 
@@ -75,10 +73,6 @@ public abstract class Player {
         onDisplayNull.run();
     }
 
-    public final boolean bufferingStarted() {
-        return bufferingStarted;
-    }
-
     public final boolean getError() {
         return error;
     }
@@ -86,11 +80,6 @@ public abstract class Player {
     public final void saveLink(String Link)
     {
         link = Link;
-    }
-
-    public final boolean secondBufferingStarted()
-    {
-        return bufferingCounter>=2;
     }
 
     public final void secondPlayer(boolean yes)
@@ -171,9 +160,7 @@ public abstract class Player {
     @CallSuper
     protected void resetBase()
     {
-        bufferingStarted = false;
         prepared = false;
-        //mediaGetSeek.Reset();
     }
 
     @CallSuper

@@ -1726,16 +1726,6 @@ public class AppBack extends AppWeb {
         }
 
         @Override
-        public final void onBufferingStart() {
-            /*ErrorHandel.MediaBufferingStart();*/
-        }
-
-        @Override
-        public final void onBufferingEnd() {
-            /*ErrorHandel.MediaBufferingStop();*/
-        }
-
-        @Override
         public final void onBufferingUpdateListener(int percent)
         {
             bufferedPercentage = percent;
