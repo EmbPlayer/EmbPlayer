@@ -94,7 +94,7 @@ public class AppWeb{
         onExo = new ExoPlayerOnly();
         isSavable = new SavedButtonBoolean(SData.Data.IsSavable,false);
         loop =  new ButtonForLoop(SData.Data.SavedAsPlaylist);
-        proxyOn = new MediaProxyButton(SData.Data.MediaProxyDefault,true);
+        proxyOn = new MediaProxyButton(SData.Data.MediaProxyDefault,false);
         hardware = new SavedButtonBoolean(SData.Data.HardwareDecoding,false);
         checkMacAddress = new SavedButtonBoolean(SData.Data.CheckMacAddress,false);
 
