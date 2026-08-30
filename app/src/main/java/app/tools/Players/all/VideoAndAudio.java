@@ -155,23 +155,9 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
     }
 
     @Override
-    public boolean secondBufferingStarted()
-    {
-        return audio.secondBufferingStarted() && video.secondBufferingStarted();
-    }
-
-    @Override
     public Scheduler mainScheduler()
     {
         return forSecondMedia;
-    }
-
-    public void waitBuffering()
-    {
-        while (video.bufferingStarted() || audio.data.bufferingStarted())
-        {
-            waitMS(500);
-        }
     }
 
     @Override

@@ -61,12 +61,6 @@ public abstract class Media<T extends Player> extends PlayerController {
     }
 
     @Override
-    public boolean secondBufferingStarted()
-    {
-        return data.secondBufferingStarted();
-    }
-
-    @Override
     public boolean isNull()
     {
         return data.isNull();

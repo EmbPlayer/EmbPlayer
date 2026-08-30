@@ -591,7 +591,6 @@ public abstract class PlayerControllerBase {
     public abstract void waitPlay(Runnable onEnd);
     public abstract void addData(String audioUrl, String videoUrl);
     public abstract boolean prepared();
-    public abstract boolean secondBufferingStarted();
 
     protected abstract BaseData baseData();
     protected abstract Runnable afterLoad_Start();
