@@ -290,9 +290,8 @@ public abstract class BasePanel extends DefaultActivity {
     }
     public void updateScreenSize(int size)
     {
-        // Create new layout parameters
-        //layoutParams.width*9/16
-        layoutParams.height = size*9/16;
+        // Use the dynamically calculated aspect ratio
+        layoutParams.height = (int) (size * AspectRation.ration());
         layoutParams.width = size;
 
         // Apply the new layout parameters
@@ -369,7 +368,6 @@ public abstract class BasePanel extends DefaultActivity {
     public static class AspectRation
     {
         private final static float defaultRatio = 9f / 16f;
-
         private static float aspectRatio = defaultRatio;
 
         public static void defaultSet()
@@ -384,19 +382,14 @@ public abstract class BasePanel extends DefaultActivity {
 
         public static void calculateAspectRatio(VideoStream videoStream)
         {
-            calculateAspectRatio(videoStream.getWidth(),videoStream.getHeight());
+            calculateAspectRatio(videoStream.getWidth(), videoStream.getHeight());
         }
 
         public static void calculateAspectRatio(int width, int height)
         {
-            float gcd = findGCD(width, height);
-            aspectRatio = (height / gcd) / (width / gcd);
-        }
+            if (width == 0 || height == 0) return;
 
-        // Helper method to find Greatest Common Divisor (GCD)
-        private static float findGCD(float a, float b) {
-            if (b == 0) return a;
-            return findGCD(b, a % b);
+            aspectRatio = (float) height / (float) width;
         }
     }
 
