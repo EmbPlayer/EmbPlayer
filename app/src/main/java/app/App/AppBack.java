@@ -909,8 +909,7 @@ public class AppBack extends AppWeb {
         videoSettings = new VideoSettings(Players.resolutionLive(),Players.resolution(),VideoQuality.BEST_QUALITY, LANGUAGES[videoLanguageID.getSave()]);
     }
 
-    private ListenersSet listenerSet(){
-        ListenersSet newListerForSiteGenerator = new ListenersSet();
+    private <T extends ListenersSet> T listenerSet(T newListerForSiteGenerator){
         if(jsonData.height.get()!=0){
             newListerForSiteGenerator.setScreenUpdateToEmpty();
             Panel.aspectChange(jsonData.width.get(), jsonData.height.get());
@@ -920,7 +919,7 @@ public class AppBack extends AppWeb {
 
     private void urlLoader(boolean isLive,String nameOfMedia)
     {
-        UrlGenerator urlGenerator = new UrlGenerator(isLive,baseUrl, listenerSet(), hardware.get(),nameOfMedia);
+        UrlGenerator urlGenerator = new UrlGenerator(isLive,baseUrl, listenerSet(new ListenersSet()), hardware.get(),nameOfMedia);
 
         new LoaderForPlayerURL(urlGenerator).updateLoaderAndKiller();
 
@@ -935,7 +934,7 @@ public class AppBack extends AppWeb {
             return false;
 
         //"(https?://[^\"']*index\\.m3u8\\?e=[^\"']*)","e=(\\d+)"
-        SiteGenerator siteGenerator = new SiteGenerator(jsonData.jsonSelectedRes,baseUrl,listenerSet(), hardware.get(),true, getExtractorPattern(), getExtractorExpirePattern(),nameOfMedia);
+        SiteGenerator siteGenerator = new SiteGenerator(jsonData.jsonSelectedRes,baseUrl,listenerSet(new ListenerSiteGenerator()), hardware.get(),true, getExtractorPattern(), getExtractorExpirePattern(),nameOfMedia);
 
         if(!siteGenerator.generateLink(10))
             return false;
@@ -1606,6 +1605,20 @@ public class AppBack extends AppWeb {
             return playlistLoop;
         }
     }
+
+    public class ListenerSiteGenerator extends ListenersSet{
+        @Override
+        protected void onErrorEnd(){
+            try {
+                SiteGenerator localGenerator = (SiteGenerator)globalGenerator;
+                localGenerator.generateContent();
+                localGenerator.reloadContent();
+                super.onErrorEnd();
+            }
+            catch (Exception e){}
+        }
+    }
+
     public class ListenersSet extends Listeners
     {
         private final BiConsumer<Integer,Integer> screenUpdateDefault =
@@ -1657,12 +1670,7 @@ public class AppBack extends AppWeb {
                         }
 
                         globalGenerator.mediaError.started = true;
-                        mediaPlayer.seekAfterIsPlayingDynamicUpdate();
-                        mediaPlayer.resetWithoutResetPlayingState();
-
-                        //if(timer.Get())
-                        loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),()->{
-                        });
+                        onErrorEnd();
                         globalGenerator.mediaError.started = false;
                     } catch (Exception e) {
                         onErrorFail(e);
@@ -1682,6 +1690,16 @@ public class AppBack extends AppWeb {
 
         protected void onCreate(){
             setScreenUpdateToDefauth();
+        }
+
+        @CallSuper
+        protected void onErrorEnd(){
+            mediaPlayer.seekAfterIsPlayingDynamicUpdate();
+            mediaPlayer.resetWithoutResetPlayingState();
+
+            //if(timer.Get())
+            loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),()->{
+            });
         }
         
         public void setScreenUpdateToDefauth(){
