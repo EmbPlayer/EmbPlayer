@@ -64,6 +64,7 @@ public class SData {
     public static void LoadData(Context context)
     {
         load.accept(context);
+        StaticFunctions.onLoadData();
     }
 
     // 3. Background Archiving as a FIFO Queue
@@ -222,6 +223,24 @@ public class SData {
         saveData(editor);
     }
 
+
+    public static float getFloat(Data key)
+    {
+        return data.getFloat(getData(key),0);
+    }
+
+    public static float getFloat(Data key, float outputIfNotHave)
+    {
+        return data.getFloat(getData(key),outputIfNotHave);
+    }
+
+    public static void setFloat(Data key, float value)
+    {
+        SharedPreferences.Editor editor = data.edit();
+        editor.putFloat(getData(key), value);
+        saveData(editor);
+    }
+
     public static String getString(Data key)
     {
         return data.getString(getData(key), null);
@@ -332,7 +351,8 @@ public class SData {
         CheckMacAddress,
         ExoPlayerOn,VLCPlayerOn,
         MediaProxy,MediaProxyDefault,
-        Jwidth,Jheight
+        Jwidth,Jheight,
+        BrightnessLevel
     }
 
     private static class ArchiveDbHelper extends SQLiteOpenHelper {

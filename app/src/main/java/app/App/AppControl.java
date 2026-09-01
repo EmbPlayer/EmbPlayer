@@ -33,6 +33,7 @@ import javax.servlet.http.HttpServletResponse;
 import app.tools.Generators.Requirements.MediaSourceProviders;
 import app.tools.LinksDbHelper;
 import app.tools.StaticFunctions;
+import app.tools.activity.DefaultActivity;
 import server.tools.HttpServletAdvanced;
 import server.web.ErrorCodeApp;
 import server.web.Sources;
@@ -40,7 +41,6 @@ import server.web.Wait;
 
 import static app.tools.DisposableTools.forServer;
 import static app.tools.DisposableTools.forkJoinPool;
-import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.getAllForJson;
 import static app.tools.StaticFunctions.setData;
 import static server.Home.app;
@@ -66,7 +66,7 @@ public class AppControl extends HttpServletAdvanced {
                 app().setUp.getInt(), app().loop.getInt(1),
                 app().mediaProviderClientSideID.getSave(), app().playlist.getInt(),
                 app().loop.getInt(2), app().isSavable.getInt(), app().isLiveAsInt(),
-                app().nameOfMedia()
+                app().nameOfMedia(),DefaultActivity.getBrightnessAsInt()
         ));
         String sourceTypes = setData(MediaSourceProviders.ClientSide.getAllMediaSourceTypeName());
         String languagesOut = setData(LANGUAGES);
@@ -192,6 +192,12 @@ public class AppControl extends HttpServletAdvanced {
         return waitAndIsWorkingStop();
     }
 
+
+    private static boolean sendBrightness(JSONArray Obj) throws JSONException {
+        DefaultActivity.setBrightness(Integer.parseInt(getString(Obj,1))/100f);
+        return waitAndIsWorkingStop();
+    }
+
     private static boolean sendVideoFromCollection(JSONArray Obj) throws JSONException, ExtractionException, IOException {
         app().startFromCollection(getInt(Obj,1), getString(Obj,2));
         return empty();
@@ -281,6 +287,9 @@ public class AppControl extends HttpServletAdvanced {
                     case Action.sendVolume:
                         return sendVolume(Obj);
 
+                    case Action.sendBrightness:
+                        return sendBrightness(Obj);
+
                     case Action.sendVideoChange:
                         app().videoChanger.updateChanger(getInt(Obj,1));
                         return workingStop();
@@ -331,6 +340,9 @@ public class AppControl extends HttpServletAdvanced {
                     case Action.sendVolume:
                         return sendVolume(Obj);
 
+                    case Action.sendBrightness:
+                        return sendBrightness(Obj);
+
                     case Action.sendVideoFromCollection:
                         return sendVideoFromCollection(Obj);
 
@@ -351,6 +363,9 @@ public class AppControl extends HttpServletAdvanced {
             {
                 case Action.sendVolume:
                     return sendVolume(Obj);
+
+                case Action.sendBrightness:
+                    return sendBrightness(Obj);
 
                 case Action.sendURL:
                     app().sendURLClose(getString(Obj,1));
@@ -468,5 +483,6 @@ public class AppControl extends HttpServletAdvanced {
         private static final int sendCheckMacAddress = 26;
         private static final int sendRadioPlayer = 27;
         private static final int sendMediaProxyDefault = 28;
+        private static final int sendBrightness = 29;
     }
 }

@@ -31,6 +31,7 @@ import app.services.BaseServer;
 import app.tools.Generators.Requirements.Piped.VideoQuality;
 import app.tools.Generators.YoutubeGenerator;
 import app.tools.Players.PlayerControllerChangeable;
+import app.tools.activity.DefaultActivity;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.UndeliverableException;
 import io.reactivex.rxjava3.functions.Action;
@@ -52,6 +53,11 @@ import static app.tools.DisposableTools.forkJoinPool;
 import static app.tools.DisposableTools.waitMS;
 
 public class StaticFunctions {
+
+    public static void onLoadData(){
+        DefaultActivity.brightness = SData.getFloat(SData.Data.BrightnessLevel,0.5f);
+    }
+
     public static void onThrows(Thread thread, Throwable throwable){
         onThrows("UncaughtException: ",thread,throwable);
     }

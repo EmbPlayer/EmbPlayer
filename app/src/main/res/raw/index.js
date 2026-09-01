@@ -2,6 +2,7 @@ var input = document.getElementById("rangeElement");
 var inputvalue;
 var urlTypeToggle;
 var volumeInput = document.getElementById("volumeEdit");
+var brightnessInput = document.getElementById("brightnessEdit");
 var sendSaveVideoInput = document.getElementById("sendVideoInput");;
 
 //var spacer = "";
@@ -34,10 +35,13 @@ var sendYoutubeLegacyPlayerrOnn = 25;
 var sendCheckMacAndSsidd = 26;
 var sendRadioPlayerr = 27;
 var sendMediaProxyy = 28;
+var sendBrightnesss = 29;
 
 const volumeMax = 100;
+const brightnessMax = 100;
 var nameOfMedia = "";
 var volumePosition = 0;
+var brightnessPosition = 0;
 var seekMax = 0;
 var seekPosion = 0;
 var timer = false;
@@ -233,6 +237,10 @@ async function loadData()
 
     nameOfMedia = data[11];
 
+    brightnessPosition = data[12];
+    brightnessInput.max = brightnessMax;
+    brightnessInput.value = brightnessPosition;
+
 /*    
 if(setUpOn)
 {
@@ -301,6 +309,7 @@ async function SetUp()
         document.getElementById("outputbox").hidden = true;
         inputvalue.disabled = false;
         volumeInput.disabled = false;
+        brightnessInput.disabled = false;
         document.getElementById('youtubeSend').disabled = false;
         HideElementsByClass(true,'playlistButtons');
 
@@ -430,11 +439,22 @@ async function sendVolume()
     WaitOn();
 
     volumePosition = volumeInput.value;
-    seekPosion = input.value;
     await SendRequest(SendRequestOn(sendVolumee,volumePosition));
 
     await WaitOff();
 }
+
+
+async function sendBrightness()
+{
+    WaitOn();
+
+    brightnessPosition = brightnessInput.value;
+    await SendRequest(SendRequestOn(sendBrightnesss,brightnessPosition));
+
+    await WaitOff();
+}
+
 async function sendPlaylist(change)
 {
     WaitOn();
@@ -903,6 +923,9 @@ input.addEventListener("change", function () {
 });
 volumeInput.addEventListener("change", function () {
     sendVolume();
+});
+brightnessInput.addEventListener("change", function () {
+    sendBrightness();
 });
 
 PageOpen();

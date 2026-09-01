@@ -28,9 +28,14 @@ import java.util.function.Consumer;
 
 import androidx.annotation.CallSuper;
 import androidx.appcompat.app.AppCompatActivity;
+import app.tools.DisposableTools;
+import app.tools.SData;
 import app.tools.StaticFunctions;
+import io.reactivex.rxjava3.disposables.Disposable;
 
 public class DefaultActivity extends AppCompatActivity {
+    private static Disposable brightnessUpdate;
+    private static DefaultActivity currentActivity;
     private static Consumer<Activity> hideNavigationButtons = (curr)->{
         Consumer<Activity> temp;
 
@@ -60,6 +65,7 @@ public class DefaultActivity extends AppCompatActivity {
         hideNavigationButtons = temp;
         temp.accept(curr);
     };
+    public static float brightness;
 
     private static void dontSleep(Activity current){
         current.getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -81,7 +87,35 @@ public class DefaultActivity extends AppCompatActivity {
     @Override
     @CallSuper
     public void onResume() {
+        currentActivity = this;
+        setAppBrightness(DefaultActivity.brightness);
         super.onResume();
         onResume.run();
+    }
+
+    public static void setBrightness(float brightness){
+        DefaultActivity.brightness = brightness;
+        SData.setFloat(SData.Data.BrightnessLevel,brightness);
+
+        if(currentActivity==null)
+            return;
+
+        currentActivity.setAppBrightness(brightness);
+    }
+
+    public static int getBrightnessAsInt(){
+        return (int)(brightness*100);
+    }
+
+    private void setAppBrightness(float brightness) {
+        if(brightnessUpdate!=null&&!brightnessUpdate.isDisposed())
+            brightnessUpdate.dispose();
+
+        DisposableTools.addTaskUI(()->{
+            WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
+            layoutParams.screenBrightness = brightness;
+            getWindow().setAttributes(layoutParams);
+            return true;
+        },()->"Brightness_Update");
     }
 }
