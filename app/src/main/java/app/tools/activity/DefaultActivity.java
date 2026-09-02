@@ -86,11 +86,25 @@ public class DefaultActivity extends AppCompatActivity {
 
     @Override
     @CallSuper
-    public void onResume() {
+    protected void onResume() {
         currentActivity = this;
         setAppBrightness(DefaultActivity.brightness);
         super.onResume();
         onResume.run();
+    }
+
+    @Override
+    @CallSuper
+    protected void onPause(){
+        activityClean();
+        super.onPause();
+    }
+
+    @Override
+    @CallSuper
+    protected void onDestroy(){
+        activityClean();
+        super.onDestroy();
     }
 
     public static void setBrightness(float brightness){
@@ -107,15 +121,26 @@ public class DefaultActivity extends AppCompatActivity {
         return (int)(brightness*100);
     }
 
-    private void setAppBrightness(float brightness) {
+    private void brightnessDispose(){
         if(brightnessUpdate!=null&&!brightnessUpdate.isDisposed())
             brightnessUpdate.dispose();
+    }
 
-        DisposableTools.addTaskUI(()->{
+    private void setAppBrightness(float brightness) {
+        brightnessDispose();
+
+        brightnessUpdate = DisposableTools.addTaskUI(()->{
             WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
             layoutParams.screenBrightness = brightness;
             getWindow().setAttributes(layoutParams);
             return true;
         },()->"Brightness_Update");
+    }
+
+    private void activityClean(){
+        if(currentActivity == this){
+            brightnessDispose();
+            currentActivity = null;
+        }
     }
 }
