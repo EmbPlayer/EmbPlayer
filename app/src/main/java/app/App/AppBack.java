@@ -448,7 +448,7 @@ public class AppBack extends AppWeb {
                 youtubeGenerator = YoutubePlayList.createCollection(baseUrl, videoSettings, new ListenersYoutube(), loopOn(), hardware.get());
             } catch (ExtractionException | IOException e) {
                 onErrorSave("SendURLClose-YoutubePlayList.CreateCollection", e);
-                return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type);
+                return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type,youtubeGenerator);
             }
 
             if (youtubeGenerator == null) {
@@ -456,7 +456,7 @@ public class AppBack extends AppWeb {
                 waitMS(1000);
                 youtubeGenerator = YoutubePlayList.getFirst(10, 300);
                 if (youtubeGenerator == null) {
-                    return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type);
+                    return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type,youtubeGenerator);
                 }
             }
 
@@ -466,14 +466,14 @@ public class AppBack extends AppWeb {
                 youtubeGenerator.generateInfoAuto();
             } catch (ExtractionException | IOException e) {
                 onErrorSave("SendURLClose-GenerateInfoAuto", e);
-                return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type);
+                return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type,youtubeGenerator);
             }
         } else {
             try {
                 youtubeGenerator.generateInfoAuto();
             } catch (ExtractionException | IOException e) {
                 onErrorSave("SendURLClose-GenerateInfoAuto", e);
-                return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type);
+                return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type,youtubeGenerator);
             }
 
             switch (youtubeGenerator.getInfo().getStreamType()) {
@@ -492,15 +492,24 @@ public class AppBack extends AppWeb {
         Players.updateIsLive(youtubeGenerator.isLive());
 
         if (youtubeGenerator.isNotGenerated())
-            return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.NotMade, type);
+            return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.NotMade, type,youtubeGenerator);
 
-        return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Made, type);
+        return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Made, type,youtubeGenerator);
     }
 
     private void onYoutubeLoadEnd()
     {
         seekMax(globalGenerator.getMaxSeek());
         startPanel();
+    }
+
+    private void youtubeVideoScreenSizeUpdate(YoutubeGenerator youtubeGenerator,ListenersYoutube listenersYoutube){
+        YoutubeGenerator.Size videoSize = youtubeGenerator.getSize();
+
+        if(videoSize.getWidth() < 1 || videoSize.getHeight() < 1)
+            listenersYoutube.setScreenUpdateToDefault();
+        else
+            Panel.aspectChange(videoSize.getWidth(), videoSize.getHeight());
     }
 
     public boolean loadData(String url, MediaSourceProviders sourceProvider, String nameOfMedia) {
@@ -560,7 +569,8 @@ public class AppBack extends AppWeb {
 
                 if(current.type == StreamingService.LinkType.PLAYLIST)
                 {
-                    listenn.setScreenUpdateToDefaultOnlyOneTime();
+                    youtubeVideoScreenSizeUpdate(current.youtubeGenerator,listenn);
+
                     loop.switchToPlaylist();
 
                     onYoutubeLoadEnd();
@@ -571,16 +581,12 @@ public class AppBack extends AppWeb {
 
                     break;
                 }
-                else if (globalGenerator.isLive())
-                    listenn.setScreenUpdateToDefault();
-                else{
-                    YoutubeGenerator.Size videoSize = youtubeGenerator.getSize();
 
-                    if(videoSize.getWidth() < 1 || videoSize.getHeight() < 1)
-                        listenn.setScreenUpdateToDefault();
-                    else
-                        Panel.aspectChange(videoSize.getWidth(), videoSize.getHeight());
-                }
+
+                if (globalGenerator.isLive())
+                    listenn.setScreenUpdateToDefault();
+                else
+                    youtubeVideoScreenSizeUpdate(youtubeGenerator,listenn);
 
                 onYoutubeLoadEnd();
                 break;
@@ -1035,10 +1041,12 @@ public class AppBack extends AppWeb {
     public class YoutubeGeneratorTryAndType{
         private YoutubeGeneratorTry made;
         private StreamingService.LinkType type;
+        private YoutubeGenerator youtubeGenerator;
 
-        public YoutubeGeneratorTryAndType(YoutubeGeneratorTry made,StreamingService.LinkType type){
+        public YoutubeGeneratorTryAndType(YoutubeGeneratorTry made,StreamingService.LinkType type,YoutubeGenerator youtubeGenerator){
             this.made = made;
             this.type = type;
+            this.youtubeGenerator = youtubeGenerator;
         }
     }
 
@@ -1709,14 +1717,6 @@ public class AppBack extends AppWeb {
         public void setScreenUpdateToDefault(){
             screenUpdate = (width,height) ->
                     Panel.updateScreen(width, height);
-        }
-
-        public void setScreenUpdateToDefaultOnlyOneTime(){
-            screenUpdate  = (width,height)->
-            {
-                Panel.updateScreen(width, height);
-                setScreenUpdateToEmpty();
-            };
         }
 
         public void setScreenUpdateToEmpty(){
