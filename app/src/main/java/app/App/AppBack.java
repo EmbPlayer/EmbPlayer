@@ -497,6 +497,12 @@ public class AppBack extends AppWeb {
         return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Made, type);
     }
 
+    private void onYoutubeLoadEnd()
+    {
+        seekMax(globalGenerator.getMaxSeek());
+        startPanel();
+    }
+
     public boolean loadData(String url, MediaSourceProviders sourceProvider, String nameOfMedia) {
         saveMedia(sourceProvider, url, nameOfMedia);
 
@@ -552,30 +558,31 @@ public class AppBack extends AppWeb {
                     i++;
                 }
 
-                YoutubeGenerator.Size videoSize = youtubeGenerator.getSize();
-
-                if (globalGenerator.isLive())
-                    listenn.setScreenUpdateToDefauth();
-                else if(videoSize.getWidth() < 1 || videoSize.getHeight() < 1)
-                    listenn.setScreenUpdateToDefauth();
-                else
-                    Panel.aspectChange(videoSize.getWidth(), videoSize.getHeight());
-
-                seekMax(globalGenerator.getMaxSeek());
-
-                boolean playlistOn = current.type == StreamingService.LinkType.PLAYLIST;
-                if (playlistOn)
+                if(current.type == StreamingService.LinkType.PLAYLIST)
+                {
+                    listenn.setScreenUpdateToDefaultOnlyOneTime();
                     loop.switchToPlaylist();
 
-                startPanel();
+                    onYoutubeLoadEnd();
 
-                if (playlistOn) {
                     // Start background loading of next few videos (not all)
                     YoutubePlayList.loadInitialVideosInBackground(baseUrl, Math.min(3, YoutubePlayList.streamInfoItem.size() - 1));
-
                     YoutubePlayList.current = SData.getInt(SData.Data.SavedIndexPlayList);
+
+                    break;
+                }
+                else if (globalGenerator.isLive())
+                    listenn.setScreenUpdateToDefault();
+                else{
+                    YoutubeGenerator.Size videoSize = youtubeGenerator.getSize();
+
+                    if(videoSize.getWidth() < 1 || videoSize.getHeight() < 1)
+                        listenn.setScreenUpdateToDefault();
+                    else
+                        Panel.aspectChange(videoSize.getWidth(), videoSize.getHeight());
                 }
 
+                onYoutubeLoadEnd();
                 break;
 
             case EXTRACTOR:
@@ -1621,9 +1628,6 @@ public class AppBack extends AppWeb {
 
     public class ListenersSet extends Listeners
     {
-        private final BiConsumer<Integer,Integer> screenUpdateDefault =
-                (width,height)->Panel.updateScreen(width, height);
-
         private final StaticFunctions.Starter onNotLoaded = new StaticFunctions.Starter() {
             @Override
             protected void firstLaunch() {
@@ -1689,7 +1693,7 @@ public class AppBack extends AppWeb {
         }
 
         protected void onCreate(){
-            setScreenUpdateToDefauth();
+            setScreenUpdateToDefault();
         }
 
         @CallSuper
@@ -1702,8 +1706,17 @@ public class AppBack extends AppWeb {
             });
         }
         
-        public void setScreenUpdateToDefauth(){
-            screenUpdate = screenUpdateDefault;
+        public void setScreenUpdateToDefault(){
+            screenUpdate = (width,height) ->
+                    Panel.updateScreen(width, height);
+        }
+
+        public void setScreenUpdateToDefaultOnlyOneTime(){
+            screenUpdate  = (width,height)->
+            {
+                Panel.updateScreen(width, height);
+                setScreenUpdateToEmpty();
+            };
         }
 
         public void setScreenUpdateToEmpty(){
