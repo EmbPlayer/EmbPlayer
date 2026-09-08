@@ -103,8 +103,11 @@ public class Recyclable {
          * @return The removed item, or null if it was already empty.
          */
         private synchronized T remove(int index) {
+            // A task can finish (and call remove()) just after clear() has already
+            // emptied the list, e.g. during teardown. Treat an out-of-range index as
+            // "already gone" instead of throwing, since the item is gone either way.
             if (index < 0 || index >= elements.size()) {
-                throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + elements.size());
+                return null;
             }
 
             T removedItem = elements.get(index);
@@ -124,8 +127,10 @@ public class Recyclable {
          * @return The item, or null if the slot is empty (removed).
          */
         public synchronized T get(int index) {
+            // Same reasoning as remove(): a cleared list makes every index "gone",
+            // so report that as null rather than throwing.
             if (index < 0 || index >= elements.size()) {
-                throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + elements.size());
+                return null;
             }
             return elements.get(index);
         }
@@ -267,7 +272,10 @@ public class Recyclable {
                 onError.run();
                 remove(index);
                 return name+taskName;
-            },StaticFunctions.Empty.rC,onNotStartedAndTimeOuted,scheduler,timeOutMS);
+            },StaticFunctions.Empty.rC,()->{
+                onNotStartedAndTimeOuted.run();
+                remove(index);
+            },scheduler,timeOutMS);
         }
 
         private void remove(int index){

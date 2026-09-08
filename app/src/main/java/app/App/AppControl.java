@@ -119,6 +119,7 @@ public class AppControl extends HttpServletAdvanced {
 
             resp.setStatus(HttpServletResponse.SC_ACCEPTED);
         } catch (Exception e) {
+            StaticFunctions.onErrorSave("AppControl",e);
             actionReset();
         }
     }
