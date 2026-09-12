@@ -50,6 +50,7 @@ public class ErrorCodeApp extends HttpServletAdvanced {
     public static final SmartString currentDebug = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "currentDebug: ");
     public static final SmartString postResiver = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "");
     public static final SmartString newpipe = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "newpipe: ");
+    public static final SmartString videoChanger = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "videoChanger: ");
 
     public static void getSystemMemoryInfo(Context context) {
         String output = "[[System]";
@@ -108,7 +109,8 @@ public class ErrorCodeApp extends HttpServletAdvanced {
                 System.lineSeparator() + detector.getString() + System.lineSeparator() + disposableErrors.getString() +
                 System.lineSeparator() + mediaPlayerErrors.getString() + System.lineSeparator() + stoppingTime.getString() +
                 System.lineSeparator() + dataLoader.getString() + System.lineSeparator() + currentDebug.getString() +
-                System.lineSeparator() + postResiver.getString() + System.lineSeparator() + newpipe.getString();
+                System.lineSeparator() + postResiver.getString() + System.lineSeparator() + newpipe.getString()+
+                System.lineSeparator() + videoChanger.getString();
 
         resp.getWriter().write(k);
     }

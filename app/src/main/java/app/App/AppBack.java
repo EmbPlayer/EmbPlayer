@@ -31,6 +31,7 @@ import java.net.URL;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
@@ -57,6 +58,7 @@ import app.tools.Recyclable;
 import app.tools.SData;
 import app.tools.StaticFunctions;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
+import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
@@ -1178,10 +1180,35 @@ public class AppBack extends AppWeb {
         }
     }
 
+    private static final class ChangerData {
+        final int plusOrMinus;
+        YoutubeGenerator selected;
+        int newIndex;
+        int currentIndex;
+        boolean generate;
+
+        private volatile BooleanSupplier cancelledSupplier = () -> false;
+
+        ChangerData(int plusOrMinus) {
+            this.plusOrMinus = plusOrMinus;
+        }
+
+        /** Wired up once, right before this run's pipeline starts. */
+        void bindCancellation(BooleanSupplier supplier) {
+            this.cancelledSupplier = supplier;
+        }
+
+        boolean isCancelled() {
+            return cancelledSupplier.getAsBoolean() || Thread.currentThread().isInterrupted();
+        }
+    }
+
     public class ChangeVideo {
 
-        private final Runnable pureUpdate = ()->updateChanger(1,10,1000);
-        private final Runnable updateInNewTask = ()->cleaningInBackground.add(pureUpdate,StaticFunctions.Empty.r,StaticFunctions.Empty.r,forkJoinPool,"PlayListLoop");
+        private final Runnable pureUpdate = () -> updateChanger(1, 10, 1000);
+        private final Runnable updateInNewTask = () ->
+                cleaningInBackground.add(pureUpdate, StaticFunctions.Empty.r, StaticFunctions.Empty.r, forkJoinPool, "PlayListLoop");
+
         private final StaticFunctions.Starter playlistLoop = new StaticFunctions.Starter() {
             @Override
             protected void firstLaunch() {
@@ -1189,299 +1216,149 @@ public class AppBack extends AppWeb {
             }
 
             @Override
-            protected void secondLaunches() {}
+            protected void secondLaunches() {
+            }
         };
 
-        /*
-         * Per-run immutable state container.
-         * Made static to avoid accidental capture of outer instance.
-         */
         private Runnable current = updateInNewTask;
         private Disposable mediaChanger;
-        private ChangerData data;
 
-        public class ChangerData {
-            public final int plusOrMinus;
-            public YoutubeGenerator selected;
-            public int newIndex;
-            public int currentIndex;
-            public boolean generate;
-
-            public ChangerData(int plusOrMinus) {
-                badSoundFixer.run();
-                disposeChanger();
-                mediaPlayer.resetOnlyIsEnded();
-                SData.setLong(SData.Data.SavedSeek,0);
-                this.plusOrMinus = plusOrMinus;
-            }
-        }
-
-        /*
-         * Replace the active changer data and start a run.
-         * Synchronized to avoid races with Dispose().
-         */
         public synchronized Disposable updateChanger(int plusOrMinus) {
-            data = new ChangerData(plusOrMinus);
-            // start immediately and return the Disposable so caller can keep a handle if desired
-            return start(throwable -> onErrorSave("ChangeVideo-Error", throwable),
-                    () -> {});
+            return updateChanger(plusOrMinus, 1, 0);
         }
 
+        private synchronized Disposable updateChanger(int plusOrMinus, int maxAttempts, long delayMillis) {
+            badSoundFixer.run();
+            disposeChanger();
+            mediaPlayer.resetOnlyIsEnded();
+            SData.setLong(SData.Data.SavedSeek, 0);
+
+            ChangerData ch = new ChangerData(plusOrMinus);
+            int attempts = Math.max(1, maxAttempts);
+
+            mediaChanger = Completable
+                    .create(emitter -> {
+                        ch.bindCancellation(emitter::isDisposed);
+                        runPipeline(ch, attempts, delayMillis);
+                        if (!emitter.isDisposed()) {
+                            emitter.onComplete();
+                        }
+                    })
+                    .subscribeOn(forGenerators)
+                    .subscribe(() -> {}, t -> onErrorSave("ChangeVideo-Error", t));
+
+            return mediaChanger;
+        }
 
         public synchronized void stop() {
             disposeChanger();
             current = updateInNewTask;
             playlistLoop.reset();
+            ErrorCodeApp.videoChanger.set("videoChanger: ");
         }
 
-        public synchronized void onPlaylistLoop(){
+        public synchronized void onPlaylistLoop() {
             playlistLoop.run();
         }
 
-        public synchronized void onPlaylistLoopInCurrentTask(){
+        public synchronized void onPlaylistLoopInCurrentTask() {
             current = pureUpdate;
             playlistLoop.run();
             current = updateInNewTask;
         }
 
-        /*
-         * Overload that accepts a plusOrMinus and retry parameters.
-         * It constructs a fresh ChangerData with the requested plusOrMinus.
-         * (We create a new ChangerData rather than mutating the provided one.)
-         */
-        private synchronized Disposable updateChanger(int plusOrMinus, int maxTry, long delayMills) {
-            data = new ChangerData(plusOrMinus);
-            return startWithRetry(maxTry, delayMills,
-                    throwable -> onErrorSave("ChangeVideo-Error", throwable),
-                    () -> {});
+        /** check -> (maybe) generate -> apply, retried up to maxAttempts times on transient failures. */
+        private void runPipeline(ChangerData ch, int maxAttempts, long delayMillis) throws ExtractionException, IOException {
+            int attempt = 0;
+            while (true) {
+                try {
+                    if (!inFirstCheck(ch)) {
+                        ErrorCodeApp.videoChanger.append("|inFirstCheck did not pass| ");
+                    }
+                    else if (ch.generate && !ifNotGeneratedGenerate(ch)) {
+                        ErrorCodeApp.videoChanger.append("|ifNotGeneratedGenerate did not pass| ");
+                    }
+                    else if (!ifNotLoadedAgain(ch)) {
+                        ErrorCodeApp.videoChanger.append("|ifNotLoadedAgain did not pass| ");
+                    }
+                    return;
+                } catch (IOException | ExtractionException retryable) {
+                    attempt++;
+                    if (attempt >= maxAttempts || ch.isCancelled()) {
+                        throw retryable;
+                    }
+                    waitMS(delayMillis);
+                }
+            }
         }
 
-        /*
-         * Dispose the currently running flow (if any).
-         * Synchronized to avoid races with UpdateChanger.
-         */
-        private synchronized void disposeChanger(){
+        private synchronized void disposeChanger() {
             if (mediaChanger != null && !mediaChanger.isDisposed()) {
                 mediaChanger.dispose();
             }
             mediaChanger = null;
         }
 
-        private boolean isCancelled() {
-            return ((mediaChanger != null && mediaChanger.isDisposed()) || Thread.currentThread().isInterrupted());
-        }
-
-        /*
-         * Single-run start: runs the 3-step flow once and returns the Disposable.
-         * The Single payload is ChangerData for clarity.
-         */
-        private Disposable start(Consumer<Throwable> onError, Action onComplete) {
-            if (data == null) {
-                // nothing to run
-                return null;
-            }
-
-            mediaChanger = Single.fromCallable(() -> {
-                        boolean ok = inFirstCheck();
-                        if (!ok) throw new FlowStopException("InFirstCheck returned false");
-                        return data; // return the per-attempt state
-                    })
-                    // InFirstCheck contains blocking waits -> use computation or IO depending on your DisposableTools mapping.
-                    .subscribeOn(forGenerators)
-
-                    .flatMap(ch -> Single.fromCallable(() -> {
-                        if (ch.generate) {
-                            try {
-                                boolean genOk = ifNotGeneratedGenerate();
-                                if (!genOk) throw new FlowStopException("IfNotGeneratedGenerate returned false");
-                            } catch (ExtractionException | IOException e) {
-                                throw e;
-                            }
-                        }
-                        return ch;
-                    }).subscribeOn(forGenerators))
-
-                    .flatMap(ch -> Single.fromCallable(() -> {
-                        try {
-                            boolean finalOk = ifNotLoadedAgain();
-                            if (!finalOk) throw new FlowStopException("IfNotLoadedAgain returned false");
-                            return true;
-                        } catch (ExtractionException | IOException e) {
-                            throw e;
-                        }
-                    }).subscribeOn(forGenerators))
-
-                    .ignoreElement()
-                    .subscribe(
-                            () -> {
-                                try { if (onComplete != null) onComplete.run(); } catch (Exception ignored) {}
-                            },
-                            throwable -> {
-                                if (throwable instanceof FlowStopException) {
-                                    try { if (onComplete != null) onComplete.run(); } catch (Exception ignored) {}
-                                } else {
-                                    try { if (onError != null) onError.accept(throwable); } catch (Exception ignored) {}
-                                }
-                            }
-                    );
-
-            return mediaChanger;
-        }
-
-        /*
-         * Retrying start: retries the entire flow from step 1 on transient throwables
-         * up to maxAttempts times, waiting delayMillis between attempts.
-         */
-        private Disposable startWithRetry(int maxAttempts, long delayMillis, Consumer<Throwable> onError, Action onComplete) {
-            if (data == null) {
-                return null;
-            }
-            if (maxAttempts < 1) maxAttempts = 1;
-            final AtomicInteger attempt = new AtomicInteger(0);
-
-            Single<ChangerData> flowSingle = Single.defer(() -> {
-                attempt.incrementAndGet();
-                return Single.fromCallable(() -> {
-                            boolean ok = inFirstCheck();
-                            if (!ok) throw new FlowStopException("InFirstCheck returned false");
-                            return data;
-                        })
-                        .subscribeOn(forGenerators)
-
-                        .flatMap(ch -> Single.fromCallable(() -> {
-                            if (ch.generate) {
-                                try {
-                                    boolean genOk = ifNotGeneratedGenerate();
-                                    if (!genOk) throw new FlowStopException("IfNotGeneratedGenerate returned false");
-                                } catch (ExtractionException | IOException e) {
-                                    throw e;
-                                }
-                            }
-                            return ch;
-                        }).subscribeOn(forGenerators))
-
-                        .flatMap(ch -> Single.fromCallable(() -> {
-                            try {
-                                boolean finalOk = ifNotLoadedAgain();
-                                if (!finalOk) throw new FlowStopException("IfNotLoadedAgain returned false");
-                                return ch;
-                            } catch (ExtractionException | IOException e) {
-                                throw e;
-                            }
-                        }).subscribeOn(forGenerators));
-            });
-
-            final int finalMaxAttempts = maxAttempts;
-            mediaChanger = flowSingle
-                    .toObservable()
-                    .retryWhen(new Function<Observable<Throwable>, Observable<?>>() {
-                        @Override
-                        public Observable<?> apply(Observable<Throwable> errors) {
-                            return errors.flatMap((Function<Throwable, Observable<?>>) throwable -> {
-                                // Do not retry on intentional stop
-                                if (throwable instanceof FlowStopException) {
-                                    return Observable.error(throwable);
-                                }
-                                // Only retry on transient exceptions
-                                if (throwable instanceof IOException || throwable instanceof ExtractionException) {
-                                    if (attempt.get() >= finalMaxAttempts) {
-                                        return Observable.error(throwable);
-                                    }
-                                    return Observable.timer(delayMillis, TimeUnit.MILLISECONDS);
-                                }
-                                // Other exceptions: do not retry
-                                return Observable.error(throwable);
-                            });
-                        }
-                    })
-                    .singleOrError()
-                    .ignoreElement()
-                    .subscribe(
-                            () -> {
-                                try { if (onComplete != null) onComplete.run(); } catch (Exception ignored) {}
-                            },
-                            throwable -> {
-                                if (throwable instanceof FlowStopException) {
-                                    try { if (onComplete != null) onComplete.run(); } catch (Exception ignored) {}
-                                } else {
-                                    try { if (onError != null) onError.accept(throwable); } catch (Exception ignored) {}
-                                }
-                            }
-                    );
-
-            return mediaChanger;
-        }
-
-       /* -------------------------
-       Original methods with cancellation checks
-       ------------------------- */
-
-        private boolean inFirstCheck() {
-            if (data == null) return notLoaded();
-
+        private boolean inFirstCheck(ChangerData ch) {
             mediaPlayer.startLoading();
 
             if (YoutubePlayList.isDisposed() || YoutubePlayList.getTotalVideosCount() == 0) {
                 return false;
             }
 
-            data.currentIndex = YoutubePlayList.current;
+            ch.currentIndex = YoutubePlayList.current;
             int totalVideos = YoutubePlayList.getTotalVideosCount();
-            data.newIndex = data.currentIndex + data.plusOrMinus;
+            ch.newIndex = ch.currentIndex + ch.plusOrMinus;
 
-            if (data.plusOrMinus == -1 && data.currentIndex == 0) {
-                data.newIndex = totalVideos - 1;
-            } else if (data.currentIndex == totalVideos - 1 && data.plusOrMinus == 1) {
-                data.newIndex = 0;
+            if (ch.plusOrMinus == -1 && ch.currentIndex == 0) {
+                ch.newIndex = totalVideos - 1;
+            } else if (ch.currentIndex == totalVideos - 1 && ch.plusOrMinus == 1) {
+                ch.newIndex = 0;
             } else {
                 boolean shouldLoop = playlistLoopOn();
-                if (data.newIndex < 0) {
-                    data.newIndex = shouldLoop ? totalVideos - 1 : 0;
-                } else if (data.newIndex >= totalVideos) {
-                    data.newIndex = shouldLoop ? 0 : totalVideos - 1;
+                if (ch.newIndex < 0) {
+                    ch.newIndex = shouldLoop ? totalVideos - 1 : 0;
+                } else if (ch.newIndex >= totalVideos) {
+                    ch.newIndex = shouldLoop ? 0 : totalVideos - 1;
                 }
             }
 
-            if (data.newIndex < 0 || data.newIndex >= totalVideos) {
+            if (ch.newIndex < 0 || ch.newIndex >= totalVideos) {
                 return notLoaded();
             }
 
-            data.selected = YoutubePlayList.getGenerator(data.newIndex);
+            ch.selected = YoutubePlayList.getGenerator(ch.newIndex);
 
-            if (data.selected == null || !data.selected.IsLoaded()) {
-                YoutubePlayList.AddSingleElement(data.newIndex);
+            if (ch.selected == null || !ch.selected.IsLoaded()) {
+                YoutubePlayList.AddSingleElement(ch.newIndex);
 
                 int maxWaitAttempts = 10;
-                int waitAttempt = 0;
-
-                while (waitAttempt < maxWaitAttempts) {
-                    if (isCancelled()) return notLoaded();
+                for (int waitAttempt = 0; waitAttempt < maxWaitAttempts; waitAttempt++) {
+                    if (ch.isCancelled()) return notLoaded();
                     waitMS(300);
-                    if (isCancelled()) return notLoaded();
+                    if (ch.isCancelled()) return notLoaded();
 
-                    data.selected = YoutubePlayList.getGenerator(data.newIndex);
-                    if (data.selected != null && data.selected.IsLoaded()) {
+                    ch.selected = YoutubePlayList.getGenerator(ch.newIndex);
+                    if (ch.selected != null && ch.selected.IsLoaded()) {
                         break;
                     }
-
-                    waitAttempt++;
 
                     if (YoutubePlayList.isDisposed()) {
                         return notLoaded();
                     }
                 }
 
-                if (data.selected == null || !data.selected.IsLoaded()) {
+                if (ch.selected == null || !ch.selected.IsLoaded()) {
                     try {
-                        if (YoutubePlayList.streamInfoItem != null && data.newIndex < YoutubePlayList.streamInfoItem.size()) {
-                            String videoUrl = YoutubePlayList.streamInfoItem.get(data.newIndex).getUrl();
-                            data.selected = new YoutubeGenerator(
+                        if (YoutubePlayList.streamInfoItem != null && ch.newIndex < YoutubePlayList.streamInfoItem.size()) {
+                            String videoUrl = YoutubePlayList.streamInfoItem.get(ch.newIndex).getUrl();
+                            ch.selected = new YoutubeGenerator(
                                     videoUrl,
                                     YoutubePlayList.videoSettings,
                                     YoutubePlayList.listeners,
                                     YoutubePlayList.hardware
                             );
-                            data.generate = true;
+                            ch.generate = true;
                         } else {
                             return notLoaded();
                         }
@@ -1495,34 +1372,31 @@ public class AppBack extends AppWeb {
             return true;
         }
 
-        private boolean ifNotGeneratedGenerate() throws ExtractionException, IOException {
-            if (data == null) return notLoaded();
-            if (data.selected.generateLink(5)) {
-                data.selected.reloadContent();
-                if (YoutubePlayList.getGenerator(data.newIndex) == null) {
-                    YoutubePlayList.youtubeGenerators.add(data.selected);
+        private boolean ifNotGeneratedGenerate(ChangerData ch) throws ExtractionException, IOException {
+            if (ch.selected.generateLink(5)) {
+                ch.selected.reloadContent();
+                if (YoutubePlayList.getGenerator(ch.newIndex) == null) {
+                    YoutubePlayList.youtubeGenerators.add(ch.selected);
                 }
                 return true;
             }
             return notLoaded();
         }
 
-        private boolean ifNotLoadedAgain() throws ExtractionException, IOException {
-            if (data == null) return notLoaded();
-            if (data.selected == null || !data.selected.IsLoaded()) {
+        private boolean ifNotLoadedAgain(ChangerData ch) throws ExtractionException, IOException {
+            if (ch.selected == null || !ch.selected.IsLoaded()) {
                 return notLoaded();
             }
 
-            YoutubeGenerator.Size videoSize = data.selected.getSize();
+            YoutubeGenerator.Size videoSize = ch.selected.getSize();
             Panel.updateScreen(videoSize.getWidth(), videoSize.getHeight());
 
             YoutubeGenerator oldGenerator = (YoutubeGenerator) globalGenerator;
-            int oldIndex = YoutubePlayList.current;
 
-            YoutubePlayList.current = data.newIndex;
+            YoutubePlayList.current = ch.newIndex;
             YoutubePlayList.changed = true;
 
-            new LoaderForPlayerYoutube(data.selected).updateLoaderAndKillerWithYoutubePlayListDispose();
+            new LoaderForPlayerYoutube(ch.selected).updateLoaderAndKillerWithYoutubePlayListDispose();
 
             if (oldGenerator != null && oldGenerator != globalGenerator) {
                 try {
@@ -1534,32 +1408,31 @@ public class AppBack extends AppWeb {
 
             globalGenerator.mediaError.started = true;
 
-            saveMedia(MediaSourceProviders.YOUTUBE,globalGenerator.getVideoUrl() + "&list=" + YoutubePlayList.youtubePlaylistId(),globalGenerator.nameOfMedia());
+            saveMedia(MediaSourceProviders.YOUTUBE,
+                    globalGenerator.getVideoUrl() + "&list=" + YoutubePlayList.youtubePlaylistId(),
+                    globalGenerator.nameOfMedia());
 
             globalGenerator.mediaErrorRun();
 
             for (int i = 0; i < 5; i++) {
-                if (isCancelled()) return notLoaded();
+                if (ch.isCancelled()) return notLoaded();
                 waitMS(200);
-                if (isCancelled()) return notLoaded();
+                if (ch.isCancelled()) return notLoaded();
                 if (!globalGenerator.mediaError.started) break;
             }
 
             if (mediaPlayer.isPlayingDynamic(60, 50)) {
-                SData.setInt(SData.Data.SavedIndexPlayList, data.currentIndex);
+                SData.setInt(SData.Data.SavedIndexPlayList, ch.currentIndex);
             }
 
-            preloadAdjacentVideos(data.newIndex);
+            preloadAdjacentVideos(ch.newIndex);
 
             Wait.webUIWaitStop();
             playlistLoop.reset();
             return true;
         }
-
-        private class FlowStopException extends RuntimeException {
-            FlowStopException(String message) { super(message); }
-        }
     }
+
     public static class Panel extends BasePanel
     {
         private static Consumer<SurfaceHolder> loader;

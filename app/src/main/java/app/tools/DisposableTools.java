@@ -425,6 +425,10 @@ public class DisposableTools {
 
         public void start(Callable<Boolean> task)
         {
+            if (task == null) {
+                return;
+            }
+
             dispose();
             disposable = addTask(()->{
                 boolean output = task.call();
