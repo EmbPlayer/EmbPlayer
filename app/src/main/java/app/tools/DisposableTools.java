@@ -94,13 +94,15 @@ public class DisposableTools {
 
             forkJoinPool = schedulerMake.apply(Thread.MAX_PRIORITY-2,false);
             forServer = forkJoinPool;
-            forGenerators = forServer;
-            forMediaChecking = forkJoinPool;
+            forGenerators = schedulerMake.apply(Thread.MAX_PRIORITY-3,false);
+            forMediaChecking = forGenerators;
 
             forSecondMedia = schedulerMake.apply(Thread.NORM_PRIORITY+1,false);
             forMainMedia = schedulerMake.apply(Thread.NORM_PRIORITY,false);
 
-            ioThreadPoolScheduler = schedulerMake.apply(Thread.NORM_PRIORITY-1,true);
+            //ioThreadPoolScheduler = schedulerMake.apply(Thread.NORM_PRIORITY-1,true);
+
+            ioThreadPoolScheduler = Schedulers.io();
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
@@ -361,7 +363,7 @@ public class DisposableTools {
                 pool -> {
                     java.util.concurrent.ForkJoinWorkerThread worker = java.util.concurrent.ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
                     worker.setName("calc-worker-" + worker.getPoolIndex());
-                    worker.setDaemon(true);
+                    //worker.setDaemon(true);
                     worker.setPriority(priority); // slightly lower than UI
                     return worker;
                 },
@@ -376,7 +378,7 @@ public class DisposableTools {
                 pool -> {
                     jersey.repackaged.jsr166e.ForkJoinWorkerThread worker = jersey.repackaged.jsr166e.ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
                     worker.setName("calc-worker-" + worker.getPoolIndex());
-                    worker.setDaemon(true);
+                    //worker.setDaemon(true);
                     worker.setPriority(priority); // slightly lower than UI
                     return worker;
                 },
