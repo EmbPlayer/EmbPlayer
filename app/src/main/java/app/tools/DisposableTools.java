@@ -82,26 +82,30 @@ public class DisposableTools {
             else
                 schedulerMake = (pri,fifo)->forkJoinPoolMakerNew(pri,fifo);
 
-
-          /*forServer = schedulerMake.apply(Thread.MAX_PRIORITY-1,false);
+            /*
+            forServer = schedulerMake.apply(Thread.MAX_PRIORITY-1,false);
             forGenerators = schedulerMake.apply(Thread.MAX_PRIORITY-2,false);
-
             forSecondMedia = schedulerMake.apply(Thread.NORM_PRIORITY+1,false);
             forMainMedia = schedulerMake.apply(Thread.NORM_PRIORITY,false);
             forkJoinPool = schedulerMake.apply(Thread.NORM_PRIORITY-1,false);
             forMediaChecking = forkJoinPool;
             ioThreadPoolScheduler = schedulerMake.apply(Thread.NORM_PRIORITY-1,true);*/
 
+            /*
             forkJoinPool = schedulerMake.apply(Thread.MAX_PRIORITY-2,false);
             forServer = forkJoinPool;
             forGenerators = schedulerMake.apply(Thread.MAX_PRIORITY-3,false);
             forMediaChecking = forGenerators;
-
             forSecondMedia = schedulerMake.apply(Thread.NORM_PRIORITY+1,false);
             forMainMedia = schedulerMake.apply(Thread.NORM_PRIORITY,false);
+            //ioThreadPoolScheduler = schedulerMake.apply(Thread.NORM_PRIORITY-1,true);*/
 
-            //ioThreadPoolScheduler = schedulerMake.apply(Thread.NORM_PRIORITY-1,true);
-
+            forkJoinPool = schedulerMake.apply(Thread.MAX_PRIORITY-2,false);
+            forServer = forkJoinPool;
+            forGenerators = forkJoinPool;
+            forMediaChecking = forkJoinPool;
+            forSecondMedia = forkJoinPool;
+            forMainMedia = forkJoinPool;
             ioThreadPoolScheduler = Schedulers.io();
         } catch (Throwable e) {
             throw new RuntimeException(e);
