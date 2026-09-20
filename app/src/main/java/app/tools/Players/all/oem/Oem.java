@@ -31,8 +31,6 @@ import app.EmptyActivity;
 import app.tools.Players.all.Player;
 import app.tools.StaticFunctions;
 import server.tools.MediaProxyServlet;
-import server.web.ErrorCodeApp;
-import tv.danmaku.ijk.media.player.IjkMediaPlayer;
 
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.ioThreadPoolScheduler;
@@ -110,7 +108,7 @@ public abstract class Oem extends Player {
     @Override
     public void modifyStart(long seek)
     {
-        if(onEndTriggered(seek))
+        if(onCantBeSeek(seek))
             return;
 
         makeTry(() -> {

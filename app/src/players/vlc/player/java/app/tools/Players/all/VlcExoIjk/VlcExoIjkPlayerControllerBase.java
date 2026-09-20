@@ -23,8 +23,6 @@ import org.videolan.libvlc.MediaPlayer;
 import app.tools.Players.all.Listeners;
 import app.tools.Players.all.ExoIjk.ExoIjkPlayerControllerBase;
 
-import server.web.ErrorCodeApp;
-
 import static app.tools.StaticFunctions.makeTry;
 
 public abstract class VlcExoIjkPlayerControllerBase extends ExoIjkPlayerControllerBase {
@@ -79,8 +77,7 @@ public abstract class VlcExoIjkPlayerControllerBase extends ExoIjkPlayerControll
                             break;
 
                         case MediaPlayer.Event.TimeChanged:
-
-                            onEndTriggered(getCurrentPosition());
+                            isCanBeEndVLC();
                             break;
 
                         case MediaPlayer.Event.PositionChanged:
@@ -117,6 +114,11 @@ public abstract class VlcExoIjkPlayerControllerBase extends ExoIjkPlayerControll
         }
 
         @Override
+        protected boolean onCantBeSeek(long curPos) {
+            return curPos>(getDuration()-10000);
+        }
+
+        @Override
         public long modifyGetDuration()
         {
             return makeTry(()->{
@@ -137,33 +139,32 @@ public abstract class VlcExoIjkPlayerControllerBase extends ExoIjkPlayerControll
             VlcExoIjkPlayerControllerBase.this.onPrepareMaking();
         }
 
-        @Override
-        protected boolean onEndTriggered(long curPos)
+        protected void isCanBeEndVLC()
         {
-            long duration= this.getDuration()-10000;
+            if(!onCantBeSeek(getCurrentPosition()))
+                return;
 
-            if(duration>curPos)
-                return false;
+            if(isLive())
+                return;
 
-            end(()->{
-                VlcExoIjkPlayerControllerBase.this.waitActionCompleteAndStart(()-> VlcExoIjkPlayerControllerBase.this.pause());
+            VlcExoIjkPlayerControllerBase.this.waitActionCompleteAndStart(()-> VlcExoIjkPlayerControllerBase.this.pause());
 
-                if(baseData().getLoop()){
-                    VlcExoIjkPlayerControllerBase.this.waitActionCompleteAndStart(()-> VlcExoIjkPlayerControllerBase.this.start(0));
-                    return false;
-                }
+            if(isEnded())
+                return;
 
-                if(baseData().getPlayListLoop()){
-                    mediaStart();
-                    listeners.onPlayListLoop();
-                    return false;
-                }
+            if(baseData().getLoop()){
+                VlcExoIjkPlayerControllerBase.this.waitActionCompleteAndStart(()-> VlcExoIjkPlayerControllerBase.this.start(0));
+                return;
+            }
 
-                listeners.onCompletionListener();
-                return true;
-            });
+            if(baseData().getPlayListLoop()){
+                mediaStart();
+                listeners.onPlayListLoop();
+                return;
+            }
 
-            return true;
+            listeners.onCompletionListener();
+            defaultEnd();
         }
     }
 }

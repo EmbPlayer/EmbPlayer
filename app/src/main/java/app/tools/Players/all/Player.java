@@ -27,9 +27,6 @@ import androidx.annotation.CallSuper;
 import app.tools.StaticFunctions;
 import io.reactivex.rxjava3.disposables.Disposable;
 import server.tools.MediaProxyServlet;
-import server.web.ErrorCodeApp;
-
-import static app.tools.DisposableTools.waitMS;
 
 public abstract class Player {
 
@@ -174,7 +171,7 @@ public abstract class Player {
     public abstract void dontSleep(boolean on);
     public abstract void hardwareDecoding();
     public abstract boolean listenersUpdate();
-    protected abstract boolean onEndTriggered(long curPos);
+    protected abstract boolean onCantBeSeek(long curPos);
 
     public final void setDisplaySurface(SurfaceHolder holder){
         try{

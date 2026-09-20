@@ -27,10 +27,7 @@ import app.tools.Players.all.oem.OemPlayerControllerBase;
 import app.tools.SData;
 import app.tools.StaticFunctions;
 
-import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.makeTry;
-import static tv.danmaku.ijk.media.player.IMediaPlayer.MEDIA_INFO_BUFFERING_END;
-import static tv.danmaku.ijk.media.player.IMediaPlayer.MEDIA_INFO_BUFFERING_START;
 
 public abstract class IjkPlayerControllerBase extends OemPlayerControllerBase {
     public IjkPlayerControllerBase(Listeners listeners) {
@@ -118,8 +115,8 @@ public abstract class IjkPlayerControllerBase extends OemPlayerControllerBase {
         }
 
         @Override
-        protected boolean onEndTriggered(long curPos) {
-            return IjkPlayerControllerBase.this.onEndTriggered(curPos);
+        protected boolean onCantBeSeek(long curPos) {
+            return IjkPlayerControllerBase.this.onCantBeSeek(curPos);
         }
 
         protected void OnEnded() {

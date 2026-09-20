@@ -18,7 +18,6 @@
 
 package app.tools.Players.all.oem;
 
-import android.media.MediaPlayer;
 import android.view.SurfaceHolder;
 
 import androidx.annotation.CallSuper;
@@ -91,8 +90,8 @@ public abstract class OemPlayerControllerBase extends PlayerControllerBase {
         }
 
         @Override
-        protected boolean onEndTriggered(long curPos) {
-            return OemPlayerControllerBase.this.onEndTriggered(curPos);
+        protected boolean onCantBeSeek(long curPos) {
+            return OemPlayerControllerBase.this.onCantBeSeek(curPos);
         }
 
         protected void onEnded() {

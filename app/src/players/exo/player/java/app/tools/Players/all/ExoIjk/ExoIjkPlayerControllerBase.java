@@ -20,7 +20,6 @@ package app.tools.Players.all.ExoIjk;
 
 import androidx.annotation.CallSuper;
 import androidx.media3.common.PlaybackException;
-import androidx.media3.common.Player;
 import androidx.media3.common.VideoSize;
 import app.tools.Players.all.Listeners;
 import app.tools.Players.all.Ijk.IjkPlayerControllerBase;
@@ -107,8 +106,8 @@ public abstract class ExoIjkPlayerControllerBase extends IjkPlayerControllerBase
         }
 
         @Override
-        protected boolean onEndTriggered(long curPos) {
-            return ExoIjkPlayerControllerBase.this.onEndTriggered(curPos);
+        protected boolean onCantBeSeek(long curPos) {
+            return ExoIjkPlayerControllerBase.this.onCantBeSeek(curPos);
         }
 
         protected void OnEnded() {

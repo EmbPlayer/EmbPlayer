@@ -44,7 +44,6 @@ import server.tools.MediaProxyServlet;
 
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.addTaskUI;
-import static app.tools.DisposableTools.forSecondMedia;
 import static app.tools.DisposableTools.forkJoinPool;
 import static app.tools.DisposableTools.ioThreadPoolScheduler;
 import static app.tools.DisposableTools.waitMS;
@@ -220,7 +219,7 @@ public abstract class Vlc extends Player
     @Override
     public void modifyStart(long seek)
     {
-        if(onEndTriggered(seek))
+        if(onCantBeSeek(seek))
             return;
 
         makeTry(() -> {

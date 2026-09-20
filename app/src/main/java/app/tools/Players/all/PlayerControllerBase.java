@@ -29,7 +29,6 @@ import app.tools.SData;
 import app.tools.StaticFunctions;
 import io.reactivex.rxjava3.core.Scheduler;
 import io.reactivex.rxjava3.disposables.Disposable;
-import server.web.ErrorCodeApp;
 
 import androidx.annotation.CallSuper;
 import server.web.Wait;
@@ -400,19 +399,6 @@ public abstract class PlayerControllerBase {
         baseData().mediaIsPaused = false;
     }
 
-    protected final void end(Callable<Boolean> OnEnd)
-    {
-        if(isEnded()|| isLive())
-            return;
-
-        try {
-            if(OnEnd.call())
-                baseData().seekAndEnd.reset();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     protected final void pauseForce()
     {
         mediaStop();
@@ -511,42 +497,45 @@ public abstract class PlayerControllerBase {
 
         return null;
     }
+
+    protected final void defaultEnd(){
+        baseData().seekAndEnd.reset();
+    }
+
     protected void onEnded()
     {
-        end(()-> isCanBeEnd());
+        if(isEnded() || isLive())
+            return;
+
+        isCanBeEnd();
     }
+
     protected boolean isCanBeEnd(){
         if(getCurrentPosition()<(getDuration()-1500))
             return false;
 
-        //GetSeekAfterIsPlayingDynamic()
-
         if (baseData().getLoop()){
             PlayerControllerBase.this.waitActionCompleteAndStart(()-> PlayerControllerBase.this.start(0));
-            return false;
+            return true;
         }
 
         if(baseData().getPlayListLoop()){
             listeners.onPlayListLoop();
-            return false;
+            return true;
         }
 
         mediaStop();
         listeners.onCompletionListener();
+        defaultEnd();
 
         return true;
     }
 
-    protected boolean onEndTriggered(long curPos)
+    protected boolean onCantBeSeek(long curPos)
     {
-        long duration= getDuration();
-
-        if(duration>curPos)
-            return false;
-
-        onEnded();
-        return true;
+        return curPos > getDuration()-300;
     }
+
     protected void onPrepareMaking()
     {
         if(baseData().getPauseAfterLoad())

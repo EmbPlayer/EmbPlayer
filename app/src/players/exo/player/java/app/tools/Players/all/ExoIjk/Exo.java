@@ -28,8 +28,6 @@ import android.view.SurfaceHolder;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.concurrent.Callable;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import androidx.annotation.OptIn;
@@ -40,8 +38,6 @@ import app.Main;
 import app.tools.Players.all.ExoIjk.tools.ExceptionOriginUtil;
 import app.tools.Players.all.Player;
 
-import static app.tools.DisposableTools.addTask;
-import static app.tools.DisposableTools.ioThreadPoolScheduler;
 import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.onErrorSave;
 
@@ -111,7 +107,7 @@ public abstract class Exo extends Player {
     @Override
     public void modifyStart(long seek)
     {
-        if(onEndTriggered(seek))
+        if(onCantBeSeek(seek))
             return;
 
         makeTry(() -> {

@@ -30,7 +30,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
-import java.util.concurrent.Callable;
 
 import androidx.annotation.CallSuper;
 import app.EmptyActivity;
@@ -645,7 +644,7 @@ public abstract class Ijk extends Player
 
     public final void modifyStart(long seek)
     {
-        if(onEndTriggered(seek))
+        if(onCantBeSeek(seek))
             return;
 
         makeTry(() -> afterCheckingStart(seek),StaticFunctions.Empty.r,1);
