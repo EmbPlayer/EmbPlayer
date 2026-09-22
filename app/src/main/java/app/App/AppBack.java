@@ -748,8 +748,21 @@ public class AppBack extends AppWeb {
     }
 
     public void mediaUpdateSeekPosition() {
-        if (!mediaIsNullFully() && timer.get() && !globalGenerator.waitStarted())
-            seekPosition(saveSeek((int) mediaPlayer.getCurrentPosition()));
+        try {
+            if(mediaIsNullFully())
+                return;
+
+            if(globalGenerator.waitStarted())
+                return;
+
+            long curP = mediaPlayer.getCurrentPosition();
+
+            if(curP==0)
+                seekPosition(0);
+            else
+                seekPosition(saveSeek((int)curP));
+
+        } catch (Exception e) {}
     }
 
     public boolean mediaSeekStart() {
