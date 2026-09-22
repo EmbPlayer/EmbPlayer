@@ -102,11 +102,7 @@ public abstract class PlayerControllerBase {
 
     public final long getCurrentPosition()
     {
-        if(isEnded()){
-            return getDuration();
-        }
-
-        if(isLive()){
+        if(isEnded() || isLive()){
             return 0;
         }
 
@@ -502,7 +498,7 @@ public abstract class PlayerControllerBase {
         baseData().seekAndEnd.reset();
     }
 
-    protected void onEnded()
+    protected final void onEnded()
     {
         if(isEnded() || isLive())
             return;
@@ -510,7 +506,7 @@ public abstract class PlayerControllerBase {
         isCanBeEnd();
     }
 
-    protected boolean isCanBeEnd(){
+    protected final boolean isCanBeEnd(){
         if(getCurrentPosition()<(getDuration()-1500))
             return false;
 
@@ -536,7 +532,7 @@ public abstract class PlayerControllerBase {
         return curPos > getDuration()-300;
     }
 
-    protected void onPrepareMaking()
+    protected final void onPrepareMaking()
     {
         if(baseData().getPauseAfterLoad())
             pauseForce();
