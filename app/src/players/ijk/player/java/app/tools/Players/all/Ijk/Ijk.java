@@ -42,7 +42,7 @@ import tv.danmaku.ijk.media.player.IjkMediaPlayer;
 import tv.danmaku.ijk.media.player.misc.IMediaDataSource;
 
 import static app.tools.DisposableTools.addTask;
-import static app.tools.DisposableTools.ioThreadPoolScheduler;
+import static app.tools.DisposableTools.lifo;
 import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.makeTry;
 import static app.tools.StaticFunctions.onErrorSave;
@@ -801,16 +801,18 @@ public abstract class Ijk extends Player
         super.release();
 
         disposeReleaser();
+
+        if (!secondPlayer)
+            EmptyActivity.EmptyIJK.finishMake();
+
+        IjkMediaPlayer oldM = media;
+        media = null;
+
         releaser = addTask(() -> {
 
             try {
 
-                if (!secondPlayer)
-                    EmptyActivity.EmptyIJK.finishMake();
-
-                WeakReference<IjkMediaPlayer> selected = new WeakReference<>(media);
-
-                media = null;
+                WeakReference<IjkMediaPlayer> selected = new WeakReference<>(oldM);
 
                 cleaned = true;
 
@@ -821,12 +823,7 @@ public abstract class Ijk extends Player
             }
 
             return true;
-        }, () -> "IJKPlayer-ReleaseError",ioThreadPoolScheduler);
-        while (!cleaned)
-        {
-            waitMS(250);
-        }
-        waitMS(250);
+        }, () -> "IJKPlayer-ReleaseError",lifo);
     }
 
     @Override

@@ -60,19 +60,16 @@ import app.tools.StaticFunctions;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Observable;
-import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
-import io.reactivex.rxjava3.functions.Action;
 import io.reactivex.rxjava3.functions.BiConsumer;
 import io.reactivex.rxjava3.functions.Consumer;
-import io.reactivex.rxjava3.functions.Function;
 import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import app.tools.DisposableTools.WaitDisposable;
 
 import static app.Main.getContext;
 import static app.tools.DisposableTools.killAll;
 import static app.tools.DisposableTools.forGenerators;
-import static app.tools.DisposableTools.forkJoinPool;
+import static app.tools.DisposableTools.lifo;
 import static app.tools.DisposableTools.ioThreadPoolScheduler;
 import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.onErrorSave;
@@ -639,8 +636,8 @@ public class AppBack extends AppWeb {
 
         if (globalGenerator.isLive()) {
             errorHandel.detection.detectionSeconds = 1;
-            errorHandel.detection.dynamicDetectionDelayMS = 25;
-            errorHandel.detection.dynamicTryCount = 300;
+            errorHandel.detection.dynamicDetectionDelayMS = 10;
+            errorHandel.detection.dynamicTryCount = 500;
         }
 
         return false;
@@ -770,21 +767,6 @@ public class AppBack extends AppWeb {
             mediaSeekStart = false;
             return true;
         }
-        return false;
-    }
-
-    public boolean isPlayingWithWait() {
-        if (mediaIsNullFully()) return false;
-
-        int k = (int) mediaPlayer.getCurrentPosition();
-
-        for (int i = 0; i < 10; i++) {
-            waitMS(1000);
-            if (k < mediaPlayer.getCurrentPosition())
-                return true;
-
-        }
-
         return false;
     }
 
@@ -1178,10 +1160,11 @@ public class AppBack extends AppWeb {
                                 onComp.run();
                             } catch (Exception e) {}
                         },
-                        StaticFunctions.Empty.r,
+                        StaticFunctions.Empty.a,
                         1500,
                         20000,
-                        forkJoinPool,
+                        lifo,
+                        lifo,
                         "mediaKillOnly");
 
                 return;
@@ -1220,7 +1203,7 @@ public class AppBack extends AppWeb {
 
         private final Runnable pureUpdate = () -> updateChanger(1, 10, 1000);
         private final Runnable updateInNewTask = () ->
-                cleaningInBackground.add(pureUpdate, StaticFunctions.Empty.r, StaticFunctions.Empty.r, forkJoinPool, "PlayListLoop");
+                cleaningInBackground.add(pureUpdate, StaticFunctions.Empty.a, StaticFunctions.Empty.r, lifo, "PlayListLoop");
 
         private final StaticFunctions.Starter playlistLoop = new StaticFunctions.Starter() {
             @Override
@@ -1522,63 +1505,79 @@ public class AppBack extends AppWeb {
 
     public class ListenersSet extends Listeners
     {
-        private final StaticFunctions.Starter onNotLoaded = new StaticFunctions.Starter() {
+        private final long msDelay = 10000;
+        private long triggeredTime;
+
+        private final StaticFunctions.StarterWithBoolean checkTryFix = new StaticFunctions.StarterWithBoolean() {
             @Override
-            protected void firstLaunch() {
-                mediaReload.tryLoad(()->{
-                    if(onExo.cachingFailed())
-                        return false;
-
-                    if(onExo.getTemp())
-                        onExo.cachingFailed(true);
-                    else
-                        return false;
-
-                    return true;
-                },()->reset());
+            protected Boolean firstLaunch() {
+                triggeredTime = System.currentTimeMillis();
+                return true;
             }
 
             @Override
-            protected void secondLaunches() {}
+            protected Boolean secondLaunches() {
+                if(triggeredTime + msDelay < System.currentTimeMillis()){
+                    firstLaunch();
+                    return true;
+                }
+                return false;
+            }
         };
-        private final StaticFunctions.Starter onError = new StaticFunctions.Starter() {
 
-            @Override
-            protected void firstLaunch() {
-                badSoundFixer.run();
-                mediaPlayer.beforeOnErrorStarted();
-                cleaningInBackground.add(()->{
+        private void onNotLoaded() {
+            try {
+                if(checkTryFix.call())
+                    mediaReload.tryLoad(()->{
+                        if(onExo.cachingFailed())
+                            return false;
 
-                    if(AndroidOsUpdatesListener.isHaveConnection()&& globalGenerator.mediaError.started)
-                        return;
+                        if(onExo.getTemp())
+                            onExo.cachingFailed(true);
+                        else
+                            return false;
 
-                    try {
+                        return true;
+                    },StaticFunctions.Empty.r);
+            } catch (Exception e) {}
+        }
+
+        private void onError(){
+            try {
+                if(checkTryFix.call())
+                {
+                    badSoundFixer.run();
+                    mediaPlayer.beforeOnErrorStarted();
+                    cleaningInBackground.add(()->{
+
+                        if(AndroidOsUpdatesListener.isHaveConnection()&& globalGenerator.mediaError.started)
+                            return;
+
+                        try {
                         /*if(IfIsNotCollectionOrCollectionIsNotLoopingWillBeClosePlayerIfIsNotMakedFirstPlay())
                            return;*/
 
-                        if(mediaIsNullFully())
-                            return;
+                            if(mediaIsNullFully())
+                                return;
 
-                        if(playlist.get()&& playlistLoopOn()&&
-                                mediaPlayer.getDuration()<mediaPlayer.getSeekAfterIsPlayingDynamic()+10)
-                        {
-                            //videoChanger.UpdateChanger(1);
-                            videoChanger.onPlaylistLoopInCurrentTask();
-                            return;
+                            if(playlist.get()&& playlistLoopOn()&&
+                                    mediaPlayer.getDuration()<mediaPlayer.getSeekAfterIsPlayingDynamic()+10)
+                            {
+                                //videoChanger.UpdateChanger(1);
+                                videoChanger.onPlaylistLoopInCurrentTask();
+                                return;
+                            }
+
+                            globalGenerator.mediaError.started = true;
+                            onErrorEnd();
+                            globalGenerator.mediaError.started = false;
+                        } catch (Exception e) {
+                            onErrorFail(e);
                         }
-
-                        globalGenerator.mediaError.started = true;
-                        onErrorEnd();
-                        globalGenerator.mediaError.started = false;
-                    } catch (Exception e) {
-                        onErrorFail(e);
-                    }
-                },() -> reset(),StaticFunctions.Empty.r,forGenerators,"OnErrorListener");
-            }
-
-            @Override
-            protected void secondLaunches() {}
-        };
+                    },StaticFunctions.Empty.a,StaticFunctions.Empty.r,forGenerators,"OnErrorListener");
+                }
+            } catch (Exception e) {}
+        }
 
         private BiConsumer<Integer,Integer> screenUpdate;
 
@@ -1634,12 +1633,12 @@ public class AppBack extends AppWeb {
 
         @Override
         public final void onNotLoadedTryAgainToLoad() {
-            onNotLoaded.run();
+            onNotLoaded();
         }
 
         @Override
         public final void onErrorListener() {
-            onError.run();
+            onError();
         }
 
         @Override
@@ -1761,88 +1760,83 @@ public class AppBack extends AppWeb {
         {
             return () -> {
 
+                localGenerator.mediaError.started = true;
+                Connection.ifNotHaveConnectionWaitInfinityTime(cleaningInBackground,()->{
+                    try {
+                        mediaPlayer.beforeOnErrorStarted();
 
-                try {
-                    localGenerator.mediaError.started = true;
-
-                    mediaPlayer.beforeOnErrorStarted();
-
-                    Connection.ifNotHaveConnectionWaitInfinityTime();
-
-                    if(localGenerator.mediaIsExpired())
-                    {
-                        localGenerator.generateContent();
-                        localGenerator.reloadContent();
-                    }
-
-                    //HereErr
-
-                    //youtubeGenerator.mediaError.started = true;
-
-
-                    //BadSoudFixOn();
-
-                    errorHandel.mediaBufferingStop();
-
-                    boolean reload = refreshDisplay();
-
-                    if(playlist.get()&&YoutubePlayList.changed)
-                    {
-                        if(reload)
+                        if(localGenerator.mediaIsExpired())
                         {
-                            if(localGenerator.getVideoStream()==null)
-                            {
-                                localGenerator.generateAndLoad(10);
+                            localGenerator.generateContent();
+                            localGenerator.reloadContent();
+                        }
 
-                                if(localGenerator.getVideoStream()==null/* || vvideoStream == vv*/)
+                        //HereErr
+
+                        //youtubeGenerator.mediaError.started = true;
+
+
+                        //BadSoudFixOn();
+
+                        errorHandel.mediaBufferingStop();
+
+                        boolean reload = refreshDisplay();
+
+                        if(playlist.get()&&YoutubePlayList.changed)
+                        {
+                            if(reload)
+                            {
+                                if(localGenerator.getVideoStream()==null)
                                 {
-                                    return false;
+                                    localGenerator.generateAndLoad(10);
+
+                                    if(localGenerator.getVideoStream()==null/* || vvideoStream == vv*/)
+                                    {
+                                        return;
+                                    }
                                 }
                             }
+                            else
+                            {
+                                if(localGenerator.getAudioStream()==null)
+                                {
+                                    localGenerator.generateAndLoad(10);
+
+                                    if(localGenerator.getAudioStream() == null/*||aaudioStream == aa*/)
+                                    {
+                                        return;
+                                    }
+                                }
+                            }
+
+                            resetPlayer(localGenerator);
+
+                            seekPosition(0);
+                            mediaPlayer.seekAfterIsPlayingDynamicReset();
+                            seekMax(localGenerator.getMaxSeek());
+
+                            YoutubePlayList.changed = false;
                         }
                         else
                         {
-                            if(localGenerator.getAudioStream()==null)
-                            {
-                                localGenerator.generateAndLoad(10);
-
-                                if(localGenerator.getAudioStream() == null/*||aaudioStream == aa*/)
-                                {
-                                    return false;
-                                }
-                            }
+                            //ErrorHandel.GetSeek();
+                            resetPlayer(localGenerator);
                         }
+                        reloadPanel(reload);
 
-                        resetPlayer(localGenerator);
+                        //if(timer.Get())
 
-                        seekPosition(0);
-                        mediaPlayer.seekAfterIsPlayingDynamicReset();
-                        seekMax(localGenerator.getMaxSeek());
+                        loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),StaticFunctions.Empty.r);
 
-                        YoutubePlayList.changed = false;
+                        errorHandel.posSaved = false;
+                        localGenerator.mediaError.started = false;
                     }
-                    else
+                    catch (ExtractionException | IOException e)
                     {
-                        //ErrorHandel.GetSeek();
-                        resetPlayer(localGenerator);
+                        onErrorSave("OnError-UpdateYou",e);
+                        localGenerator.mediaError.started = false;
                     }
-                    reloadPanel(reload);
-
-                    //if(timer.Get())
-
-                    loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),StaticFunctions.Empty.r);
-
-                    errorHandel.posSaved = false;
-                    localGenerator.mediaError.started = false;
-                }
-                catch (ExtractionException | IOException e)
-                {
-                    onErrorSave("OnError-UpdateYou",e);
-                    localGenerator.mediaError.started = false;
-                    //youtubeGenerator.mediaError.started = true;
-                    //youtubeGenerator.mediaError.Wait();
-                    //youtubeGenerator.GetOnError().call();
-                }
+                });
 
                 return true;
             };
@@ -1869,47 +1863,42 @@ public class AppBack extends AppWeb {
         @Override
         public Callable<Boolean> onUpdateError() {
             return () -> {
-
-
-                try {
-                    localGenerator.mediaError.started = true;
-
-
+                localGenerator.mediaError.started = true;
+                Connection.ifNotHaveConnectionWaitInfinityTime(cleaningInBackground,()->{
                     mediaPlayer.beforeOnErrorStarted();
+                    try {
+                        if(localGenerator.mediaIsExpired())
+                        {
+                            localGenerator.generateContent();
+                            localGenerator.reloadContent();
+                        }
 
-                    Connection.ifNotHaveConnectionWaitInfinityTime();
+                        //BadSoudFixOn();
 
-                    if(localGenerator.mediaIsExpired())
-                    {
-                        localGenerator.generateContent();
-                        localGenerator.reloadContent();
+                        errorHandel.mediaBufferingStop();
+
+                        boolean reload = refreshDisplay();
+
+                        //ErrorHandel.GetSeek();
+                        resetPlayer(localGenerator);
+                        reloadPanel(reload);
+
+                        //if(timer.Get())
+
+                        loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),StaticFunctions.Empty.r);
+
+                        errorHandel.posSaved = false;
+                        localGenerator.mediaError.started = false;
                     }
-
-                    //BadSoudFixOn();
-
-                    errorHandel.mediaBufferingStop();
-
-                    boolean reload = refreshDisplay();
-
-                    //ErrorHandel.GetSeek();
-                    resetPlayer(localGenerator);
-                    reloadPanel(reload);
-
-                    //if(timer.Get())
-
-                    loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),StaticFunctions.Empty.r);
-
-                    errorHandel.posSaved = false;
-                    localGenerator.mediaError.started = false;
-                }
-                catch (ExtractionException | IOException e)
-                {
-                    onErrorSave("OnError-UpdateYouSiteGenerator",e);
-                    localGenerator.mediaError.started = false;
-                    //youtubeGenerator.mediaError.started = true;
-                    //youtubeGenerator.mediaError.Wait();
-                    //youtubeGenerator.GetOnError().call();
-                }
+                    catch (ExtractionException | IOException e)
+                    {
+                        onErrorSave("OnError-UpdateYouSiteGenerator",e);
+                        localGenerator.mediaError.started = false;
+                        //youtubeGenerator.mediaError.started = true;
+                        //youtubeGenerator.mediaError.Wait();
+                        //youtubeGenerator.GetOnError().call();
+                    }
+                });
 
                 return true;
             };
@@ -1968,48 +1957,28 @@ public class AppBack extends AppWeb {
         @Override
         public Callable<Boolean> onUpdateError(){
             return () -> {
+                globalGenerator.mediaError.started = true;
+                Connection.ifNotHaveConnectionWaitInfinityTime(cleaningInBackground,()->{
+                    try {
+                        mediaPlayer.beforeOnErrorStarted();
+                        errorHandel.mediaBufferingStop();
 
+                        boolean reload = refreshDisplay();
 
-                try {
-                    globalGenerator.mediaError.started = true;
+                        mediaPlayer.resetWithoutResetPlayingState();
+                        reloadPanel(reload);
 
+                        loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),StaticFunctions.Empty.r);
 
-                    mediaPlayer.beforeOnErrorStarted();
-
-                    Connection.ifNotHaveConnectionWaitInfinityTime();
-                    //HereErr
-
-                    //youtubeGenerator.mediaError.started = true;
-
-
-                    //BadSoudFixOn();
-
-                    errorHandel.mediaBufferingStop();
-
-                    boolean reload = refreshDisplay();
-
-                        /*if(!urlGenerator.IsLive())
-                        {
-                            ErrorHandel.GetSeek();
-                        }*/
-                    mediaPlayer.resetWithoutResetPlayingState();
-                    reloadPanel(reload);
-
-                    //if(timer.Get())
-
-                    loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),StaticFunctions.Empty.r);
-
-                    errorHandel.posSaved = false;
-                    globalGenerator.mediaError.started = false;
-                }
-                catch (Exception e)
-                {
-                    onErrorSave("SendURLClose-urlGenerator.OnErrorUpdate",e);
-                    globalGenerator.mediaError.started = false;
-                    //youtubeGenerator.mediaError.started = true;
-                    //youtubeGenerator.mediaError.Wait();
-                    //youtubeGenerator.GetOnError().call();
-                }
+                        errorHandel.posSaved = false;
+                        globalGenerator.mediaError.started = false;
+                    }
+                    catch (Exception e)
+                    {
+                        onErrorSave("SendURLClose-urlGenerator.OnErrorUpdate",e);
+                        globalGenerator.mediaError.started = false;
+                    }
+                });
 
                 return true;
             };
@@ -2024,52 +1993,12 @@ public class AppBack extends AppWeb {
     public class AsyncRun
     {
         public class PlayerFreezeDetection
-        {/*
-            private class MediaIsChanged
-            {
-                private int i;
-                private Runnable media;
+        {
+            private static final int MAX_CHECK_OF_NOT_CREATED = 15;
 
-                public MediaIsChanged()
-                {
-                    Reset();
-                }
-
-                public void run()
-                {
-                    media.run();
-                }
-
-                public void Reset()
-                {
-                    i = 0;
-                    media = ()->{};
-                }
-
-                public void Check()
-                {
-                    media = ()->{
-
-                        if(videoChanger.IsMaked())
-                        {
-                            Reset();
-                        }
-                        else if(i>3)
-                        {
-                            videoChanger.UpdateChanger(1);
-                            i = 0;
-                        }
-                        else
-                            i++;
-                    };
-                }
-            }*/
-
-            //public final MediaIsChanged mediaIsChanged = new MediaIsChanged();
             private int detectionSeconds;
             private int dynamicDetectionDelayMS;
             private int dynamicTryCount;
-            private final int maxCheckOfNotCreated = 15;
             private int countOfChecksOfNotCreated;
             private Disposable detector;
 
@@ -2142,7 +2071,7 @@ public class AppBack extends AppWeb {
                             cleaningInBackground.addStartAfterWait(2000,()->{
                                 errorHandel.errorFixerIsRan = false;
                                 currentRecover.currentStopAndResetStateAndUIWait();
-                            },StaticFunctions.Empty.r,forkJoinPool,"RecoverError-After-2-Seconds-Delay");
+                            },StaticFunctions.Empty.r, lifo,"RecoverError-After-2-Seconds-Delay");
                         }
                     }, () -> "RecoverError");
 
@@ -2152,12 +2081,10 @@ public class AppBack extends AppWeb {
             }
 
             public void startDetectionLost() {
-                int maxCheckOfNotCreatedCalculated = maxCheckOfNotCreated/detectionSeconds;
+                int maxCheckOfNotCreatedCalculated = MAX_CHECK_OF_NOT_CREATED /detectionSeconds;
 
-                detector = Observable.interval(detectionSeconds, TimeUnit.SECONDS)
-                        .subscribeOn(forkJoinPool)
-                        .observeOn(forkJoinPool)
-                        .retryWhen(errors -> errors.delay(2, TimeUnit.SECONDS))
+                detector = Observable.interval(detectionSeconds, TimeUnit.SECONDS, lifo)
+                        .retryWhen(errors -> errors.delay(2, TimeUnit.SECONDS, lifo))
                         .subscribe(tick -> {
                             try
                             {
@@ -2349,75 +2276,7 @@ public class AppBack extends AppWeb {
 
              */
         }
-        /*
-                private void ResetMediaGCOrg(boolean getPos)
-                {
-                    MediaBufferingStop();
 
-                    createdMedias.add(mediaPlayer);
-                    mediaPlayer = null;
-                    mediaPlayer = MediaPlayer();
-
-                    BadSoudFixOn();
-
-                    WeakReference<MediaPlayer> oldMedia;
-
-                    if(createdMedias.size()!=0)
-                    {
-                        oldMedia = new WeakReference<>(createdMedias.get(0));
-
-                        if(getPos&&GetTimer()&&!posSaved&&createdMedias.get(0)!=null)
-                        {
-                            AtomicInteger savedSeek = new AtomicInteger(-1);
-
-                            mediaGetSeek.started = true;
-                            mediaGetSeek.Start(Observable.fromCallable(() ->
-                                    {
-                                        while (savedSeek.get()==-1)
-                                        {
-                                            savedSeek.set(SaveSeek(oldMedia.get().getCurrentPosition()));
-                                            AppBack.Wait(1000);
-                                        }
-                                        mediaGetSeek.started = false;
-                                        return true;
-                                    })
-                                    .subscribeOn(Schedulers.io()) // Run the task on a background thread
-                                    .observeOn(Schedulers.single()) // Optional: Observe the result on another thread
-                                    .subscribe(error -> {
-                                        mediaGetSeek.disposable.dispose();
-                                    }));
-
-                            int timeOut = 0;
-                            while (mediaGetSeek.started)
-                            {
-                                AppBack.Wait(1000);
-                                if(timeOut == mediaGetSeek.second)
-                                {
-                                    savedSeek.set((bufferedPercentage * GetSeekMax()) / 100);
-                                    break;
-                                }
-                                timeOut++;
-                            }
-
-                            SeekPosion(savedSeek.get());
-                            posSaved = true;
-                        }
-                    }
-                    else
-                        oldMedia = null;
-
-                    createdMedias.clear();
-
-                    System.gc();
-
-                    if(oldMedia==null)
-                        return;
-                    while (oldMedia.get()!=null)
-                    {
-                        Wait(100);
-                    }
-                }
-        */
         public void getSeek()
         {
             if(timer.get()&&!posSaved&&!mediaIsNullFully())
@@ -2659,10 +2518,11 @@ public class AppBack extends AppWeb {
                                     onComple.run();
                                 } catch (Exception e) {}
                             },
-                            StaticFunctions.Empty.r,
+                            StaticFunctions.Empty.a,
                             1500,
                             20000,
-                            forkJoinPool,
+                            lifo,
+                            lifo,
                             "mediaSessionStop"
                     );
                     return;

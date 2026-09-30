@@ -75,7 +75,6 @@ public class HlsSelector {
 
             @Override
             public void onError(String errorMsg) {
-                StaticFunctions.getInfo(errorMsg);
             }
 
             @Override

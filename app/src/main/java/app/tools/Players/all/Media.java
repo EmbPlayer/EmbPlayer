@@ -26,10 +26,8 @@ import app.tools.DisposableTools;
 import app.tools.Players.PlayerController;
 import app.tools.StaticFunctions;
 import io.reactivex.rxjava3.disposables.Disposable;
-import server.web.ErrorCodeApp;
-import server.web.Wait;
 
-import static app.tools.DisposableTools.forkJoinPool;
+import static app.tools.DisposableTools.lifo;
 import static app.tools.DisposableTools.waitMS;
 import static server.Home.app;
 
@@ -83,7 +81,8 @@ public abstract class Media<T extends Player> extends PlayerController {
                 ()->"waitPlay",
                 500,
                 -1,
-                forkJoinPool);
+                lifo,
+                lifo);
     }
 
     @Override

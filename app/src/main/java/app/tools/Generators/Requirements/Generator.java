@@ -23,7 +23,7 @@ import app.tools.Players.all.PlayerControllerBase;
 import app.tools.Recyclable;
 import app.tools.StaticFunctions;
 
-import static app.tools.DisposableTools.forkJoinPool;
+import static app.tools.DisposableTools.lifo;
 import static app.tools.DisposableTools.waitMS;
 
 public abstract class Generator {
@@ -187,7 +187,7 @@ public abstract class Generator {
                 }
 
                 onEnd.run();
-            },StaticFunctions.Empty.r,StaticFunctions.Empty.r,StaticFunctions.Empty.r,mills,-1,forkJoinPool,"waitMake");
+            },StaticFunctions.Empty.r,StaticFunctions.Empty.r,StaticFunctions.Empty.a,mills,-1, lifo, lifo,"waitMake");
         }
     }
 

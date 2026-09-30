@@ -49,7 +49,7 @@ import java.util.function.Consumer;
 
 import static app.Main.getContext;
 import static app.tools.DisposableTools.addTask;
-import static app.tools.DisposableTools.forkJoinPool;
+import static app.tools.DisposableTools.lifo;
 import static app.tools.DisposableTools.waitMS;
 
 public class StaticFunctions {
@@ -419,6 +419,7 @@ public class StaticFunctions {
         public final static Action a = ()->{};
         public final static Consumer c = (n)->{};
         public final static io.reactivex.rxjava3.functions.Consumer rC = (n)->{};
+        public final static Callable cl = ()->null;
     }
 
     public static abstract class StarterWithBoolean implements Callable<Boolean> {
@@ -593,7 +594,7 @@ public class StaticFunctions {
 
         protected synchronized Disposable onThread(Callable<Boolean> Base, Callable<String> OnError)
         {
-            return addTask(Base,OnError,forkJoinPool);
+            return addTask(Base,OnError, lifo);
         }
 
         protected final synchronized void run(Callable<Boolean> Base, Callable<String> OnError)

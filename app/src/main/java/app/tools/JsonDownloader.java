@@ -107,7 +107,7 @@ public class JsonDownloader {
                                             long waitMs = backoffSec * 1000L + jitterMs;
                                             SData.setString(SData.Data.SavedDataLoaderActions, SData.getString(SData.Data.SavedDataLoaderActions)
                                                     + "[Retry " + attempt + " for " + jsonFileName + " after " + waitMs + "ms]");
-                                            return Flowable.timer(waitMs, TimeUnit.MILLISECONDS);
+                                            return Flowable.timer(waitMs, TimeUnit.MILLISECONDS,ioScheduler);
                                         });
                                     })
                                     .map(path -> "SUCCESS:" + path)

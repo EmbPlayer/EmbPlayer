@@ -471,10 +471,8 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
     protected void syncInBackGroud()
     {
         if(delayDetector ==null|| delayDetector.isDisposed())
-            delayDetector = Observable.interval(SYNC_INTERVAL_MS, TimeUnit.MILLISECONDS)
+            delayDetector = Observable.interval(SYNC_INTERVAL_MS, TimeUnit.MILLISECONDS,forMediaChecking)
                     // 2. Schedule the timer itself to run on a background thread (computation)
-                    .subscribeOn(forMediaChecking)
-                    .observeOn(forMediaChecking)
                     // 3. Schedule the actual synchronization logic to run on the Android Main Thread
                     //.observeOn(DisposableTools.uiScheduler())
                     // 4. Subscribe and define the action for each interval

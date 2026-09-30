@@ -36,8 +36,6 @@ import android.widget.Toast;
 
 import com.emb.player.R;
 
-import java.util.concurrent.Callable;
-
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -54,7 +52,6 @@ import io.reactivex.rxjava3.disposables.Disposable;
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.addTaskUI;
 import static app.tools.DisposableTools.forServer;
-import static app.tools.DisposableTools.forkJoinPool;
 import static server.Home.app;
 
 public class Main extends DefaultActivity {

@@ -35,6 +35,7 @@ import java.io.StringWriter;
 
 import javax.servlet.http.HttpServletRequest;
 
+import app.tools.DisposableTools;
 import app.tools.Generators.Requirements.Piped.VideoResolution;
 import io.reactivex.rxjava3.disposables.Disposable;
 import okhttp3.OkHttpClient;
@@ -52,7 +53,7 @@ import server.web.Sources;
 
 import static app.services.BaseServer.restartWithClean;
 import static app.tools.DisposableTools.addTask;
-import static app.tools.DisposableTools.forkJoinPool;
+import static app.tools.DisposableTools.lifo;
 import static app.tools.DisposableTools.waitMS;
 import static server.Home.app;
 
@@ -71,10 +72,12 @@ public class JettyServer {
 
         StaticFunctions.LoadClass.Load();
 
+        server.setThreadPool(DisposableTools.lifoQueuedThreadPool);
         server.start();
     }
 
     public void recreateServer(int port) throws Exception{
+        server.setThreadPool(null);
         server.stop();
         server.destroy();
         create(port);
@@ -231,7 +234,7 @@ public class JettyServer {
                         waitMS(1500);
                         restartWithClean();
                         return true;
-                    },()->"JettyError",forkJoinPool);
+                    },()->"JettyError", lifo);
 
                 return;
             }

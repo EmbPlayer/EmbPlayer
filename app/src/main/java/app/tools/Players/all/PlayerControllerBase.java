@@ -35,7 +35,7 @@ import server.web.Wait;
 
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.forMainMedia;
-import static app.tools.DisposableTools.forkJoinPool;
+import static app.tools.DisposableTools.lifo;
 import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.onErrorSave;
 import static server.Home.app;
@@ -421,11 +421,6 @@ public abstract class PlayerControllerBase {
         baseData().seekAndEnd.run();
     }
 
-    protected final void waitLittlePlaying()
-    {
-        isPlayingDynamic(5, 750);
-    }
-
     protected final void waitActionCompleteAndStart(Runnable base){
 
         disposeWaitActionCompleteAndStart();
@@ -446,7 +441,8 @@ public abstract class PlayerControllerBase {
                 },
                 200,
                 20000,
-                forkJoinPool
+                lifo,
+                lifo
                 );
         /*for(int i = 0; i<1000; i++)
         {

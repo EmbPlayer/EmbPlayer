@@ -44,8 +44,7 @@ import server.tools.MediaProxyServlet;
 
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.addTaskUI;
-import static app.tools.DisposableTools.forkJoinPool;
-import static app.tools.DisposableTools.ioThreadPoolScheduler;
+import static app.tools.DisposableTools.lifo;
 import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.makeTry;
 import static app.tools.StaticFunctions.onErrorSave;
@@ -374,16 +373,20 @@ public abstract class Vlc extends Player
         audioLink = null;
 
         disposeReleaser();
+
+        MediaPlayer oldM = media;
+        LibVLC oldLibVLC = libVLC;
+        media = null;
+        libVLC = null;
+
         releaser = addTask(() -> {
 
             try
             {
-                WeakReference<MediaPlayer> selectedMedia = new WeakReference<>(media);
-                WeakReference<LibVLC> selv = new WeakReference<>(libVLC);
+                WeakReference<MediaPlayer> selectedMedia = new WeakReference<>(oldM);
+                WeakReference<LibVLC> selv = new WeakReference<>(oldLibVLC);
 
                 cleanDisplay();
-                media = null;
-                libVLC = null;
 
                 cleaned = true;
 
@@ -417,13 +420,7 @@ public abstract class Vlc extends Player
                 onErrorSave("vlc-get-release",ignored);
             }
             return true;
-        },() -> "VLCPlayer-ReleaseError",ioThreadPoolScheduler);
-        while (!cleaned)
-        {
-            waitMS(250);
-        }
-
-        waitMS(250);
+        },() -> "VLCPlayer-ReleaseError",lifo);
     }
 
     @Override
@@ -595,10 +592,11 @@ public abstract class Vlc extends Player
     }
 
     public class HandleVoutReady{
-        private boolean isFound;
+        private int wAndIsFound = -1;
+        private int h;
         private int retryCount = 0;
         private final Callable<Boolean> conditionToContinue = ()->{
-            if (retryCount >= 15 || isFound) {
+            if (retryCount >= 15 || wAndIsFound != -1) {
                 return false; // Stop polling
             }
 
@@ -618,13 +616,8 @@ public abstract class Vlc extends Player
                             IMedia.VideoTrack videoTrack = (IMedia.VideoTrack) track;
                             if (videoTrack.width > 0 && videoTrack.height > 0) {
                                 // Dimensions found! Apply them immediately.
-                                isFound = true;
-                                int w = videoTrack.width;
-                                int h = videoTrack.height;
-
-                                applyVideoDimensionsWithRotation(w, h);
-                                AppBack.Panel.setOnRotate(() -> applyVideoDimensionsWithRotation(w, h));
-
+                                wAndIsFound = videoTrack.width;
+                                h = videoTrack.height;
                                 return false; // Return false to stop polling
                             }
                         }
@@ -639,8 +632,12 @@ public abstract class Vlc extends Player
         };
         private final Runnable onComplete = () -> {
             // If it finished 15 retries without finding the dimensions, apply the fallback
-            if (!isFound) {
+            if (wAndIsFound<0) {
                 applyVideoDimensionsWithRotation(0, 0);
+            }
+            else{
+                applyVideoDimensionsWithRotation(wAndIsFound, h);
+                AppBack.Panel.setOnRotate(() -> applyVideoDimensionsWithRotation(wAndIsFound, h));
             }
         };
 
@@ -650,7 +647,7 @@ public abstract class Vlc extends Player
                 if(holder==null)
                     return;
 
-                isFound = false;
+                wAndIsFound = -1;
                 retryCount = 0;
 
                 voutDisposable = DisposableTools.addTaskAfterWait(500,()-> voutDisposable = DisposableTools.addPollingTaskWithTimeOut(
@@ -669,8 +666,9 @@ public abstract class Vlc extends Player
                         // 7. timeout
                         -1,
                         // 8. scheduler
-                        forkJoinPool
-                ),()->"VoutDisposableTimeOut",forkJoinPool);
+                        lifo,
+                        lifo
+                ),()->"VoutDisposableTimeOut", lifo);
             }
 
             @Override

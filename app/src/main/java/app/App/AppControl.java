@@ -40,7 +40,7 @@ import server.web.Sources;
 import server.web.Wait;
 
 import static app.tools.DisposableTools.forServer;
-import static app.tools.DisposableTools.forkJoinPool;
+import static app.tools.DisposableTools.lifo;
 import static app.tools.StaticFunctions.getAllForJson;
 import static app.tools.StaticFunctions.setData;
 import static server.Home.app;
@@ -150,10 +150,11 @@ public class AppControl extends HttpServletAdvanced {
                 canRun,
                 StaticFunctions.Empty.r,
                 StaticFunctions.Empty.r,
-                StaticFunctions.Empty.r,
+                StaticFunctions.Empty.a,
                 1000,
                 15000,
-                forkJoinPool,
+                lifo,
+                lifo,
                 "waitLinkGenerate");
     }
 

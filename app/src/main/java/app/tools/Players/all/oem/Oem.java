@@ -33,7 +33,7 @@ import app.tools.StaticFunctions;
 import server.tools.MediaProxyServlet;
 
 import static app.tools.DisposableTools.addTask;
-import static app.tools.DisposableTools.ioThreadPoolScheduler;
+import static app.tools.DisposableTools.lifo;
 import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.makeTry;
 import static app.tools.StaticFunctions.onErrorSave;
@@ -231,12 +231,13 @@ public abstract class Oem extends Player {
 
         disposeReleaser();
 
+        MediaPlayer oldM = media;
+        media = null;
+
         releaser = addTask(() -> {
 
             try {
-                WeakReference<MediaPlayer> selected = new WeakReference<>(media);
-
-                media = null;
+                WeakReference<MediaPlayer> selected = new WeakReference<>(oldM);
 
                 cleaned = true;
 
@@ -248,12 +249,7 @@ public abstract class Oem extends Player {
             }
 
             return true;
-        },() -> "OemPlayer-ReleaseError",ioThreadPoolScheduler);
-        while (!cleaned)
-        {
-            waitMS(250);
-        }
-        waitMS(250);
+        },() -> "OemPlayer-ReleaseError",lifo);
     }
 
     @Override

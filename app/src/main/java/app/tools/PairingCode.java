@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.disposables.Disposable;
 
+import static app.tools.DisposableTools.lifo;
 import static app.tools.DisposableTools.waitMS;
 
 public class PairingCode {
@@ -147,7 +148,7 @@ public class PairingCode {
 
     private void start()
     {
-        liveTime = Observable.interval(1, TimeUnit.SECONDS)
+        liveTime = Observable.interval(1, TimeUnit.SECONDS, lifo)
                 .subscribe(item ->
                         {
                             baseRunnable.run();

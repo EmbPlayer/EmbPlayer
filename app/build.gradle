@@ -121,8 +121,8 @@ android {
         resValue "integer", "YoutubeAudioEngineID", "2"
         resValue "integer", "YoutubeVideoEngineID", "2"
 
-        versionName "1.16"
-        versionCode 116
+        versionName "1.17"
+        versionCode 117
         vectorDrawables.useSupportLibrary true
         multiDexEnabled true    // as we have over 65536 lines of code...
     }
@@ -236,6 +236,10 @@ android {
 }
 
 dependencies {
+
+    // Source: https://mvnrepository.com/artifact/com.uber.autodispose2/autodispose
+    implementation 'com.uber.autodispose2:autodispose:2.2.1'
+
     // includes jars and aars in libs
     implementation fileTree(dir: 'libs/', include: ['*.aar', '*.jar'], exclude: [])
     // includes jars and aars in libs/jetty and all subfolders
@@ -342,7 +346,7 @@ dependencies {
 
     //ForkJoinPool library for missing devices
     // Source: https://mvnrepository.com/artifact/org.glassfish.jersey.bundles.repackaged/jersey-jsr166e
-    implementation 'org.glassfish.jersey.bundles.repackaged:jersey-jsr166e:2.25.1'
+    //implementation 'org.glassfish.jersey.bundles.repackaged:jersey-jsr166e:2.25.1'
 
     /** Desugaring **/
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs_nio:2.1.5'

@@ -43,7 +43,7 @@ import java.util.Enumeration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static app.tools.DisposableTools.forServer;
-import static app.tools.DisposableTools.forkJoinPool;
+import static app.tools.DisposableTools.lifo;
 import static server.Home.app;
 
 public class BaseServer extends ServiceBackgroud {
@@ -218,10 +218,11 @@ public class BaseServer extends ServiceBackgroud {
                 },
                 onErrorTriggered,
                 onErrorTriggered,
-                StaticFunctions.Empty.r,
+                StaticFunctions.Empty.a,
                 500,
                 30000,
-                forkJoinPool,
+                lifo,
+                lifo,
                 "updateLocalHost");
     }
 

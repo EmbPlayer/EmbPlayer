@@ -48,7 +48,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.function.Consumer;
 
-import static app.tools.DisposableTools.forkJoinPool;
+import static app.tools.DisposableTools.lifo;
 import static app.tools.StaticFunctions.onErrorSave;
 import static server.Home.app;
 
@@ -125,7 +125,7 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
             SData.Set(SData.undefinitedError,true);
         }*/
 
-        },forkJoinPool,"onReceive");
+        }, lifo,"onReceive");
     }
 
     public static void connectionSetUP(Context context)
@@ -154,12 +154,12 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
 
             ConnectivityManagerM.onCon = (n)-> tasks.add(
                     ()->modernUpdateNetwork(n,context),
-                    forkJoinPool,
+                    lifo,
                     "ConnectivityManagerMonConnection");
 
             ConnectivityManagerM.onLos = () -> tasks.add(
                     ()->onLostConnection(),
-                    forkJoinPool,
+                    lifo,
                     "ConnectivityManagerMonLost");
         }
 

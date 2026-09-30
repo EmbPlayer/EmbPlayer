@@ -18,10 +18,15 @@
 
 package app.tools;
 
+import android.os.Process;
+
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import androidx.annotation.CallSuper;
+import autodispose2.CompletableSubscribeProxy;
+import autodispose2.ObservableSubscribeProxy;
+import autodispose2.SingleSubscribeProxy;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Observable;
@@ -29,17 +34,19 @@ import io.reactivex.rxjava3.core.Scheduler;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.functions.Action;
-import io.reactivex.rxjava3.functions.BiFunction;
 import io.reactivex.rxjava3.functions.Consumer;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import io.reactivex.rxjava3.subjects.CompletableSubject;
 
+import static autodispose2.AutoDispose.autoDisposable;
 import static app.tools.StaticFunctions.onErrorSave;
 
 public class DisposableTools {
-    // For CPU-bound parallel computations that may be long-running or need work-stealing.
-    // Uses a ForkJoinPool (custom size). Not intended for fast calculations –
-    // use computationScheduler() for short CPU tasks.
-    public static final Scheduler forkJoinPool;
+    //Lifo thread pool
+    public static final LifoThreadPool lifoQueuedThreadPool;
+
+    //For lifo tasks
+    public static final Scheduler lifo;
 
     //For Main Media
     public static final Scheduler forMainMedia;
@@ -60,52 +67,23 @@ public class DisposableTools {
     // On Server Starting
     public static final Scheduler forServer;
 
-    private static final int parallelism;
+    private static final int timeoutBackgroundTaskMS;
+    private static final int timeoutUiTaskMS;
+
+    private static final Tasker tasker = new Tasker(CompletableSubject.create());
 
     static {
-        boolean isHavePool;
+        timeoutBackgroundTaskMS = 40000;
+        timeoutUiTaskMS = 4000;
+
         try {
-            Class.forName("java.util.concurrent.ForkJoinPool");
-            isHavePool = true;
-        } catch (Throwable t) {
-            isHavePool = false;
-        }
-
-        parallelism = Math.max(1, Runtime.getRuntime().availableProcessors());
-        try {
-            //ioThreadPoolScheduler = Schedulers.io();
-
-            BiFunction<Integer,Boolean,Scheduler> schedulerMake;
-
-            if(isHavePool)
-                schedulerMake = (pri,fifo)->forkJoinPoolMakerDefault(pri,fifo);
-            else
-                schedulerMake = (pri,fifo)->forkJoinPoolMakerNew(pri,fifo);
-
-            /*
-            forServer = schedulerMake.apply(Thread.MAX_PRIORITY-1,false);
-            forGenerators = schedulerMake.apply(Thread.MAX_PRIORITY-2,false);
-            forSecondMedia = schedulerMake.apply(Thread.NORM_PRIORITY+1,false);
-            forMainMedia = schedulerMake.apply(Thread.NORM_PRIORITY,false);
-            forkJoinPool = schedulerMake.apply(Thread.NORM_PRIORITY-1,false);
-            forMediaChecking = forkJoinPool;
-            ioThreadPoolScheduler = schedulerMake.apply(Thread.NORM_PRIORITY-1,true);*/
-
-            /*
-            forkJoinPool = schedulerMake.apply(Thread.MAX_PRIORITY-2,false);
-            forServer = forkJoinPool;
-            forGenerators = schedulerMake.apply(Thread.MAX_PRIORITY-3,false);
-            forMediaChecking = forGenerators;
-            forSecondMedia = schedulerMake.apply(Thread.NORM_PRIORITY+1,false);
-            forMainMedia = schedulerMake.apply(Thread.NORM_PRIORITY,false);
-            //ioThreadPoolScheduler = schedulerMake.apply(Thread.NORM_PRIORITY-1,true);*/
-
-            forkJoinPool = schedulerMake.apply(Thread.MAX_PRIORITY-2,false);
-            forServer = forkJoinPool;
-            forGenerators = forkJoinPool;
-            forMediaChecking = forkJoinPool;
-            forSecondMedia = forkJoinPool;
-            forMainMedia = forkJoinPool;
+            lifoQueuedThreadPool = new LifoThreadPool(50,"LifoThreadPool", Process.THREAD_PRIORITY_BACKGROUND, timeoutBackgroundTaskMS + 15000);
+            lifo = Schedulers.from(lifoQueuedThreadPool);
+            forServer = lifo;
+            forGenerators = lifo;
+            forMediaChecking = lifo;
+            forSecondMedia = lifo;
+            forMainMedia = lifo;
             ioThreadPoolScheduler = Schedulers.io();
         } catch (Throwable e) {
             throw new RuntimeException(e);
@@ -114,7 +92,6 @@ public class DisposableTools {
 
     public static void waitMS(long milliseconds)
     {
-        //ErrorCodeApp.code44 = ErrorCodeApp.code44+getWebUIWaitStopReport("WaitS");
         try {
             Thread.sleep(milliseconds);
         }
@@ -130,7 +107,7 @@ public class DisposableTools {
                                     d.reset();
                                     return true;
                                 })
-                                .subscribeOn(ioThreadPoolScheduler)
+                                .subscribeOn(lifo)
                                 .onErrorComplete()
                 )
                 .subscribe();
@@ -138,11 +115,11 @@ public class DisposableTools {
 
     public static Disposable addTask(Callable<Boolean> maker, Callable<String> onError, Scheduler scheduler)
     {
-        return addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,scheduler,60000);
+        return tasker.addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,scheduler, timeoutBackgroundTaskMS,StaticFunctions.Empty.a);
     }
 
     public static Disposable addTaskUI(Callable<Boolean> maker,Callable<String> onError) {
-        return addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,AndroidSchedulers.mainThread(),4000);
+        return tasker.addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,AndroidSchedulers.mainThread(), timeoutUiTaskMS,StaticFunctions.Empty.a);
     }
 
     public static Disposable addTaskAfterWait(
@@ -153,101 +130,12 @@ public class DisposableTools {
             Scheduler scheduler,
             int timeOut
     ) {
-        // 1. WAIT: Start the timer and wait 'afterMills'
-        return Completable.timer(afterMills, TimeUnit.MILLISECONDS, Schedulers.computation())
-
-                // 2. TRY TO EXECUTE: andThen() waits for the timer above to finish before continuing
-                .andThen(
-                        Single.fromCallable(make)
-                                // Request execution on your specific thread
-                                .subscribeOn(scheduler)
-                                // 3. TIMEOUT: Start the clock. If it can't finish (or can't start)
-                                // within 'timeOut', it throws a TimeoutException.
-                                .timeout(timeOut, TimeUnit.MILLISECONDS, Schedulers.computation())
-                )
-                .subscribe(
-                        // On Success: Task completed within the time limit
-                        result -> {
-                            // Assuming StaticFunctions.Empty.a is a Consumer
-                            // StaticFunctions.Empty.a.accept(result);
-                        },
-
-                        // On Error / Timeout
-                        (Throwable onError_) -> {
-                            if (onError_ instanceof java.util.concurrent.TimeoutException &&
-                                    onNotStartedAndTimeOuted != null) { // Swap back to StaticFunctions.Empty.r if needed
-
-                                // It couldn't execute in time, run the fallback runnable
-                                onNotStartedAndTimeOuted.run();
-
-                            } else {
-                                // A real error happened during execution
-                                String errorTag = "Unknown";
-                                try {
-                                    if (onError != null) {
-                                        errorTag = onError.call();
-                                    }
-                                } catch (Exception e) {
-                                    errorTag = "ErrorResolvingName";
-                                }
-
-                                onErrorSave("BaseDisposable-" + errorTag + ": ", onError_);
-                            }
-                        }
-                );
+        return tasker.addTaskAfterWait(afterMills,make,onError,onNotStartedAndTimeOuted,scheduler,timeOut);
     }
 
     public static Disposable addTaskAfterWait(int afterMills, Action make, Callable<String> onError, Scheduler scheduler){
-        return Completable.timer(afterMills, TimeUnit.MILLISECONDS, Schedulers.computation())
-                .observeOn(scheduler)
-                .subscribe(make,(onError_)->{
-                    try{
-                        onErrorSave("BaseDisposable-"+onError.call()+": ",onError_);
-                    } catch (Exception ignored) {
-                    }
-                });
+        return tasker.addTaskAfterWait(afterMills,make,onError,scheduler);
     }
-
-    /*public static Disposable addPollingTask(
-            Callable<Boolean> conditionToContinue,
-            Runnable onTick,
-            Runnable onComplete,
-            Callable<String> onError,
-            long intervalMs,
-            Scheduler scheduler) {
-
-        // Initial delay 0 so it starts checking immediately
-        return Observable.interval(0, intervalMs, TimeUnit.MILLISECONDS, Schedulers.computation())
-                .observeOn(scheduler)
-                .takeWhile(tick -> {
-                    try {
-                        return conditionToContinue.call();
-                    } catch (Exception e) {
-                        return false; // Stop polling if the condition check throws an error
-                    }
-                })
-                .doOnNext(tick -> {
-                    if (onTick != null) {
-                        try {
-                            onTick.run();
-                        } catch (Exception ignored) {}
-                    }
-                })
-                .doOnComplete(() -> {
-                    if (onComplete != null) {
-                        try {
-                            onComplete.run();
-                        } catch (Exception ignored) {}
-                    }
-                })
-                .doOnError(error -> {
-                    try {
-                        onErrorSave("PollingTask-" + onError.call() + ": ", error);
-                    } catch (Exception ignored) {}
-                })
-                .subscribe();
-    }*/
-
 
     public static Disposable addPollingTaskWithTimeOut(
             Callable<Boolean> conditionToContinue,
@@ -257,138 +145,18 @@ public class DisposableTools {
             Callable<String> onError,
             long intervalMs,
             long timeOutMS,
-            Scheduler scheduler) {
-
-        if(timeOutMS < 1){
-            return Observable.interval(0, intervalMs, TimeUnit.MILLISECONDS, Schedulers.computation())
-                    .observeOn(scheduler)
-                    .takeWhile(tick -> {
-                        try {
-                            return conditionToContinue.call();
-                        } catch (Exception e) {
-                            return false; // Stop polling if the condition check throws an error
-                        }
-                    })
-                    .subscribe(
-                            // onNext (Replaces doOnNext)
-                            tick -> {
-                                if (onTick != null) {
-                                    try {
-                                        onTick.run();
-                                    } catch (Exception ignored) {}
-                                }
-                            },
-                            // onError (Replaces doOnError)
-                            error -> {
-                                try {
-                                    onErrorSave("PollingTask-" + onError.call() + ": ", error);
-                                } catch (Exception ignored) {}
-                            },
-                            // onComplete (Replaces doOnComplete)
-                            () -> {
-                                if (onComplete != null) {
-                                    try {
-                                        onComplete.run();
-                                    } catch (Exception ignored) {}
-                                }
-                            }
-                    );
-        }
-
-        return Observable.interval(0, intervalMs, TimeUnit.MILLISECONDS, Schedulers.computation())
-                // The "Self-Destruct" timer
-                .takeUntil(Observable.timer(timeOutMS, TimeUnit.MILLISECONDS, Schedulers.computation())
-                        .flatMap(t -> Observable.error(new java.util.concurrent.TimeoutException())))
-                .observeOn(scheduler)
-                .takeWhile(tick -> {
-                    try {
-                        return conditionToContinue.call();
-                    } catch (Exception e) {
-                        return false; // Stop polling if the condition check throws an error
-                    }
-                })
-                .subscribe(
-                        // onNext (Replaces doOnNext)
-                        tick -> {
-                            if (onTick != null) {
-                                try {
-                                    onTick.run();
-                                } catch (Exception ignored) {}
-                            }
-                        },
-                        // onError (Replaces doOnError)
-                        error -> {
-                            try {
-                                if (error instanceof java.util.concurrent.TimeoutException && onTimeout != null) {
-                                    onTimeout.run();
-                                } else {
-                                    onErrorSave("PollingTask-" + onError.call() + ": ", error);
-                                }
-                            } catch (Exception ignored) {}
-                        },
-                        // onComplete (Replaces doOnComplete)
-                        () -> {
-                            if (onComplete != null) {
-                                try {
-                                    onComplete.run();
-                                } catch (Exception ignored) {}
-                            }
-                        }
-                );
+            Scheduler schedulerForChecker,Scheduler defaultScheduler) {
+        return tasker.addPollingTaskWithTimeOut(conditionToContinue,onTick,onComplete,onTimeout,onError,intervalMs,timeOutMS,schedulerForChecker,defaultScheduler,StaticFunctions.Empty.a);
     }
 
     public static Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Consumer<Boolean> onSuccess,Runnable onNotStartedAndTimeOuted, Scheduler scheduler, int timeOutMS)
     {
-        return Single.fromCallable(maker)
-                .subscribeOn(scheduler) // Run the task on a background thread
-                .timeout(timeOutMS, TimeUnit.MILLISECONDS,Schedulers.computation()) // The "Self-Destruct" timer
-                .subscribe(onSuccess, onError_ -> {
-                    try{
-                        if(onError_ instanceof java.util.concurrent.TimeoutException &&
-                        onNotStartedAndTimeOuted != StaticFunctions.Empty.r){
-                            onNotStartedAndTimeOuted.run();
-                        }
-                        else
-                            onErrorSave("BaseDisposable-"+onError.call()+": ",onError_);
-                    } catch (Exception ignored) {
-                    }
-                });
+        return tasker.addTaskWithTimeOut(maker,onError,onSuccess,onNotStartedAndTimeOuted,scheduler,timeOutMS,StaticFunctions.Empty.a);
     }
 
     private static Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Consumer<Boolean> onSuccess, Scheduler scheduler, int timeOutMS)
     {
-        return addTaskWithTimeOut(maker,onError,onSuccess,StaticFunctions.Empty.r,scheduler,timeOutMS);
-    }
-
-    private static Scheduler forkJoinPoolMakerDefault(int priority,boolean fifo)
-    {
-        return Schedulers.from(new java.util.concurrent.ForkJoinPool(
-                parallelism,
-                pool -> {
-                    java.util.concurrent.ForkJoinWorkerThread worker = java.util.concurrent.ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
-                    worker.setName("calc-worker-" + worker.getPoolIndex());
-                    //worker.setDaemon(true);
-                    worker.setPriority(priority); // slightly lower than UI
-                    return worker;
-                },
-                null,
-                fifo
-        ));
-    }
-
-    private static Scheduler forkJoinPoolMakerNew(int priority,boolean fifo){
-        return Schedulers.from(new jersey.repackaged.jsr166e.ForkJoinPool(
-                parallelism,
-                pool -> {
-                    jersey.repackaged.jsr166e.ForkJoinWorkerThread worker = jersey.repackaged.jsr166e.ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
-                    worker.setName("calc-worker-" + worker.getPoolIndex());
-                    //worker.setDaemon(true);
-                    worker.setPriority(priority); // slightly lower than UI
-                    return worker;
-                },
-                null,
-                fifo
-        ));
+        return tasker.addTaskWithTimeOut(maker,onError,onSuccess,StaticFunctions.Empty.r,scheduler,timeOutMS,StaticFunctions.Empty.a);
     }
 
     public static class DisposableModified {
@@ -414,6 +182,213 @@ public class DisposableTools {
         }
     }
 
+    public static class Tasker{
+        private CompletableSubject killSignal;
+
+        public Tasker(CompletableSubject killSignal){
+            updateKillSignal(killSignal);
+        }
+
+        public void updateKillSignal(CompletableSubject killSignal){
+            this.killSignal = killSignal;
+        }
+
+        public Disposable addTask(Callable<Boolean> maker, Callable<String> onError, Scheduler scheduler,Action onDisposing)
+        {
+            return addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,scheduler, timeoutBackgroundTaskMS,onDisposing);
+        }
+
+        public Disposable addTaskUI(Callable<Boolean> maker,Callable<String> onError) {
+            return addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,AndroidSchedulers.mainThread(), timeoutUiTaskMS,StaticFunctions.Empty.a);
+        }
+
+        public Disposable addTaskAfterWait(
+                int afterMills,
+                Callable<Boolean> make,
+                Callable<String> onError,
+                Runnable onNotStartedAndTimeOuted,
+                Scheduler scheduler,
+                int timeOut
+        ) {
+            // 1. WAIT: Start the timer and wait 'afterMills'
+            return s(Completable.timer(afterMills, TimeUnit.MILLISECONDS, scheduler)
+
+                    // 2. TRY TO EXECUTE: andThen() waits for the timer above to finish before continuing
+                    .andThen(
+                            Single.fromCallable(make)
+                                    // 3. TIMEOUT: Start the clock. If it can't finish (or can't start)
+                                    // within 'timeOut', it throws a TimeoutException.
+                                    .timeout(timeOut, TimeUnit.MILLISECONDS, scheduler)
+                    ))
+                    .subscribe(
+                            // On Success: Task completed within the time limit
+                            result -> {
+                                // Assuming StaticFunctions.Empty.a is a Consumer
+                                // StaticFunctions.Empty.a.accept(result);
+                            },
+
+                            // On Error / Timeout
+                            (Throwable onError_) -> {
+                                if (onError_ instanceof java.util.concurrent.TimeoutException &&
+                                        onNotStartedAndTimeOuted != null) { // Swap back to StaticFunctions.Empty.r if needed
+
+                                    // It couldn't execute in time, run the fallback runnable
+                                    onNotStartedAndTimeOuted.run();
+
+                                } else {
+                                    // A real error happened during execution
+                                    String errorTag = "Unknown";
+                                    try {
+                                        if (onError != null) {
+                                            errorTag = onError.call();
+                                        }
+                                    } catch (Exception e) {
+                                        errorTag = "ErrorResolvingName";
+                                    }
+
+                                    onErrorSave("BaseDisposable-" + errorTag + ": ", onError_);
+                                }
+                            }
+                    );
+        }
+
+        public Disposable addTaskAfterWait(int afterMills, Action make, Callable<String> onError, Scheduler scheduler){
+            return c(Completable.timer(afterMills, TimeUnit.MILLISECONDS, scheduler))
+                    .subscribe(make,(onError_)->{
+                        try{
+                            onErrorSave("BaseDisposable-"+onError.call()+": ",onError_);
+                        } catch (Exception ignored) {
+                        }
+                    });
+        }
+
+        public Disposable addPollingTaskWithTimeOut(
+                Callable<Boolean> conditionToContinue,
+                Runnable onTick,
+                Runnable onComplete,
+                Runnable onTimeout,
+                Callable<String> onError,
+                long intervalMs,
+                long timeOutMS,
+                Scheduler schedulerForChecker,
+                Scheduler defaultScheduler,
+                Action onDisposing) {
+
+            if(timeOutMS < 1){
+                return o(Observable.interval(0, intervalMs, TimeUnit.MILLISECONDS, schedulerForChecker)
+                        .takeWhile(tick -> {
+                            try {
+                                return conditionToContinue.call();
+                            } catch (Exception e) {
+                                return false; // Stop polling if the condition check throws an error
+                            }
+                        }).observeOn(defaultScheduler).doOnDispose(onDisposing))
+                        .subscribe(
+                                // onNext (Replaces doOnNext)
+                                tick -> {
+                                    if (onTick != null) {
+                                        try {
+                                            onTick.run();
+                                        } catch (Exception ignored) {}
+                                    }
+                                },
+                                // onError (Replaces doOnError)
+                                error -> {
+                                    try {
+                                        onErrorSave("PollingTask-" + onError.call() + ": ", error);
+                                    } catch (Exception ignored) {}
+                                },
+                                // onComplete (Replaces doOnComplete)
+                                () -> {
+                                    if (onComplete != null) {
+                                        try {
+                                            onComplete.run();
+                                        } catch (Exception ignored) {}
+                                    }
+                                }
+                        );
+            }
+
+            return o(Observable.interval(0, intervalMs, TimeUnit.MILLISECONDS, schedulerForChecker)
+                    // The "Self-Destruct" timer
+                    .takeUntil(Observable.timer(timeOutMS, TimeUnit.MILLISECONDS, schedulerForChecker)
+                            .flatMap(t -> Observable.error(new java.util.concurrent.TimeoutException())))
+                    .takeWhile(tick -> {
+                        try {
+                            return conditionToContinue.call();
+                        } catch (Exception e) {
+                            return false; // Stop polling if the condition check throws an error
+                        }
+                    }).observeOn(defaultScheduler).doOnDispose(onDisposing))
+                    .subscribe(
+                            // onNext (Replaces doOnNext)
+                            tick -> {
+                                if (onTick != null) {
+                                    try {
+                                        onTick.run();
+                                    } catch (Exception ignored) {}
+                                }
+                            },
+                            // onError (Replaces doOnError)
+                            error -> {
+                                try {
+                                    if (error instanceof java.util.concurrent.TimeoutException && onTimeout != null) {
+                                        onTimeout.run();
+                                    } else {
+                                        onErrorSave("PollingTask-" + onError.call() + ": ", error);
+                                    }
+                                } catch (Exception ignored) {}
+                            },
+                            // onComplete (Replaces doOnComplete)
+                            () -> {
+                                if (onComplete != null) {
+                                    try {
+                                        onComplete.run();
+                                    } catch (Exception ignored) {}
+                                }
+                            }
+                    );
+        }
+
+        @CallSuper
+        protected CompletableSubscribeProxy c(Completable input){
+            return input.to(autoDisposable(killSignal));
+        }
+
+        @CallSuper
+        protected<T> ObservableSubscribeProxy<T> o(Observable<T> input){
+            return input.to(autoDisposable(killSignal));
+        }
+
+        @CallSuper
+        protected<T> SingleSubscribeProxy<T> s(Single<T> input){
+            return input.to(autoDisposable(killSignal));
+        }
+
+        public Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Consumer<Boolean> onSuccess,Runnable onNotStartedAndTimeOuted, Scheduler scheduler, int timeOutMS,Action onDisposing)
+        {
+            return s(Single.fromCallable(maker)
+                    .subscribeOn(scheduler) // Run the task on a background thread
+                    .timeout(timeOutMS, TimeUnit.MILLISECONDS,scheduler).doOnDispose(onDisposing)) // The "Self-Destruct" timer
+                    .subscribe(onSuccess, onError_ -> {
+                        try{
+                            if(onError_ instanceof java.util.concurrent.TimeoutException &&
+                                    onNotStartedAndTimeOuted != StaticFunctions.Empty.r){
+                                onNotStartedAndTimeOuted.run();
+                            }
+                            else
+                                onErrorSave("BaseDisposable-"+onError.call()+": ",onError_);
+                        } catch (Exception ignored) {
+                        }
+                    });
+        }
+
+        private Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Consumer<Boolean> onSuccess, Scheduler scheduler, int timeOutMS,Action onDisposing)
+        {
+            return addTaskWithTimeOut(maker,onError,onSuccess,StaticFunctions.Empty.r,scheduler,timeOutMS,onDisposing);
+        }
+    }
+
     public static class WaitDisposable extends DisposableModified {
         public boolean started;
         private int second;
@@ -436,14 +411,7 @@ public class DisposableTools {
             }
 
             dispose();
-            disposable = addTask(()->{
-                boolean output = task.call();
-                disposable.dispose();
-                return output;
-            },() -> {
-                disposable.dispose();
-                return "WaitDisposable-Error";
-            },ioThreadPoolScheduler);
+            disposable = addTask(task,() -> "WaitDisposable-Error", lifo);
         }
 
         public void startWithLongWaiting(Consumer<Disposable> BeforeWait, Runnable AfterWait, Consumer<Throwable> OnError)
@@ -495,155 +463,15 @@ public class DisposableTools {
 
             return Observable.just(true)
                     .doOnSubscribe(beforeWait)
-                    .delay(waitSeconds, TimeUnit.SECONDS)
+                    .delay(waitSeconds, TimeUnit.SECONDS, lifo)
                     .doOnNext(value -> {
                         afterWait.run();
                     })
-                    .retryWhen(errors -> errors.delay(2, TimeUnit.SECONDS))
+                    .retryWhen(errors -> errors.delay(2, TimeUnit.SECONDS, lifo))
                     .subscribe(
                             value -> {}, // empty onNext
                             onError
                     );
         }
     }
-
-    /*public static Disposable RunInNewThread(Callable<Boolean> Base, Callable<Boolean> OnError)
-    {
-        return BaseDisposable(Base, accepted -> {}, OnError, NewThread());
-    }*/
-
-    /**
-     * Forcefully disposes a Disposable without crashing the app.
-     * - Kills emissions immediately
-     * - Prevents memory leaks
-     * - Safe for reuse (object remains stable)
-     */
-    /*public static void killDisposable(Disposable disposable) {
-        if (disposable == null || disposable.isDisposed()) {
-            return; // Already dead
-        }
-
-        // 1. Standard disposal (non-blocking)
-        disposable.dispose();
-
-        // 2. Aggressive cancellation (RxJava 2+)
-        if (disposable instanceof Subscription) {
-            ((Subscription) disposable).cancel(); // Faster than dispose()
-        }
-
-        // 3. Thread interruption (for blocking operations)
-        if (disposable instanceof Future) {
-            ((Future<?>) disposable).cancel(true); // true = interrupt thread
-        }
-
-        // 4. Nuclear option: Force-set disposed=true via reflection
-        try {
-            Field disposedField = disposable.getClass().getDeclaredField("disposed");
-            disposedField.setAccessible(true);
-            disposedField.setBoolean(disposable, true); // Brutal but effective
-        } catch (Exception e) {
-            OnErrorSave("killDisposable: ",e);
-            // Reflection failed? No problem, we tried.
-        }
-    }
-
-    public static void killDisposables(Disposable... disposables) {
-        Observable.fromArray(disposables)
-                .flatMap(d -> Observable.fromCallable(() -> {
-                                    killDisposable(d);
-                                    return true;
-                                })
-                                .subscribeOn(ioThreadPoolScheduler) // Uses shared IO pool
-                                .onErrorComplete()
-                )
-                .blockingSubscribe(); // Wait for completion
-    }
-
-    public static void KillAll(DisposableModified... disposables) {
-        Observable.fromArray(disposables)
-                .flatMap(d -> Observable.fromCallable(() -> {
-                                    d.Reset();
-                                    return true;
-                                })
-                                .subscribeOn(ioThreadPoolScheduler) // Uses shared IO pool
-                                .onErrorComplete()
-                )
-                .blockingSubscribe(); // Wait for completion
-    }
-
-    public void KillAll(Runnable... runnable) {
-        Observable.fromArray(runnable)
-                .flatMap(d -> Observable.fromCallable(() -> {
-                                    d.run();
-                                    return true;
-                                })
-                                .subscribeOn(ioThreadPoolScheduler) // Uses shared IO pool
-                                .onErrorComplete()
-                )
-                .blockingSubscribe(); // Wait for completion
-    }
-
-    public static String getErrorAsString(Throwable throwable) {
-        if (throwable == null) {
-            return "No error information available";
-        }
-
-        StringBuilder errorString = new StringBuilder();
-
-        // Basic error information
-        errorString.append("Error Type: ").append(throwable.getClass().getSimpleName()).append("\n");
-        errorString.append("Error Message: ").append(throwable.getMessage()).append("\n\n");
-
-        // Full stack trace
-        errorString.append("Stack Trace:\n");
-        errorString.append(getStackTraceAsString(throwable)).append("\n");
-
-        // Root cause (if any)
-        Throwable rootCause = getRootCause(throwable);
-        if (rootCause != null && rootCause != throwable) {
-            errorString.append("\nRoot Cause:\n");
-            errorString.append("Type: ").append(rootCause.getClass().getSimpleName()).append("\n");
-            errorString.append("Message: ").append(rootCause.getMessage()).append("\n");
-            errorString.append("Stack Trace:\n").append(getStackTraceAsString(rootCause));
-        }
-
-        return errorString.toString();
-    }
-
-    public static String getStackTraceAsString(Throwable throwable) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        throwable.printStackTrace(pw);
-        return sw.toString();
-    }
-
-    public static Throwable getRootCause(Throwable throwable) {
-        Throwable rootCause = throwable;
-        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
-            rootCause = rootCause.getCause();
-        }
-        return rootCause;
-    }*/
-    /*
-    private static Disposable BaseDisposable(Callable<Boolean> Base,Consumer<Boolean> OnEnd,Callable<Boolean> OnError,Scheduler ForUsing)
-    {
-        return Observable.fromCallable(Base(Base,OnError))
-                .subscribeOn(ForUsing) // Run the task on a background thread
-                //.observeOn(UIThread()) // Optional: Observe the result on another thread
-                .subscribe(SafeCallable.createSafeConsumer(OnEnd), onError -> {});
-    }*/
-    /*private static Callable<Boolean> advancedCallable(Callable<Boolean> maker, Callable<String> onError){
-        return () -> {
-            try {
-                return maker.call();
-            } catch (Exception e) {
-
-                String output = onError.call();
-
-                OnErrorSave("BaseDisposable-"+output+": ",e);
-
-                return true;
-            }
-        };
-    }*/
 }

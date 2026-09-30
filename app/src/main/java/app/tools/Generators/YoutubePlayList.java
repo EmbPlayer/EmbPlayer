@@ -486,24 +486,34 @@ public class YoutubePlayList {
         }
     }
 
-    public static void updateToDefault(YoutubeGenerator generator) throws ExtractionException, IOException {
+    public static void updateToDefault(YoutubeGenerator generator) {
         if (generator == null) return;
 
         generator.onErrorUpdate(() -> {
-            try {
 
-                if(Connection.ifNotHaveConnectionWaitInfinityTime(()->isDisposed.get()) && generator.mediaIsExpired())
-                {
-                    generator.generateContent();
-                    generator.reloadContent();
-                }
-
+            if(isDisposed.get())
+            {
                 generator.mediaError.started = false;
-            } catch (ExtractionException | IOException e) {
-                if (!isDisposed.get()) {
-                    generator.getOnError().call();
-                }
+                return true;
             }
+
+            Connection.ifNotHaveConnectionWaitInfinityTime(adder,()->isDisposed.get(),()->{
+                try {
+                    if(!isDisposed.get()&&generator.mediaIsExpired())
+                    {
+                        generator.generateContent();
+                        generator.reloadContent();
+                    }
+
+                    generator.mediaError.started = false;
+                } catch (ExtractionException | IOException e) {
+                    if (!isDisposed.get()) {
+                        try {
+                            generator.getOnError().call();
+                        } catch (Exception ex) {}
+                    }
+                }
+            });
             return true;
         });
 

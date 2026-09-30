@@ -18,171 +18,78 @@
 
 package app.tools;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.PriorityQueue;
-import java.util.Queue;
 import java.util.concurrent.Callable;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Scheduler;
-import io.reactivex.rxjava3.disposables.Disposable;
-
-import static app.tools.DisposableTools.addTask;
-import static app.tools.DisposableTools.addTaskAfterWait;
-import static app.tools.DisposableTools.addTaskWithTimeOut;
+import io.reactivex.rxjava3.functions.Action;
+import io.reactivex.rxjava3.subjects.CompletableSubject;
 
 public class Recyclable {
-    private static class RList<T> {
-
-        // Stores the actual elements. Removed elements will be set to null.
-        private final List<T> elements;
-
-        // Stores the indices that have been freed up by removals.
-        private final Queue<Integer> freeIndices;
-
-        public RList() {
-            this.elements = new ArrayList<>();
-            // PriorityQueue ensures we always reuse the lowest available index first
-            this.freeIndices = new PriorityQueue<>();
-        }
-
-        /**
-         * Performs a bulk cleanup of all active items and resets the list state.
-         * * Each non-null item is passed to the provided consumer (e.g., for disposal)
-         * before the internal storage and free-index queue are wiped clean.
-         * * @param onClear A consumer logic to execute for every active item (e.g., Disposable::dispose).
-         */
-        private synchronized final void clear(Consumer<T> onClear) {
-            // 1. Iterate through the elements directly
-            for (int i = 0; i < elements.size(); i++) {
-                T cur = elements.get(i);
-
-                // 2. Pass non-null elements to the consumer
-                if (cur != null) {
-                    onClear.accept(cur);
-                }
-            }
-
-            // 3. Wipe the collections once at the end
-            elements.clear();
-            freeIndices.clear();
-        }
-
-        /**
-         * Adds an item to the list, prioritizing the reuse of previously freed indices.
-         * <p>
-         * This method accepts a factory function rather than a direct object instance.
-         * The assigned index is passed into this function, allowing the newly created
-         * item to be aware of its exact position in the list (e.g., for storing its own ID).
-         * <p>
-         * If there are free indices available (from previous removals), the lowest available
-         * index is reused. If no free indices exist, the item is appended to the end of the list.
-         *
-         * @param item A function that takes the assigned index as input and returns the item to be stored.
-         */
-        private synchronized void add(Function<Integer,T> item) {
-            if (!freeIndices.isEmpty()) {
-                // Reuse the lowest available index
-                int targetIndex = freeIndices.poll();
-                elements.set(targetIndex, item.apply(targetIndex));
-            } else {
-                // No free indices, reserve the space first to prevent race conditions
-                int targetIndex = elements.size();
-                elements.add(null);
-                // Now safely evaluate the item and place it in the reserved slot
-                elements.set(targetIndex, item.apply(targetIndex));
-            }
-        }
-
-        /**
-         * Removes an item at the specified index and frees up that index for future use.
-         * @param index The index of the item to remove.
-         * @return The removed item, or null if it was already empty.
-         */
-        private synchronized T remove(int index) {
-            // A task can finish (and call remove()) just after clear() has already
-            // emptied the list, e.g. during teardown. Treat an out-of-range index as
-            // "already gone" instead of throwing, since the item is gone either way.
-            if (index < 0 || index >= elements.size()) {
-                return null;
-            }
-
-            T removedItem = elements.get(index);
-
-            // Only free the index if there was actually an item there
-            if (removedItem != null) {
-                elements.set(index, null); // Clear the reference to avoid memory leaks
-                freeIndices.offer(index);  // Store the index to be reused later
-            }
-
-            return removedItem;
-        }
-
-        /**
-         * Retrieves an item at a specific index.
-         * @param index The index to retrieve.
-         * @return The item, or null if the slot is empty (removed).
-         */
-        public synchronized T get(int index) {
-            // Same reasoning as remove(): a cleared list makes every index "gone",
-            // so report that as null rather than throwing.
-            if (index < 0 || index >= elements.size()) {
-                return null;
-            }
-            return elements.get(index);
-        }
-
-        /**
-         * Prints the internal state for debugging purposes.
-         */
-        public synchronized void printState() {
-            System.out.println("Elements: " + elements);
-            System.out.println("Free Indices Queue: " + freeIndices);
-            System.out.println("---");
-        }
-    }
 
     public static class ListDisposable {
         private final String name;
 
-        private final RList<Disposable> list = new RList<>();
+        private CompletableSubject killSignal = CompletableSubject.create();
+
+        private final DisposableTools.Tasker tasker = new DisposableTools.Tasker(killSignal);
 
         public ListDisposable(Class<?> name){
             this.name = name.getName()+"_";
         }
 
-        public final void addStartAfterWait(int afterMills, Runnable make, Runnable onError, Scheduler scheduler, String taskName){
-            list.add((index) -> addTaskAfterWait(afterMills,()->{
-                make.run();
-                remove(index);
-            },()->{
+        public final void addStartAfterWait(int afterMills, Action make, Runnable onError, Scheduler scheduler, String taskName){
+            tasker.addTaskAfterWait(afterMills,make,()->{
                 onError.run();
-                remove(index);
                 return name+taskName;
-            },scheduler));
+            },scheduler);
         }
 
         public final void add(Runnable make, Scheduler scheduler, String taskName){
             this.add(make,StaticFunctions.Empty.r,scheduler,taskName);
         }
 
-        public final void add(Runnable make,Runnable onDisposing, Runnable onError, Scheduler scheduler, String taskName) {
-            list.add((index)->new DisposableOnDisposing(makeDisposable(index,make,onError,scheduler,taskName),onDisposing));
+        public final void add(Runnable make, Action onDisposing, Runnable onError, Scheduler scheduler, String taskName) {
+
+            tasker.addTask(()->{
+                make.run();
+                return true;
+            },()->{
+                onError.run();
+                return name+taskName;
+            },scheduler,onDisposing);
         }
 
-        public final void addWithOnTimeOut(Runnable make,Runnable onDisposing, Runnable onError,Runnable onNotStartedAndTimeOuted, Scheduler scheduler, String taskName,int timeOutMS){
-            list.add((index)->new DisposableOnDisposing(makeDisposable(index,make,onError,onNotStartedAndTimeOuted,scheduler,taskName,timeOutMS),onDisposing));
+        public final void addWithOnTimeOut(Runnable make,Action onDisposing, Runnable onError,Runnable onNotStartedAndTimeOuted, Scheduler scheduler, String taskName,int timeOutMS){
+            tasker.addTaskWithTimeOut(()->{
+                make.run();
+                return true;
+            },()->{
+                onError.run();
+                return name+taskName;
+            },StaticFunctions.Empty.rC,()->{
+                onNotStartedAndTimeOuted.run();
+            },scheduler,timeOutMS,onDisposing);
         }
 
         public final void add(Runnable make, Runnable onError, Scheduler scheduler, String taskName) {
-            list.add((index)->makeDisposable(index,make,onError,scheduler,taskName));
+            tasker.addTask(()->{
+                make.run();
+                return true;
+            },()->{
+                onError.run();
+                return name+taskName;
+            },scheduler,StaticFunctions.Empty.a);
         }
 
         public final void addWithOnTimeOut(Runnable make, Runnable onError,Runnable onNotStartedAndTimeOuted, Scheduler scheduler, String taskName,int timeOutMS) {
-            list.add((index)->makeDisposable(index,make,onError,onNotStartedAndTimeOuted,scheduler,taskName,timeOutMS));
+            tasker.addTaskWithTimeOut(()->{
+                make.run();
+                return true;
+            },()->{
+                onError.run();
+                return name+taskName;
+            },StaticFunctions.Empty.rC,onNotStartedAndTimeOuted,scheduler,timeOutMS,StaticFunctions.Empty.a);
         }
 
         public final void addPollingTaskWithTimeOut(
@@ -191,47 +98,37 @@ public class Recyclable {
                 Runnable onComplete,
                 Runnable onTimeout,
                 Runnable onError,
-                Runnable onDispose,
+                Action onDispose,
                 long intervalMs,
                 long timeOutMS,
-                Scheduler scheduler,
+                Scheduler schedulerForChecker,
+                Scheduler defaultScheduler,
                 String taskName) {
 
-            list.add((index) -> new DisposableOnDisposing(
-                    DisposableTools.addPollingTaskWithTimeOut(
-                            conditionToContinue,
-                            onTick,
-                            () -> {
-                                onComplete.run();
-                                remove(index);
-                            },
-                            () -> {
-                                onTimeout.run();
-                                remove(index);
-                            },
-                            () -> {
-                                onError.run();
-                                remove(index);
-                                return name + taskName;
-                            },
-                            intervalMs,
-                            timeOutMS,
-                            scheduler
-                    ),
-                    onDispose
-            ));
+            tasker.addPollingTaskWithTimeOut(
+                    conditionToContinue,
+                    onTick,
+                    onComplete,
+                    onTimeout,
+                    () -> {
+                        onError.run();
+                        return name + taskName;
+                    },
+                    intervalMs,
+                    timeOutMS,
+                    schedulerForChecker,
+                    defaultScheduler,
+                    onDispose);
         }
 
         public final void addUI(Runnable make, Runnable onError, String taskName) {
-            list.add((index)->addTask(()->{
+            tasker.addTask(()->{
                 make.run();
-                remove(index);
                 return true;
             },()->{
                 onError.run();
-                remove(index);
                 return name+taskName;
-            }, AndroidSchedulers.mainThread()));
+            }, AndroidSchedulers.mainThread(),StaticFunctions.Empty.a);
         }
 
         public final void addUI(Runnable make, String taskName){
@@ -239,76 +136,9 @@ public class Recyclable {
         }
 
         public final void clear(){
-            list.clear((task)->{
-
-                if(task == null || task.isDisposed())
-                    return;
-
-                task.dispose();
-
-            });
-        }
-
-        private Disposable makeDisposable(int index,Runnable make, Runnable onError, Scheduler scheduler, String taskName){
-            return addTask(()->{
-                make.run();
-                remove(index);
-                return true;
-            },()->{
-                onError.run();
-                remove(index);
-                return name+taskName;
-            },scheduler);
-        }
-
-        private Disposable makeDisposable(int index,Runnable make,
-                                          Runnable onError,Runnable onNotStartedAndTimeOuted,
-                                          Scheduler scheduler,String taskName,int timeOutMS) {
-            return addTaskWithTimeOut(()->{
-                make.run();
-                remove(index);
-                return true;
-            },()->{
-                onError.run();
-                remove(index);
-                return name+taskName;
-            },StaticFunctions.Empty.rC,()->{
-                onNotStartedAndTimeOuted.run();
-                remove(index);
-            },scheduler,timeOutMS);
-        }
-
-        private void remove(int index){
-
-            Disposable current = null;
-            try{
-                current = list.remove(index);
-            }
-            finally {
-                if(current!=null)
-                    current.dispose();
-            }
-        }
-
-        private static class DisposableOnDisposing implements Disposable{
-            private final Disposable disposable;
-            private final Runnable onClosing;
-
-            private DisposableOnDisposing(Disposable disposable, Runnable onClosing){
-                this.disposable = disposable;
-                this.onClosing = onClosing;
-            }
-
-            @Override
-            public void dispose() {
-                onClosing.run();
-                disposable.dispose();
-            }
-
-            @Override
-            public boolean isDisposed() {
-                return disposable.isDisposed();
-            }
+            killSignal.onComplete();
+            killSignal = CompletableSubject.create();
+            tasker.updateKillSignal(killSignal);
         }
     }
 }
