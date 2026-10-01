@@ -800,8 +800,6 @@ public abstract class Ijk extends Player
     {
         super.release();
 
-        disposeReleaser();
-
         if (!secondPlayer)
             EmptyActivity.EmptyIJK.finishMake();
 

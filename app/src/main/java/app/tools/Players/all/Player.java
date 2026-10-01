@@ -89,12 +89,6 @@ public abstract class Player {
         return prepared;
     }
 
-    protected final void disposeReleaser()
-    {
-        if(releaser!=null&&!releaser.isDisposed())
-            releaser.dispose();
-    }
-
     public void basePreset(){}
     public void emptyPanelOpen(){}
     public void emptyPanelClose(){}

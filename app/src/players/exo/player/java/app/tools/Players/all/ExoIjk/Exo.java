@@ -35,8 +35,10 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import app.Main;
+import app.tools.DisposableTools;
 import app.tools.Players.all.ExoIjk.tools.ExceptionOriginUtil;
 import app.tools.Players.all.Player;
+import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 
 import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.onErrorSave;
@@ -179,7 +181,7 @@ public abstract class Exo extends Player {
             ExoPlayer.Builder.verifyApplicationThreadDisable(true);
 
             media = new ExoPlayer.Builder(Main.getContext())
-                    .setLooper(playerHandler.getLooper())
+                    .setLooper(playerHandler.looper)
                     .build();
 
             listenersUpdate();
@@ -222,7 +224,7 @@ public abstract class Exo extends Player {
         AtomicReference<WeakReference<ExoPlayer>> oldData = new AtomicReference<>();
 
         makeTry(() -> {
-            beforeClean();
+            beforeClean(media);
             oldData.set(new WeakReference<>(media));
 
             media = null;
@@ -238,7 +240,7 @@ public abstract class Exo extends Player {
 
         super.reset();
 
-        makeTry(() -> beforeClean());
+        makeTry(() -> beforeClean(media));
     }
 
     @Override
@@ -290,34 +292,34 @@ public abstract class Exo extends Player {
     {
         super.release();
 
-        // Capture local reference
-        HandlerCustom handler = playerHandler;
-
-        if(handler == null) {
-            onReleased();
+        if(playerHandler == null) {
+            cleaned = true;
             return;
         }
 
-        try {
-            makeTry(() -> {
-                if(media == null) return;
+        HandlerCustom handler = playerHandler;
+        ExoPlayer oldM = media;
+        playerHandler = null;
+        media = null;
 
-                beforeClean();
-                WeakReference<ExoPlayer> selected = new WeakReference<>(media);
-                media = null;
+        releaser = DisposableTools.addTask(()->{
+            beforeClean(oldM);
+            WeakReference<ExoPlayer> selected = new WeakReference<>(oldM);
 
-                if (selected.get() != null)
-                    selected.get().release();
-            });
+            cleaned = true;
 
-            // Use the local reference instead of playerHandler
-            handler.clean();
-        }
-        catch (Exception e) {
-            onErrorSave("ExPlayer-Release-Error", e);
-        }
+            if (selected.get() != null)
+                selected.get().release();
 
-        onReleased();
+            if (handler.looper != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+                    handler.looper.quitSafely();
+                } else {
+                    handler.looper.quit();
+                }
+            }
+            return true;
+        },()->"ExPlayer-Release-Error", AndroidSchedulers.from(handler.looper));
     }
 
     @Override
@@ -341,12 +343,6 @@ public abstract class Exo extends Player {
         //MediaItem mediaItem = MediaItem.fromUri(Uri.parse(MediaProxyServlet.getPure(link,videoOnly)));
         MediaItem mediaItem = MediaItem.fromUri(Uri.parse(link));
         media.setMediaItem(mediaItem);
-    }
-
-    private void onReleased(){
-        cleaned = true;
-        playerHandler = null;
-        waitMS(250);
     }
 
     private void makeTry(Runnable tryMake,int maxWaitSeconds){
@@ -444,7 +440,7 @@ public abstract class Exo extends Player {
         return onFalse;
     }
 
-    private void beforeClean()
+    private void beforeClean(ExoPlayer media)
     {
         media.pause();
         // Stop playback and clear the playlist
@@ -461,8 +457,8 @@ public abstract class Exo extends Player {
 
     public class HandlerCustom
     {
-        private Looper looper;
-        private Handler playerHandlerr;
+        private final Looper looper;
+        private final Handler playerHandlerr;
 
         public HandlerCustom()
         {
@@ -493,38 +489,6 @@ public abstract class Exo extends Player {
             {
                 waitMS(30);
                 post(run);
-            }
-        }
-
-        public Looper getLooper()
-        {
-            return looper;
-        }
-
-        /*public void clean()
-        {
-            playerHandlerr = null;
-            looper = null;
-        }*/
-
-        public void clean()
-        {
-            Looper tmLooper = looper;
-            Handler tmHandler = playerHandlerr;
-
-            looper = null;
-            playerHandlerr = null;
-
-            if (tmLooper != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-                    tmLooper.quitSafely();
-                } else if (tmHandler != null) {
-                    // Fallback for API 16: Queue the exit action so that
-                    // remaining pending tasks finish processing first.
-                    tmHandler.post(() -> tmLooper.quit());
-                } else {
-                    tmLooper.quit();
-                }
             }
         }
     }

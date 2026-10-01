@@ -229,8 +229,6 @@ public abstract class Oem extends Player {
     {
         super.release();
 
-        disposeReleaser();
-
         MediaPlayer oldM = media;
         media = null;
 

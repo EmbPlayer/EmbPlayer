@@ -372,8 +372,6 @@ public abstract class Vlc extends Player
         super.release();
         audioLink = null;
 
-        disposeReleaser();
-
         MediaPlayer oldM = media;
         LibVLC oldLibVLC = libVLC;
         media = null;
