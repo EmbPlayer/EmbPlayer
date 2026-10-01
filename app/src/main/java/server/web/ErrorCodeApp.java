@@ -26,7 +26,9 @@ import java.io.IOException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
+import app.App.AppBack;
 import app.Main;
+import app.tools.SData;
 import server.tools.HttpServletAdvanced;
 
 public class ErrorCodeApp extends HttpServletAdvanced {
@@ -103,6 +105,8 @@ public class ErrorCodeApp extends HttpServletAdvanced {
 
     @Override
     protected void doGetAdvanced(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        AppBack.DetectorSet.update();
+
         // Pull .getString() when building the response
         String k = ramUsageInApp.getString() +
                 System.lineSeparator() + errorAdditional.getString() + System.lineSeparator() + macAddressUpdate.getString() +

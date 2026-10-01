@@ -84,6 +84,7 @@ import server.tools.VideoSettings;
 import server.web.ErrorCodeApp;
 import server.web.Sources;
 import server.web.Wait;
+import static app.App.AppBack.DetectorSet.*;
 
 public class AppBack extends AppWeb {
     private static AppBack app;
@@ -520,9 +521,8 @@ public class AppBack extends AppWeb {
         onExo.cachingFailed(false);
         onExo.setTemp(ExoPlayerOnly.Types.URL);
 
-        errorHandel.detection.detectionSeconds = 5;
-        errorHandel.detection.dynamicDetectionDelayMS = 500;
-        errorHandel.detection.dynamicTryCount = 15;
+        errorHandel.detection.detectionMS = 2000;
+        errorHandel.detection.maxCheckOfIsNotPlayingMS = 6000;
 
         loop.switchToNormal();
         switch (sourceProvider) {
@@ -635,9 +635,8 @@ public class AppBack extends AppWeb {
         }
 
         if (globalGenerator.isLive()) {
-            errorHandel.detection.detectionSeconds = 1;
-            errorHandel.detection.dynamicDetectionDelayMS = 10;
-            errorHandel.detection.dynamicTryCount = 500;
+            errorHandel.detection.detectionMS = 30;
+            errorHandel.detection.maxCheckOfIsNotPlayingMS = 45000;
         }
 
         return false;
@@ -1990,16 +1989,60 @@ public class AppBack extends AppWeb {
             super.updateLoaderAndKiller();
         }
     }
+    public static abstract class DetectorSet{
+        private static Detector detector;
+        private static Exception exception;
+
+        public static void update(){
+
+            if(detector != null){
+                String outP = detector.name();
+
+                if(detector == Detector.RecoveryError && exception!=null)
+                    outP = outP + ": " + System.lineSeparator() + exception.getMessage();
+
+                ErrorCodeApp.detector.set("detector: " + outP);
+            }
+
+            ErrorCodeApp.stoppingTime.set("stoping time: " + SData.getLong(SData.Data.StoppingTime));
+            ErrorCodeApp.disposableErrors.set("Disposable Errors: "+SData.getString(SData.Data.SavedDisposableErrors));
+            ErrorCodeApp.mediaPlayerErrors.set("MediaPlayer Errors: "+SData.getString(SData.Data.SavedListenersErrors));
+            ErrorCodeApp.dataLoader.set(SData.getString(SData.Data.SavedDataLoaderActions));
+        }
+
+        public enum Detector{
+            Idle,
+            StartingRecovery,
+            RecoveryStarted,
+            RecoveryCompleted,
+            RecoveryError,
+            No_Connection_SkippingRecovery,
+            Detection_Player_Is_Null_1,
+            PlayerAction_NotCompleted,
+            PlayerNotLoaded_SkippingDetection,
+            RecoveryInProgress_Skipping,
+            CheckingPlayerState,
+            PlayerStarting_Healthy_Paused,
+            CheckingPlayerState_Recovering,
+            PlayerStarting_Skipping,
+            PlayerIsPlaying_Healthy,
+            MediaPlayer_Is_Null,
+            Detection_Player_Is_Null
+        }
+    }
     public class AsyncRun
     {
         public class PlayerFreezeDetection
         {
-            private static final int MAX_CHECK_OF_NOT_CREATED = 15;
+            private static final int MAX_CHECK_OF_NOT_CREATED_MS = 15000;
 
-            private int detectionSeconds;
-            private int dynamicDetectionDelayMS;
-            private int dynamicTryCount;
-            private int countOfChecksOfNotCreated;
+            private int maxCheckOfIsNotPlayingMS;
+            private int detectionMS;
+
+            private int maxCheckOfNotCreatedCalculated;
+            private int maxCheckOfIsNotPlaying;
+            private long savedSeek;
+            private int counter;
             private Disposable detector;
 
             private void stop()
@@ -2018,7 +2061,7 @@ public class AppBack extends AppWeb {
                 //ErrorCodeApp.code40 = ErrorCodeApp.code40 + System.lineSeparator() + report;
 
                 if (AndroidOsUpdatesListener.isHaveConnection()) {
-                    ErrorCodeApp.detector.set("StartingRecovery");
+                    DetectorSet.detector = Detector.StartingRecovery;
                     errorHandel.errorFixerIsRan = true;
 
                     // Single recovery attempt with proper cleanup
@@ -2026,7 +2069,7 @@ public class AppBack extends AppWeb {
                         if (globalGenerator.mediaError.started)
                             return true;
                         try {
-                            ErrorCodeApp.detector.set("RecoveryStarted");
+                            DetectorSet.detector = Detector.RecoveryStarted;
 
                             // Dispose current player
                             if (!mediaIsNull()) {
@@ -2046,7 +2089,7 @@ public class AppBack extends AppWeb {
                             else
                                 globalGenerator.mediaErrorRun();
 
-                            ErrorCodeApp.detector.set("RecoveryCompleted");
+                            DetectorSet.detector = Detector.RecoveryCompleted;
                             return true;
 
                         } catch (Exception e) {
@@ -2057,7 +2100,8 @@ public class AppBack extends AppWeb {
                             if(!AndroidOsUpdatesListener.isHaveConnection())
                                 return true;
 
-                            ErrorCodeApp.detector.set("RecoveryError: " + e.getMessage());
+                            DetectorSet.detector = Detector.RecoveryError;
+                            DetectorSet.exception = e;
                             //TryIP();
                             if (playlist.get()&& playlistLoopOn())
                                 videoChanger.updateChanger(1);
@@ -2076,32 +2120,32 @@ public class AppBack extends AppWeb {
                     }, () -> "RecoverError");
 
                 } else {
-                    ErrorCodeApp.detector.set("NoConnection - SkippingRecovery");
+                    DetectorSet.detector = Detector.No_Connection_SkippingRecovery;
                 }
             }
 
-            public void startDetectionLost() {
-                int maxCheckOfNotCreatedCalculated = MAX_CHECK_OF_NOT_CREATED /detectionSeconds;
+            private boolean startedRecover(int count){
+                if(count< counter)
+                {
+                    counter = 0;
+                    mediaPlayer.dispose();
+                    recover();
+                    return true;
+                }
+                counter++;
+                return false;
+            }
 
-                detector = Observable.interval(detectionSeconds, TimeUnit.SECONDS, lifo)
+            public void startDetectionLost() {
+                maxCheckOfIsNotPlaying = maxCheckOfIsNotPlayingMS / detectionMS;
+                maxCheckOfNotCreatedCalculated = MAX_CHECK_OF_NOT_CREATED_MS / detectionMS;
+
+                detector = Observable.interval(detectionMS, TimeUnit.MILLISECONDS, lifo)
                         .retryWhen(errors -> errors.delay(2, TimeUnit.SECONDS, lifo))
                         .subscribe(tick -> {
                             try
                             {
-                                //mediaIsChanged.run();
-
-                                ErrorCodeApp.detector.set("DetectionTick: " + System.currentTimeMillis());
-                                //ErrorCodeApp.code40 = Wait.lastStopCallerInfo;
-                                //ErrorCodeApp.code16 = "MaxSeek: "+mediaPlayer.GetDuration();
-
-                                //Breaking-disposable-problem-have-currently-disabled
-                                //ErrorCodeApp.getCurrentAppMemoryUsage();
-
-                                //ErrorCodeApp.code23 = ErrorCodeApp.code23+SData.GetLong(SData.Data.SavedSeek)+" ";
-                                ErrorCodeApp.stoppingTime.set("stoping time: " + SData.getLong(SData.Data.StoppingTime));
-                                ErrorCodeApp.disposableErrors.set("Disposable Errors: "+SData.getString(SData.Data.SavedDisposableErrors));
-                                ErrorCodeApp.mediaPlayerErrors.set("MediaPlayer Errors: "+SData.getString(SData.Data.SavedListenersErrors));
-                                ErrorCodeApp.dataLoader.set(SData.getString(SData.Data.SavedDataLoaderActions));
+                                DetectorSet.detector = Detector.Idle;
 
                                 if(globalGenerator!=null&&!globalGenerator.mediaError.started && setUp.get() && timer.get() && AndroidOsUpdatesListener.isHaveConnection())
                                 {
@@ -2110,28 +2154,21 @@ public class AppBack extends AppWeb {
 
                                     if(mediaIsNull())
                                     {
-                                        ErrorCodeApp.detector.set("Detection - Player Is - Null1");
+                                        DetectorSet.detector = Detector.Detection_Player_Is_Null_1;
                                         return;
                                     }
                                     else
                                     {
                                         if(mediaPlayer.actionStarted())
                                         {
-                                            ErrorCodeApp.detector.set("PlayerAction-NotCompleted");
+                                            DetectorSet.detector = Detector.PlayerAction_NotCompleted;
                                             return;
                                         }
 
-                                        if(!mediaPlayer.isCreated()/* && !mediaPlayer.SecondBufferingStarted()*/)
+                                        if(!mediaPlayer.isCreated())
                                         {
-                                            if(maxCheckOfNotCreatedCalculated<countOfChecksOfNotCreated)
-                                            {
-                                                countOfChecksOfNotCreated = 0;
-                                                mediaPlayer.dispose();
-                                                recover();
-                                                return;
-                                            }
-                                            countOfChecksOfNotCreated++;
-                                            ErrorCodeApp.detector.set("PlayerNotLoaded - SkippingDetection");
+                                            if(!startedRecover(maxCheckOfNotCreatedCalculated))
+                                                DetectorSet.detector = Detector.PlayerNotLoaded_SkippingDetection;
                                             return;
                                         }
                                     }
@@ -2144,39 +2181,35 @@ public class AppBack extends AppWeb {
 
                                     if(!mediaPlayer.firstPlayed())
                                     {
-                                        countOfChecksOfNotCreated = 0;
+                                        counter = 0;
 
                                         if(mediaPlayer.firstPlayTrigger(50,500))
                                         {
                                             mediaReload.tryLoadAfterFirstPlay();
                                             sender.sendUrlStartedReset();
-                                            /*sender.SendUrlStartedResetWithoutUIReset();*/
                                         }
                                         else
                                             sender.sendUrlStartedReset();
-                                    /*
-                                    if(IfIsNotCollectionOrCollectionIsNotLoopingWillBeClosePlayerIfIsNotMakedFirstPlay())
-                                        return;*/
                                     }
 
                                     // Check if already in recovery mode
                                     if (errorFixerIsRan) {
-                                        ErrorCodeApp.detector.set("RecoveryInProgress - Skipping");
+                                        DetectorSet.detector = Detector.RecoveryInProgress_Skipping;
                                         return;
                                     }
 
-                                    ErrorCodeApp.detector.set("CheckingPlayerState");
+                                    DetectorSet.detector = Detector.CheckingPlayerState;
 
                                     if (!mediaIsNull()) {
 
                                         // Check if player is actually paused
                                         if(!mediaPlayer.isPlaying())
                                         {
-                                            ErrorCodeApp.detector.set("PlayerStarting - Healthy - Paused");
+                                            DetectorSet.detector = Detector.PlayerStarting_Healthy_Paused;
                                             if(!globalGenerator.isLive())
                                                 return;
 
-                                            ErrorCodeApp.detector.append(" - Recovering");
+                                            DetectorSet.detector = Detector.CheckingPlayerState_Recovering;
                                             recover();
 
                                             return;
@@ -2184,21 +2217,25 @@ public class AppBack extends AppWeb {
 
                                         // Skip if player is still starting up
                                         if (mediaPlayer.waitStarted()) {
-                                            ErrorCodeApp.detector.set("PlayerStarting - Skipping");
+                                            DetectorSet.detector = Detector.PlayerStarting_Skipping;
                                             return;
                                         }
 
                                         // Check if player is actually playing
-                                        if (mediaPlayer.isPlayingDynamic(dynamicTryCount, dynamicDetectionDelayMS,()->{
-                                            ErrorCodeApp.detector.set("PlayerIsPlaying - Healthy");
+                                        long curP = mediaPlayer.getCurrentPositionPure();
+                                        if (curP!=savedSeek){
+                                            savedSeek = curP;
+                                            counter = 0;
+                                            DetectorSet.detector = Detector.PlayerIsPlaying_Healthy;
                                             SData.setLong(SData.Data.StoppingTime,System.currentTimeMillis());
                                             if(!globalGenerator.isLive())
                                                 SData.setLong(SData.Data.SavedSeek,mediaPlayer.getSeekAfterIsPlayingDynamic());
-                                        })){
                                             return;
                                         }
+                                        startedRecover(maxCheckOfIsNotPlaying);
+                                        return;
                                     } else {
-                                        ErrorCodeApp.detector.set("MediaPlayerIsNull");
+                                        DetectorSet.detector = Detector.MediaPlayer_Is_Null;
                                     }
 
 
@@ -2211,15 +2248,10 @@ public class AppBack extends AppWeb {
                             {
                                 if(mediaIsNull())
                                 {
-                                    //OnErrorSave("Player-Null-StartDetection",e);
-                                    ErrorCodeApp.detector.set("Detection - Player Is - Null");
-                                    //OnException();
+                                    DetectorSet.detector = Detector.Detection_Player_Is_Null;
                                 }
                             }
-                        },onError -> {});/*, throwable -> {
-                        ErrorCodeApp.code = "DetectionError: " + throwable.getMessage();
-                        System.err.println("RxJava Sync Error: " + throwable.getMessage());
-                    });*/
+                        },onError -> {});
             }
         }
 

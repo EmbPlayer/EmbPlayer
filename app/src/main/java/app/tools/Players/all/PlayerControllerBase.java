@@ -109,6 +109,10 @@ public abstract class PlayerControllerBase {
         return modifyGetCurrentPosition();
     }
 
+    public final long getCurrentPositionPure(){
+        return modifyGetCurrentPosition();
+    }
+
     public final boolean isEnded()
     {
         return baseData().seekAndEnd.isEnded();
