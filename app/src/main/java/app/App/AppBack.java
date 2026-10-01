@@ -521,8 +521,7 @@ public class AppBack extends AppWeb {
         onExo.cachingFailed(false);
         onExo.setTemp(ExoPlayerOnly.Types.URL);
 
-        errorHandel.detection.detectionMS = 2000;
-        errorHandel.detection.maxCheckOfIsNotPlayingMS = 6000;
+        errorHandel.detection.setup(2000,6000);
 
         loop.switchToNormal();
         switch (sourceProvider) {
@@ -634,10 +633,8 @@ public class AppBack extends AppWeb {
                 break;
         }
 
-        if (globalGenerator.isLive()) {
-            errorHandel.detection.detectionMS = 30;
-            errorHandel.detection.maxCheckOfIsNotPlayingMS = 45000;
-        }
+        if (globalGenerator.isLive())
+            errorHandel.detection.setup(30,45000);
 
         return false;
     }
@@ -2037,13 +2034,19 @@ public class AppBack extends AppWeb {
             private static final int MAX_CHECK_OF_NOT_CREATED_MS = 15000;
 
             private int maxCheckOfIsNotPlayingMS;
-            private int detectionMS;
+            private int intervalMS;
 
             private int maxCheckOfNotCreatedCalculated;
             private int maxCheckOfIsNotPlaying;
             private long savedSeek;
             private int counter;
             private Disposable detector;
+
+
+            private void setup(int intervalMS,int maxCheckOfIsNotPlayingMS){
+                this.intervalMS = intervalMS;
+                this.maxCheckOfIsNotPlayingMS = maxCheckOfIsNotPlayingMS;
+            }
 
             private void stop()
             {
@@ -2053,7 +2056,7 @@ public class AppBack extends AppWeb {
                 //mediaIsChanged.Reset();
             }
 
-            public void recover()
+            private void recover()
             {
                 badSoundFixer.run();
 
@@ -2062,7 +2065,7 @@ public class AppBack extends AppWeb {
 
                 if (AndroidOsUpdatesListener.isHaveConnection()) {
                     DetectorSet.detector = Detector.StartingRecovery;
-                    errorHandel.errorFixerIsRan = true;
+                    errorHandel.currentRecover.recoverStarted = true;
 
                     // Single recovery attempt with proper cleanup
                     currentRecover.actionStart(() -> {
@@ -2113,7 +2116,7 @@ public class AppBack extends AppWeb {
                             return false;
                         } finally {
                             cleaningInBackground.addStartAfterWait(2000,()->{
-                                errorHandel.errorFixerIsRan = false;
+                                errorHandel.currentRecover.recoverStarted = false;
                                 currentRecover.currentStopAndResetStateAndUIWait();
                             },StaticFunctions.Empty.r, lifo,"RecoverError-After-2-Seconds-Delay");
                         }
@@ -2136,11 +2139,11 @@ public class AppBack extends AppWeb {
                 return false;
             }
 
-            public void startDetectionLost() {
-                maxCheckOfIsNotPlaying = maxCheckOfIsNotPlayingMS / detectionMS;
-                maxCheckOfNotCreatedCalculated = MAX_CHECK_OF_NOT_CREATED_MS / detectionMS;
+            private void startDetectionLost() {
+                maxCheckOfIsNotPlaying = maxCheckOfIsNotPlayingMS / intervalMS;
+                maxCheckOfNotCreatedCalculated = MAX_CHECK_OF_NOT_CREATED_MS / intervalMS;
 
-                detector = Observable.interval(detectionMS, TimeUnit.MILLISECONDS, lifo)
+                detector = Observable.interval(intervalMS, TimeUnit.MILLISECONDS, lifo)
                         .retryWhen(errors -> errors.delay(2, TimeUnit.SECONDS, lifo))
                         .subscribe(tick -> {
                             try
@@ -2193,7 +2196,7 @@ public class AppBack extends AppWeb {
                                     }
 
                                     // Check if already in recovery mode
-                                    if (errorFixerIsRan) {
+                                    if (errorHandel.currentRecover.recoverStarted) {
                                         DetectorSet.detector = Detector.RecoveryInProgress_Skipping;
                                         return;
                                     }
@@ -2241,7 +2244,7 @@ public class AppBack extends AppWeb {
 
                                     recover();
                                 } else {
-                                    errorFixerIsRan = false;
+                                    errorHandel.currentRecover.recoverStarted = false;
                                 }
                             }
                             catch (Exception e)
@@ -2255,14 +2258,22 @@ public class AppBack extends AppWeb {
             }
         }
 
-        private final StaticFunctions.ActionWait currentRecover;
+        public class Recover extends StaticFunctions.ActionWait{
+            private boolean recoverStarted;
+            @Override
+            public synchronized void onResetState(){
+                super.onResetState();
+                recoverStarted = false;
+            }
+        }
+
+        private final Recover currentRecover;
         private final WaitDisposable mediaBuffering;
         private final WaitDisposable mediaGetSeek;
         private final PlayerFreezeDetection detection;
         //private final WaitDisposable waitReset;
         //private WaitDisposable mediaBufferingStop;
         private boolean posSaved;
-        private boolean errorFixerIsRan;
 
         public AsyncRun()
         {
@@ -2280,7 +2291,7 @@ public class AppBack extends AppWeb {
             mediaBuffering = new WaitDisposable(300);
             mediaGetSeek = new WaitDisposable(100);
             detection = new PlayerFreezeDetection();
-            currentRecover = new StaticFunctions.ActionWait();
+            currentRecover = new Recover();
             //waitReset = new WaitDisposable(10);
             //mediaBufferingStop = new WaitDisposable(70);
         }
@@ -2402,7 +2413,7 @@ public class AppBack extends AppWeb {
 
         public synchronized void sendUrlStartedResetOnlyBooleanWithoutUIWait()
         {
-            sender.resetState();
+            sender.onResetState();
         }
 
         private class SenderFuncuanality extends StaticFunctions.ActionWait{

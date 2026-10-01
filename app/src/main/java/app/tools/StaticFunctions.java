@@ -533,7 +533,8 @@ public class StaticFunctions {
             return actionStarted && savedTime+ maxWaitMs()>System.currentTimeMillis();
         }
 
-        public final synchronized void resetState()
+        @CallSuper
+        public synchronized void onResetState()
         {
             actionStarted = false;
         }
@@ -564,12 +565,12 @@ public class StaticFunctions {
         }
         public final synchronized void currentStopAndResetState() {
             stopCurrent();
-            resetState();
+            onResetState();
         }
 
         public final synchronized void resetStateAndUIWait()
         {
-            resetState();
+            onResetState();
             Wait.webUIWaitStop();
         }
 

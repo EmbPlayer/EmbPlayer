@@ -650,7 +650,7 @@ public abstract class PlayerControllerBase {
             currentAction = onThread(() -> {
                 boolean output = CanLoad.call();
 
-                resetState();
+                onResetState();
 
                 if(output)
                     Start.run();
@@ -746,7 +746,7 @@ public abstract class PlayerControllerBase {
                     throw new RuntimeException(e);
                 }
 
-                resetState();
+                onResetState();
 
                 if(output)
                     afterLoadTryPlay.accept(()->{
