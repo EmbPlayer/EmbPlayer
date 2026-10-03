@@ -348,7 +348,8 @@ public abstract class Vlc extends Player
         super.resetGC();
         WeakReference<MediaPlayer> oldData =  new WeakReference<>(media);
 
-        cleanDisplay();
+        displayFixStop();
+        cleanDisplay(holderOfVLC);
         media = null;
         media = new MediaPlayer(libVLC);
 
@@ -369,54 +370,57 @@ public abstract class Vlc extends Player
     public void release()
     {
         handleVoutReady.dispose();
+        displayFixStop();
+
         super.release();
+
         audioLink = null;
 
         MediaPlayer oldM = media;
         LibVLC oldLibVLC = libVLC;
+        IVLCVout oldHolderOfVLC = holderOfVLC;
+
         media = null;
         libVLC = null;
+        holderOfVLC = null;
 
         releaser = addTask(() -> {
-
             try
             {
-                WeakReference<MediaPlayer> selectedMedia = new WeakReference<>(oldM);
-                WeakReference<LibVLC> selv = new WeakReference<>(oldLibVLC);
+                cleanDisplay(oldHolderOfVLC);
 
-                cleanDisplay();
+                oldM.pause();
+
+                while (oldM.isPlaying()){
+                    waitMS(10);
+                    oldM.pause();
+                }
 
                 cleaned = true;
 
-                if(selectedMedia.get()!=null)
-                {
-                    // --- Stop playback ---
-                    try { selectedMedia.get().stop(); } catch (Exception ignored) {
-                        onErrorSave("vlc-stop",ignored);
-                    }
-
-                    // --- Detach any views (safe even if none attached) ---
-                    try { selectedMedia.get().detachViews(); } catch (Exception ignored) {
-                        onErrorSave("vlc-get-detachViews",ignored);
-                    }
-
-                    // --- Release media player ---
-                    try { selectedMedia.get().release(); } catch (Exception ignored) {
-                        onErrorSave("vlc-get-release",ignored);
-                    }
+                // --- Stop playback ---
+                try { oldM.stop(); } catch (Exception ignored) {
+                    onErrorSave("vlc-stop",ignored);
                 }
 
-                if(selv.get()!=null)
-                {
-                    // --- Release VLC core ---
-                    try { selv.get().release(); } catch (Exception ignored) {
-                        onErrorSave("vlc-get-release",ignored);
-                    }
+                // --- Detach any views (safe even if none attached) ---
+                try { oldM.detachViews(); } catch (Exception ignored) {
+                    onErrorSave("vlc-get-detachViews",ignored);
                 }
 
+                // --- Release media player ---
+                try { oldM.release(); } catch (Exception ignored) {
+                    onErrorSave("vlc-get-release",ignored);
+                }
+
+                // --- Release VLC core ---
+                try { oldLibVLC.release(); } catch (Exception ignored) {
+                    onErrorSave("vlc-get-release",ignored);
+                }
             } catch (Exception ignored) {
                 onErrorSave("vlc-get-release",ignored);
             }
+
             return true;
         },() -> "VLCPlayer-ReleaseError",lifo);
     }
@@ -575,18 +579,19 @@ public abstract class Vlc extends Player
         return new int[]{displayWidth,displayHeight};
     }
 
-    private void cleanDisplay()
-    {
+    private void displayFixStop(){
         if(displayFix!=null&&!displayFix.isDisposed())
             displayFix.dispose();
 
         displayFixSecond = StaticFunctions.Empty.r;
+    }
 
-        if(holderOfVLC ==null)
+    private void cleanDisplay(IVLCVout holderOfVLC)
+    {
+        if(holderOfVLC == null)
             return;
 
         holderOfVLC.detachViews();
-        holderOfVLC = null;
     }
 
     public class HandleVoutReady{

@@ -39,6 +39,7 @@ import app.tools.DisposableTools;
 import app.tools.Players.all.ExoIjk.tools.ExceptionOriginUtil;
 import app.tools.Players.all.Player;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
+import tv.danmaku.ijk.media.player.IjkMediaPlayer;
 
 import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.onErrorSave;
@@ -287,6 +288,21 @@ public abstract class Exo extends Player {
         onReleased();
     }*/
 
+    private void looperClose(HandlerCustom handler){
+        try {
+            if (handler.looper != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+                    handler.looper.quitSafely();
+                } else {
+                    handler.looper.quit();
+                }
+            }
+        }
+        catch (Exception e) {
+            onErrorSave("ExPlayer-Release-Error", e);
+        }
+    }
+
     @Override
     public void release()
     {
@@ -302,24 +318,26 @@ public abstract class Exo extends Player {
         playerHandler = null;
         media = null;
 
-        releaser = DisposableTools.addTask(()->{
-            beforeClean(oldM);
-            WeakReference<ExoPlayer> selected = new WeakReference<>(oldM);
+        releaser = DisposableTools.addTaskWithTimeOut(()->{
+            try {
+                beforeClean(oldM);
 
-            cleaned = true;
-
-            if (selected.get() != null)
-                selected.get().release();
-
-            if (handler.looper != null) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-                    handler.looper.quitSafely();
-                } else {
-                    handler.looper.quit();
+                while (oldM.isPlaying()){
+                    waitMS(10);
+                    beforeClean(oldM);
                 }
+
+                cleaned = true;
+                oldM.release();
+                looperClose(handler);
             }
+            catch (Exception e)
+            {
+                onErrorSave("ExPlayer-Release-Error", e);
+            }
+
             return true;
-        },()->"ExPlayer-Release-Error", AndroidSchedulers.from(handler.looper));
+        },()->"ExPlayer-Release-Error",()->looperClose(handler), AndroidSchedulers.from(handler.looper));
     }
 
     @Override

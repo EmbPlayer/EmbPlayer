@@ -235,12 +235,16 @@ public abstract class Oem extends Player {
         releaser = addTask(() -> {
 
             try {
-                WeakReference<MediaPlayer> selected = new WeakReference<>(oldM);
+                oldM.pause();
+
+                while (oldM.isPlaying())
+                {
+                    waitMS(10);
+                    oldM.pause();
+                }
 
                 cleaned = true;
-
-                if(selected.get()!=null)
-                    selected.get().release();
+                oldM.release();
             }
             catch (Exception e){
                 onErrorSave("OemPlayer-Release-Error",e);

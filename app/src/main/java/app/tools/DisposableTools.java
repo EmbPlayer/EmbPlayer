@@ -115,11 +115,11 @@ public class DisposableTools {
 
     public static Disposable addTask(Callable<Boolean> maker, Callable<String> onError, Scheduler scheduler)
     {
-        return tasker.addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,scheduler, timeoutBackgroundTaskMS,StaticFunctions.Empty.a);
+        return tasker.addTask(maker,onError,scheduler,StaticFunctions.Empty.a);
     }
 
     public static Disposable addTaskUI(Callable<Boolean> maker,Callable<String> onError) {
-        return tasker.addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,AndroidSchedulers.mainThread(), timeoutUiTaskMS,StaticFunctions.Empty.a);
+        return tasker.addTaskUI(maker,onError,StaticFunctions.Empty.a);
     }
 
     public static Disposable addTaskAfterWait(
@@ -154,9 +154,8 @@ public class DisposableTools {
         return tasker.addTaskWithTimeOut(maker,onError,onSuccess,onNotStartedAndTimeOuted,scheduler,timeOutMS,StaticFunctions.Empty.a);
     }
 
-    private static Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Consumer<Boolean> onSuccess, Scheduler scheduler, int timeOutMS)
-    {
-        return tasker.addTaskWithTimeOut(maker,onError,onSuccess,StaticFunctions.Empty.r,scheduler,timeOutMS,StaticFunctions.Empty.a);
+    public static Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Runnable onNotStartedAndTimeOuted, Scheduler scheduler){
+        return tasker.addTaskWithTimeOut(maker, onError,onNotStartedAndTimeOuted,scheduler,StaticFunctions.Empty.a);
     }
 
     public static class DisposableModified {
@@ -191,15 +190,6 @@ public class DisposableTools {
 
         public void updateKillSignal(CompletableSubject killSignal){
             this.killSignal = killSignal;
-        }
-
-        public Disposable addTask(Callable<Boolean> maker, Callable<String> onError, Scheduler scheduler,Action onDisposing)
-        {
-            return addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,scheduler, timeoutBackgroundTaskMS,onDisposing);
-        }
-
-        public Disposable addTaskUI(Callable<Boolean> maker,Callable<String> onError) {
-            return addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,AndroidSchedulers.mainThread(), timeoutUiTaskMS,StaticFunctions.Empty.a);
         }
 
         public Disposable addTaskAfterWait(
@@ -350,21 +340,6 @@ public class DisposableTools {
                     );
         }
 
-        @CallSuper
-        protected CompletableSubscribeProxy c(Completable input){
-            return input.to(autoDisposable(killSignal));
-        }
-
-        @CallSuper
-        protected<T> ObservableSubscribeProxy<T> o(Observable<T> input){
-            return input.to(autoDisposable(killSignal));
-        }
-
-        @CallSuper
-        protected<T> SingleSubscribeProxy<T> s(Single<T> input){
-            return input.to(autoDisposable(killSignal));
-        }
-
         public Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Consumer<Boolean> onSuccess,Runnable onNotStartedAndTimeOuted, Scheduler scheduler, int timeOutMS,Action onDisposing)
         {
             return s(Single.fromCallable(maker)
@@ -383,9 +358,38 @@ public class DisposableTools {
                     });
         }
 
-        private Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Consumer<Boolean> onSuccess, Scheduler scheduler, int timeOutMS,Action onDisposing)
+        public Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Runnable onNotStartedAndTimeOuted, Scheduler scheduler,Action onDisposing)
+        {
+            return addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,onNotStartedAndTimeOuted,scheduler,timeoutBackgroundTaskMS,onDisposing);
+        }
+
+        public Disposable addTaskWithTimeOut(Callable<Boolean> maker, Callable<String> onError,Consumer<Boolean> onSuccess, Scheduler scheduler, int timeOutMS,Action onDisposing)
         {
             return addTaskWithTimeOut(maker,onError,onSuccess,StaticFunctions.Empty.r,scheduler,timeOutMS,onDisposing);
+        }
+
+        public Disposable addTask(Callable<Boolean> maker, Callable<String> onError, Scheduler scheduler,Action onDisposing)
+        {
+            return addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,scheduler, timeoutBackgroundTaskMS,onDisposing);
+        }
+
+        public Disposable addTaskUI(Callable<Boolean> maker,Callable<String> onError,Action onDisposing) {
+            return addTaskWithTimeOut(maker,onError,StaticFunctions.Empty.rC,AndroidSchedulers.mainThread(), timeoutUiTaskMS,onDisposing);
+        }
+
+        @CallSuper
+        protected CompletableSubscribeProxy c(Completable input){
+            return input.to(autoDisposable(killSignal));
+        }
+
+        @CallSuper
+        protected<T> ObservableSubscribeProxy<T> o(Observable<T> input){
+            return input.to(autoDisposable(killSignal));
+        }
+
+        @CallSuper
+        protected<T> SingleSubscribeProxy<T> s(Single<T> input){
+            return input.to(autoDisposable(killSignal));
         }
     }
 

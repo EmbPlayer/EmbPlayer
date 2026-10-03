@@ -807,15 +807,17 @@ public abstract class Ijk extends Player
         media = null;
 
         releaser = addTask(() -> {
-
             try {
+                oldM.pause();
 
-                WeakReference<IjkMediaPlayer> selected = new WeakReference<>(oldM);
+                while (oldM.isPlaying())
+                {
+                    waitMS(10);
+                    oldM.pause();
+                }
 
                 cleaned = true;
-
-                if (selected.get() != null)
-                    selected.get().release();
+                oldM.release();
             } catch (Exception e) {
                 onErrorSave("IJKPlayer-Release-Error", e);
             }
