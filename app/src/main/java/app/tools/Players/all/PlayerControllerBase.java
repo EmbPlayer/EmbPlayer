@@ -641,7 +641,7 @@ public abstract class PlayerControllerBase {
 
             activate();
 
-            onDispose();
+            makeDispose();
 
             baseData().firstPlayIsStarted = false;
             baseData().pauseAfterLoad = false;

@@ -121,8 +121,8 @@ android {
         resValue "integer", "YoutubeAudioEngineID", "2"
         resValue "integer", "YoutubeVideoEngineID", "2"
 
-        versionName "1.18"
-        versionCode 118
+        versionName "1.19"
+        versionCode 119
         vectorDrawables.useSupportLibrary true
         multiDexEnabled true    // as we have over 65536 lines of code...
     }
@@ -250,7 +250,8 @@ dependencies {
     // includes jars and aars in libs/ijkplayer/libsLegacy
     implementation fileTree(dir: 'libs/ijkplayer/libsLegacy', include: ['*.aar', '*.jar'], exclude: [])
 
-    implementation("com.github.teamnewpipe:newpipeextractor:v0.26.4")
+    implementation("com.github.teamnewpipe:newpipeextractor:v0.26.5")
+    //implementation("com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-09-12")
     if(allTasksForFlavor("M21"))
     {
         modern = true;

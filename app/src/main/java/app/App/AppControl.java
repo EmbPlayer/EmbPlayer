@@ -51,6 +51,17 @@ public class AppControl extends HttpServletAdvanced {
     private static final AtomicBoolean actionStarted = new AtomicBoolean(false);
     private static final String[] LANGUAGES;
     private static long maxTimeoutTime;
+    private static final StaticFunctions.Starter onFirstStart = new StaticFunctions.Starter() {
+        @Override
+        protected void firstLaunch() {
+            app().stopSenderOnlyInCurrentThread();
+        }
+
+        @Override
+        protected void secondLaunches() {
+
+        }
+    };
 
     static{
         LANGUAGES = getAllForJson(Arrays.stream(AppWeb.LANGUAGES).map(String::toUpperCase).toArray(String[]::new));
@@ -221,6 +232,8 @@ public class AppControl extends HttpServletAdvanced {
     }
 
     private static boolean clientAction(JSONArray Obj) throws JSONException, ExtractionException, IOException {
+
+        onFirstStart.run();
 
         int page = getInt(Obj,0);
 

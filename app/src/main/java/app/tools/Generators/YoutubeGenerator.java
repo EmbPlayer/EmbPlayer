@@ -160,14 +160,7 @@ public class YoutubeGenerator extends GeneratorWithExpire {
         StreamSelectionPolicy.StreamSelection selection = null;
 
         try {
-
-            VideoResolution l = videoSettings.resolution();
-
-            VideoQuality ll = videoSettings.quality();
-
-            String lang = videoSettings.languageISO2();
-
-            StreamSelectionPolicy streamS = new StreamSelectionPolicy(true,l, VideoResolution._144P, ll,lang);
+            StreamSelectionPolicy streamS = new StreamSelectionPolicy(true,videoSettings.resolution(), VideoResolution._144P, videoSettings.quality(),videoSettings.languageISO2());
 
             selection = streamS.select(info,!displayOn);
         }

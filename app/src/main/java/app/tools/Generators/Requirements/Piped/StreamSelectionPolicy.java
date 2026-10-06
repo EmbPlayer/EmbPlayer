@@ -14,11 +14,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
+import server.web.ErrorCodeApp;
+
 import static server.Home.app;
 
 public class StreamSelectionPolicy {
-
-    private static final Set<String> SUPPORTED_VIDEO_CODECS = Set.of("avc1.640028","avc1.4d401f","avc1.4d401e","avc1.4d4015","avc1.4d400c");
 
     private final static List<MediaFormat> VIDEO_FORMAT_QUALITY = Arrays.asList(MediaFormat.WEBM, MediaFormat.MPEG_4, MediaFormat.v3GPP);
 
@@ -80,6 +80,20 @@ public class StreamSelectionPolicy {
                     return new StreamSelection(null,null,audioStream);
                 }
             }
+
+            /*String output = null;
+
+            List<VideoStream> streams = streamInfo.getVideoOnlyStreams();
+
+            for(VideoStream stream : streams){
+                output = output + "|codec: " + stream.getCodec()+
+                        " quality: " +stream.getQuality()+
+                        " resolution: "+stream.getResolution()+
+                        " content: "+stream.getContent()+
+                        "|"+System.lineSeparator();
+            }
+
+            ErrorCodeApp.links = output;*/
 
             VideoStreamWithResolution videoStreamWithResolution = pickVideo(streamInfo);
 
@@ -220,18 +234,15 @@ public class StreamSelectionPolicy {
         for (VideoStream stream : streams) {
             VideoStreamWithResolution videoStream = new VideoStreamWithResolution(stream);
 
-            if(videoStream.videoStream.getFormat() == MediaFormat.MPEG_4 && stream.isUrl()){
+            if(videoStream.videoStream.getFormat() != MediaFormat.WEBM && stream.isUrl()){
 
-                if (SUPPORTED_VIDEO_CODECS.contains(videoStream.videoStream.getCodec()))
+                if(videoStream.resolution==maxResolution)
                 {
-                    if(videoStream.resolution==maxResolution)
-                    {
-                        best = videoStream;
-                        break;
-                    }
-
-                    savedStreams.add(videoStream);
+                    best = videoStream;
+                    break;
                 }
+
+                savedStreams.add(videoStream);
             }
         }
 

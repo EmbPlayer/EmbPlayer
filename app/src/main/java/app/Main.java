@@ -216,24 +216,12 @@ public class Main extends DefaultActivity {
 
             }
         },()->{
-            String savedHostnameOrIp = SData.getString(SData.Data.SavedIPorMac);
-
-            String currentIpOrMac;
-
-            if(BaseServer.isHaveHostname())
-                currentIpOrMac = AndroidOsUpdatesListener.getCurrentRouterMac();
-            else
-                currentIpOrMac = BaseServer.getLocalhost();
-
-            if(savedHostnameOrIp==null)
-            {
-                SData.setString(SData.Data.SavedIPorMac,currentIpOrMac);
+            if(BaseServer.isHaveHostname()){
+                if(!StaticFunctions.oldBSSID().equals(AndroidOsUpdatesListener.getCurrentBSSID()))
+                    SData.resetToDefault();
             }
-            else if(!savedHostnameOrIp.equals(currentIpOrMac))
-            {
-                SData.setString(SData.Data.SavedIPorMac,currentIpOrMac);
+            else if(!StaticFunctions.oldIP().equals(BaseServer.getIP()))
                 SData.resetToDefault();
-            }
 
             qrFirst();
             updateQr();

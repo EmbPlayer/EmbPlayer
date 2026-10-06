@@ -28,7 +28,6 @@ import javax.servlet.http.HttpServletResponse;
 
 import app.App.AppBack;
 import app.Main;
-import app.tools.SData;
 import server.tools.HttpServletAdvanced;
 
 public class ErrorCodeApp extends HttpServletAdvanced {
@@ -44,15 +43,15 @@ public class ErrorCodeApp extends HttpServletAdvanced {
     public static final SmartString disposableErrors = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "disposableErrors");
     public static final SmartString stoppingTime = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "stoppingTime");
     public static final SmartString mediaPlayerErrors = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "mediaPlayerErrors");
-    public static final SmartString macAddressUpdate = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "macAddressUpdate");
+    public static final SmartString fullConnectionInfo = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "fullConnectionInfo: ");
 
     public static final SmartString errorAdditional = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "errorAdditional");
     public static final SmartString dataLoader = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "dataLoader");
 
-    public static final SmartString currentDebug = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "currentDebug: ");
     public static final SmartString postResiver = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "");
     public static final SmartString newpipe = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "newpipe: ");
     public static final SmartString videoChanger = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "videoChanger: ");
+    public static final SmartString checkIsEqualToSavedData = new SmartString(TRIGGER_LENGTH, RETAIN_LENGTH, "checkIsEqualToSavedData: ");
 
     public static void getSystemMemoryInfo(Context context) {
         String output = "[[System]";
@@ -107,16 +106,13 @@ public class ErrorCodeApp extends HttpServletAdvanced {
     protected void doGetAdvanced(HttpServletRequest req, HttpServletResponse resp) throws IOException {
         AppBack.DetectorSet.update();
 
-        // Pull .getString() when building the response
-        String k = ramUsageInApp.getString() +
-                System.lineSeparator() + errorAdditional.getString() + System.lineSeparator() + macAddressUpdate.getString() +
-                System.lineSeparator() + detector.getString() + System.lineSeparator() + disposableErrors.getString() +
-                System.lineSeparator() + mediaPlayerErrors.getString() + System.lineSeparator() + stoppingTime.getString() +
-                System.lineSeparator() + dataLoader.getString() + System.lineSeparator() + currentDebug.getString() +
-                System.lineSeparator() + postResiver.getString() + System.lineSeparator() + newpipe.getString()+
-                System.lineSeparator() + videoChanger.getString();
-
-        resp.getWriter().write(k);
+        resp.getWriter().write(String.join(System.lineSeparator()+System.lineSeparator(),
+                ramUsageInApp.getString(),errorAdditional.getString(),
+                fullConnectionInfo.getString(),detector.getString(),
+                disposableErrors.getString(),mediaPlayerErrors.getString(),
+                stoppingTime.getString(),dataLoader.getString(),
+                checkIsEqualToSavedData.getString(),postResiver.getString(),
+                newpipe.getString(),videoChanger.getString()));
     }
 
     private static String formatSize(long size) {

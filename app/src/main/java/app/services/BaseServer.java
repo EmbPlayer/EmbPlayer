@@ -60,6 +60,18 @@ public class BaseServer extends ServiceBackgroud {
 
     private static PowerManager.WakeLock wakeLock;
 
+    private final static StaticFunctions.Starter loadBSSID = new StaticFunctions.Starter() {
+        @Override
+        protected void firstLaunch() {
+            AndroidOsUpdatesListener.updateBSSID(Main.getContext());
+        }
+
+        @Override
+        protected void secondLaunches() {
+
+        }
+    };
+
     //private static UniversalMDNS domain;
     //private static Mdns domain;
 
@@ -179,6 +191,8 @@ public class BaseServer extends ServiceBackgroud {
                     InetAddress address = addresses.nextElement();
                     if (!address.isLoopbackAddress() && address instanceof Inet4Address) {
                         localhostIP = address.getHostAddress();
+                        SData.setString(SData.Data.IP,localhostIP);
+                        loadBSSID.run();
                         break hosts;
                     }
                 }

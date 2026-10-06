@@ -65,7 +65,7 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
             if(BaseServer.isDestroying())
                 return;
 
-            ErrorCodeApp.macAddressUpdate.set("MAC_ADDRESS: "+ getCurrentRouterMac());
+            ErrorCodeApp.fullConnectionInfo.set("fullConnectionInfo: "+ fullConnectionInfo);
             if(AppBack.appStarted())
             {
                 if(!ipIsChanged()&& app().setUp.get()&& app().globalGenerator.isLive())
@@ -83,15 +83,17 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
                 }
             }
 
-            Log.d("ConnectionInfo", "Type: " + currentConnectionType + ", MAC: " + currentRouterMac);
+            Log.d("ConnectionInfo", "Type: " + currentConnectionType + ", FullConnectionInfo: " + fullConnectionInfo);
         }
     };
 
     private static ConnectivityManager cmB;
     private static boolean oldOn;
     private static boolean connectedToRouter;
-    private static String currentRouterMac; // Store the current router MAC
+    private static String fullConnectionInfo; // Store the current router MAC
     private static String currentConnectionType; // Store connection type
+
+    private static String currentBSSID;
 
     @Override
     public void onReceive(Context context, Intent intent) {
@@ -126,6 +128,10 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
         }*/
 
         }, lifo,"onReceive");
+    }
+
+    public static String getCurrentBSSID(){
+        return currentBSSID;
     }
 
     public static void connectionSetUP(Context context)
@@ -170,12 +176,8 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
         return connectedToRouter;
     }
 
-    public static String getCurrentRouterMac() {
-        return currentRouterMac;
-    }
-
-    public static String getConnectionType() {
-        return currentConnectionType;
+    public static void updateBSSID(Context context){
+        updateBSSID((WifiManager) context.getSystemService(Context.WIFI_SERVICE));
     }
 
     private static String normalize(String s, String fallback) {
@@ -208,18 +210,18 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
         currentConnectionType = ConnectionTypes.WIFI;
 
         if (!"NO_BSSID".equals(bssid)) {
-            currentRouterMac = ConnectionTypes.WIFI + "|" + ssid + "|" + bssid + "|" + gateway;
+            fullConnectionInfo = ConnectionTypes.WIFI + "|" + ssid + "|" + bssid + "|" + gateway;
         } else {
             if (!"NO_GW".equals(gateway)) {
-                currentRouterMac = ConnectionTypes.WIFI + "|IP|" + gateway;
+                fullConnectionInfo = ConnectionTypes.WIFI + "|IP|" + gateway;
             } else if (hostnameFallback != null && hostnameFallback.length() > 0) {
-                currentRouterMac = ConnectionTypes.WIFI + "|HOST|" + hostnameFallback;
+                fullConnectionInfo = ConnectionTypes.WIFI + "|HOST|" + hostnameFallback;
             } else {
-                currentRouterMac = ConnectionTypes.WIFI + "|UNKNOWN";
+                fullConnectionInfo = ConnectionTypes.WIFI + "|UNKNOWN";
             }
         }
 
-        logD("ConnectionInfo", "WiFi id set: " + currentRouterMac);
+        logD("ConnectionInfo", "WiFi id set: " + fullConnectionInfo);
         onIsHaveConnection();
     }
 
@@ -229,18 +231,20 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
         currentConnectionType = ConnectionTypes.MOBILE;
 
         if (carrier != null && !carrier.isEmpty() && !"UNKNOWN_CARRIER".equals(carrier)) {
-            currentRouterMac = ConnectionTypes.MOBILE + "|CARRIER|" + carrier + "|" + networkType + "|" + dataIp;
+            fullConnectionInfo = ConnectionTypes.MOBILE + "|CARRIER|" + carrier + "|" + networkType + "|" + dataIp;
         } else if (dataIp != null && !"NO_IP".equals(dataIp)) {
-            currentRouterMac = ConnectionTypes.MOBILE + "|IP|" + dataIp;
+            fullConnectionInfo = ConnectionTypes.MOBILE + "|IP|" + dataIp;
         } else {
-            currentRouterMac = ConnectionTypes.MOBILE + "|UNKNOWN";
+            fullConnectionInfo = ConnectionTypes.MOBILE + "|UNKNOWN";
         }
 
-        logD("ConnectionInfo", "Cellular id set: " + currentRouterMac);
+        logD("ConnectionInfo", "Cellular id set: " + fullConnectionInfo);
         onIsHaveConnection();
     }
 
     private static void onHaveConnectionGetCellularId(final Context context) {
+        currentBSSID = null;
+        SData.setString(SData.Data.BSSID, null);
         String carrier = "UNKNOWN_CARRIER";
         String networkType = "UNKNOWN";
         String dataIp = "NO_IP";
@@ -369,16 +373,39 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
         }
     }
 
+
+    private static WifiInfo updateBSSID(WifiManager wifiManager){
+        if (wifiManager == null) {
+            currentBSSID = null;
+            onErrorSave("WifiManagerNull", new NullPointerException("wifiManager"));
+            return null;
+        }
+
+        final WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+        if (wifiInfo == null) {
+            currentBSSID = null;
+            onErrorSave("WifiInfoNull", new NullPointerException("wifiInfo"));
+            return null;
+        }
+
+        currentBSSID = "" + normalize(wifiInfo.getBSSID(), "w");
+        SData.setString(SData.Data.BSSID, currentBSSID);
+
+        return wifiInfo;
+    }
+
     private static void onHaveConnectionGetWifiRouterMacAddress(final Context context) {
         try {
             final WifiManager wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
-            if (wifiManager == null) { onErrorSave("WifiManagerNull", new NullPointerException("wifiManager")); return; }
 
-            final WifiInfo wifiInfo = wifiManager.getConnectionInfo();
-            if (wifiInfo == null) { onErrorSave("WifiInfoNull", new NullPointerException("wifiInfo")); return; }
+            final WifiInfo wifiInfo = updateBSSID(wifiManager);
+
+            if(wifiInfo == null)
+                return;
+
+            final String bssid = currentBSSID.length() < 2 ? "NO_BSSID" : currentBSSID;
 
             final String ssid = normalize(wifiInfo.getSSID(), "NO_SSID");
-            final String bssid = normalize(wifiInfo.getBSSID(), "NO_BSSID");
 
             String gateway = "NO_GW";
             try {
@@ -422,23 +449,25 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
         currentConnectionType = ConnectionTypes.ETHERNET;
 
         if (!"NO_MAC".equals(macStr)) {
-            currentRouterMac = ConnectionTypes.ETHERNET + "|" + ifName + "|" + macStr + "|" + gateway + "|" + localIp;
+            fullConnectionInfo = ConnectionTypes.ETHERNET + "|" + ifName + "|" + macStr + "|" + gateway + "|" + localIp;
         } else {
             if (!"NO_GW".equals(gateway)) {
-                currentRouterMac = ConnectionTypes.ETHERNET + "|IP|" + gateway;
+                fullConnectionInfo = ConnectionTypes.ETHERNET + "|IP|" + gateway;
             } else if (!"NO_IP".equals(localIp)) {
-                currentRouterMac = ConnectionTypes.ETHERNET + "|IP|" + localIp;
+                fullConnectionInfo = ConnectionTypes.ETHERNET + "|IP|" + localIp;
             } else {
-                currentRouterMac = ConnectionTypes.ETHERNET + "|UNKNOWN";
+                fullConnectionInfo = ConnectionTypes.ETHERNET + "|UNKNOWN";
             }
         }
 
-        logD("ConnectionInfo", "Ethernet id set: " + currentRouterMac);
+        logD("ConnectionInfo", "Ethernet id set: " + fullConnectionInfo);
         onIsHaveConnection();
     }
 
     private static void onHaveConnectionGetEthernetMacAddress() {
         try {
+            currentBSSID = null;
+            SData.setString(SData.Data.BSSID, null);
             Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
             if (interfaces == null) return;
 
@@ -499,7 +528,7 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
     private static void onLostConnection()
     {
         connectedToRouter = false;
-        currentRouterMac = null;
+        fullConnectionInfo = null;
         currentConnectionType = null;
     }
 
@@ -568,11 +597,11 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
 
     private static boolean ipIsChanged() {
         try {
-            String currentComposite = getCurrentRouterMac();
-            String savedComposite = SData.getString(SData.Data.SavedIPorMac);
+            String currentComposite = fullConnectionInfo;
+            String savedComposite = SData.getString(SData.Data.ConnectionInfo);
 
             if (savedComposite == null) {
-                SData.setString(SData.Data.SavedIPorMac, currentComposite);
+                SData.setString(SData.Data.ConnectionInfo, currentComposite);
                 return true;
             }
             if (currentComposite == null) return false;
@@ -631,7 +660,7 @@ public class AndroidOsUpdatesListener extends BroadcastReceiver {
 
     private static void triggerUpdate(String newComposite) {
         app().sendURL();
-        SData.setString(SData.Data.SavedIPorMac, newComposite);
+        SData.setString(SData.Data.ConnectionInfo, newComposite);
         BaseServer.ipAddressLoad();
         Main.loadUI();
     }

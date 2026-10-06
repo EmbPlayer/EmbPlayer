@@ -53,9 +53,21 @@ import static app.tools.DisposableTools.lifo;
 import static app.tools.DisposableTools.waitMS;
 
 public class StaticFunctions {
+    private static String oldBSSID;
+    private static String oldIP;
 
     public static void onLoadData(){
+        oldBSSID = SData.getString(SData.Data.BSSID);
+        oldIP = SData.getString(SData.Data.IP);
         DefaultActivity.brightness = SData.getFloat(SData.Data.BrightnessLevel,0.5f);
+    }
+
+    public static String oldBSSID(){
+        return oldBSSID;
+    }
+
+    public static String oldIP(){
+        return oldIP;
     }
 
     public static void onThrows(Thread thread, Throwable throwable){
@@ -549,7 +561,7 @@ public class StaticFunctions {
         }
 
         public final synchronized void disposeAndRun(Callable<Boolean> Base, Callable<String> OnError){
-            onDispose();
+            makeDispose();
 
             run(Base,OnError);
         }
@@ -560,11 +572,11 @@ public class StaticFunctions {
         }
 
         public final synchronized void currentStopAndResetStateAndUIWait() {
-            stopCurrent();
+            disposeOnly();
             resetStateAndUIWait();
         }
         public final synchronized void currentStopAndResetState() {
-            stopCurrent();
+            disposeOnly();
             onResetState();
         }
 
@@ -579,10 +591,18 @@ public class StaticFunctions {
             return 20000;
         }
 
-        protected synchronized void onDispose()
+        protected final synchronized void makeDispose()
         {
-            stopCurrent();
+            if(currentAction!=null && !currentAction.isDisposed()){
+                currentAction.dispose();
+                onDispose();
+                return;
+            }
+            onDisposeMissed();
         }
+
+        protected synchronized void onDisposeMissed(){}
+        protected synchronized void onDispose(){}
 
         protected synchronized void onSuccessEnd()
         {}
@@ -611,7 +631,7 @@ public class StaticFunctions {
             });
         }
 
-        private synchronized void stopCurrent()
+        protected final synchronized void disposeOnly()
         {
             if(currentAction!=null && !currentAction.isDisposed())
                 currentAction.dispose();

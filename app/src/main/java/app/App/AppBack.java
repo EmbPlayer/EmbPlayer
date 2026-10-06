@@ -36,6 +36,7 @@ import java.util.function.BooleanSupplier;
 import androidx.annotation.CallSuper;
 import androidx.annotation.NonNull;
 import app.BasePanel;
+import app.services.BaseServer;
 import app.tools.AndroidOsUpdatesListener;
 import app.tools.Generators.Requirements.GeneratorWithExpire;
 import app.tools.Generators.Requirements.MediaSourceProviders;
@@ -217,6 +218,10 @@ public class AppBack extends AppWeb {
             sendURLBeforeDestroy();
         }, () -> sendURLAfterDestroy(), () -> {
         });
+    }
+
+    public void stopSenderOnlyInCurrentThread(){
+        sender.sendUrlStartedResetWithoutUIWait();
     }
 
     public void forceStopActivate(){
@@ -964,40 +969,74 @@ public class AppBack extends AppWeb {
 
         return true;
     }
+    private boolean loadMediaOnFail(){
+        sender.sendUrlStartedResetOnlyBooleanWithoutUIWait();
+        return true;
+    }
+    private void saveTempCheck(){
+        ErrorCodeApp.checkIsEqualToSavedData.set("|| ip: "+BaseServer.getIP()+" oldIP: "+StaticFunctions.oldIP()+
+                " BSSID: "+AndroidOsUpdatesListener.getCurrentBSSID()+" oldBSSID: "+StaticFunctions.oldBSSID()+" |");
+    }
     private void loadMedia(){
-        boolean undefi = SData.get(SData.Data.UndefiledError);
-        if(mediaPlayer!=null||!undefi){
-            return;
-        }
-
-        SavedMedia recovered = getSavedMedia();
-
-        if(recovered==null){
-            return;
-        }
-
-        ErrorCodeApp.currentDebug.append("_" +" Name:"+recovered.getName()+
-                " URL"+recovered.getURL()+" Seek"+recovered.getSeek()+" ProviderID"+recovered.getProviderID());
-
         sender.sendUrlStart(()->{
-            if(recovered==null)
-                return true;
+            boolean undefi = SData.get(SData.Data.UndefiledError);
 
-            if(globalGenerator==null&&mediaPlayer==null)
+            if(mediaPlayer!=null || !undefi)
+                return loadMediaOnFail();
+
+            int s = 0;
+            while (!BaseServer.getIP().equals(StaticFunctions.oldIP()) ||
+                    !AndroidOsUpdatesListener.getCurrentBSSID().equals(StaticFunctions.oldBSSID()))
+            {
+                if(s<10){
+                    s++;
+                    waitMS(500);
+                }
+                else{
+                    saveTempCheck();
+                    ErrorCodeApp.checkIsEqualToSavedData.append(" NOT LOADED BECAUSE NOT SAME ||");
+                    return loadMediaOnFail();
+                }
+            }
+
+            saveTempCheck();
+            SavedMedia recovered = getSavedMedia();
+
+            if(recovered==null)
+                return loadMediaOnFail();
+
+            ErrorCodeApp.checkIsEqualToSavedData.append(System.lineSeparator()+
+                    "| Name:"+recovered.getName()+
+                    " URL:"+recovered.getURL()+
+                    " Seek:"+recovered.getSeek()+
+                    " ProviderID:"+recovered.getProviderID()+" ||");
+
+            if(globalGenerator == null && mediaPlayer == null)
             {
                 seekPosition((int)(recovered.getSeek()/1000));
-                loadDataWithoutChecking(recovered.getURL(),recovered.getProviderID(),recovered.getName());
-
-                /*cleaningInBackground.addStartAfterTimeout(750,()->{
-                    if(!mediaPlayer.isCreated()*//* && !mediaPlayer.SecondBufferingStarted()*//*)
-                    {
-                        mediaPlayer.dispose();
-                        errorHandel.recover();
+                mediaClientSideProvider = MediaSourceProviders.values()[recovered.getProviderID()];
+                int i = 0;
+                while (i<20){
+                    try{
+                        if(loadData(recovered.getURL(), mediaClientSideProvider, recovered.getName())){
+                            i++;
+                            waitMS(500);
+                        }
+                        else{
+                            return true;
+                        }
+                    } catch (Exception e) {
+                        i++;
+                        waitMS(500);
                     }
-                },()->{},forkJoinPool,"fistTrigger");*/
+                }
             }
-            return true;
-        },()->"Loading-Error");
+
+            return loadMediaOnFail();
+        },()->{
+            loadMediaOnFail();
+            return "Loading-Error";
+        });
     }
     private void loadOrLoadAndStart(boolean andStart, @NonNull Callable<Long> seek, @NonNull Runnable beforeForLoadAndStart)
     {
@@ -2418,16 +2457,28 @@ public class AppBack extends AppWeb {
 
         private class SenderFuncuanality extends StaticFunctions.ActionWait{
 
-            private void onDisposeBase(){
-                super.onDispose();
-            }
+            private final StaticFunctions.Starter onFirst = new StaticFunctions.Starter() {
+                @Override
+                protected void firstLaunch() {
+
+                }
+
+                @Override
+                protected void secondLaunches() {
+                    onDispose();
+                }
+            };
 
             @Override
             public void onDispose()
             {
-                onDisposeBase();
                 app().closeDataAndPanelWithoutWaitReset();
                 waitMS(300);
+            }
+
+            @Override
+            public void onDisposeMissed(){
+                onFirst.run();
             }
 
             public synchronized void onMediaChangingUse(Callable<Boolean> Base, Callable<String> OnError){
@@ -2436,7 +2487,7 @@ public class AppBack extends AppWeb {
 
                 activate();
 
-                onDisposeBase();
+                super.disposeOnly();
                 run(Base,OnError);
             }
         }

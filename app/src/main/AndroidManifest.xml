@@ -50,7 +50,11 @@
     <!-- For Android 6.0+ runtime permissions -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-
+    <!-- Required for Android 13+ to access SSID/BSSID without requiring GPS/Location toggle -->
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s_v2" />
     <uses-sdk/>
 
 

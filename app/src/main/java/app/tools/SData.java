@@ -31,6 +31,7 @@ import java.util.function.Consumer;
 
 import app.Main;
 import io.reactivex.rxjava3.core.Completable;
+import server.web.ErrorCodeApp;
 
 import static android.content.Context.MODE_PRIVATE;
 
@@ -55,6 +56,7 @@ public class SData {
             if(!SData.get(Data.FirstStartMade))
                 defaultData();
 
+            StaticFunctions.onLoadData();
             load = StaticFunctions.Empty.c;
         }
     };
@@ -64,7 +66,6 @@ public class SData {
     public static void LoadData(Context context)
     {
         load.accept(context);
-        StaticFunctions.onLoadData();
     }
 
     // 3. Background Archiving as a FIFO Queue
@@ -342,7 +343,7 @@ public class SData {
         SavedAsPlaylist,SavedLoop,
         SavedLoopForPlaylist, StoppingTime,
         SavedIndexPlayList, SavedDisposableErrors,
-        SavedListenersErrors, SavedIPorMac,
+        SavedListenersErrors, ConnectionInfo,
         SavedJsonNames, SavedDataLoaderActions,
         SavedExtractorPattern, SavedExtractorExpirePattern,
         YoutubeCaching,URLCaching,
@@ -352,7 +353,8 @@ public class SData {
         ExoPlayerOn,VLCPlayerOn,
         MediaProxy,MediaProxyDefault,
         Jwidth,Jheight,
-        BrightnessLevel
+        BrightnessLevel,
+        BSSID, IP
     }
 
     private static class ArchiveDbHelper extends SQLiteOpenHelper {
