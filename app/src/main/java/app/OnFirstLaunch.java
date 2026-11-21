@@ -20,14 +20,12 @@ package app;
 
 import android.os.Bundle;
 
-import java.net.ServerSocket;
-
 import app.tools.SData;
 import io.reactivex.rxjava3.disposables.Disposable;
 
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.addTaskUI;
-import static app.tools.DisposableTools.forServer;
+import static app.tools.DisposableTools.forRestarter;
 
 public class OnFirstLaunch extends Permissions{
     private Disposable appLoader;
@@ -49,7 +47,7 @@ public class OnFirstLaunch extends Permissions{
                         return true;
                     },()->"OnFirstLoaderClose");
                     return true;
-                },()->"OnFirstLoader",forServer);
+                },()->"OnFirstLoader", forRestarter);
             });
             pBase.close.setEnabled(true);
         });

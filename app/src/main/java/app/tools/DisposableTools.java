@@ -24,6 +24,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import androidx.annotation.CallSuper;
+import app.tools.Thread.LifoThreadPool;
 import autodispose2.CompletableSubscribeProxy;
 import autodispose2.ObservableSubscribeProxy;
 import autodispose2.SingleSubscribeProxy;
@@ -45,8 +46,20 @@ public class DisposableTools {
     //Lifo thread pool
     public static final LifoThreadPool lifoQueuedThreadPool;
 
-    //For lifo tasks
+    //For Lifo tasks
     public static final Scheduler lifo;
+
+    //For Cleaner
+    public static final Scheduler forCleaner;
+
+    //For Restarter
+    public static final Scheduler forRestarter;
+
+    //For Detector
+    public static final Scheduler forDetector;
+
+    // For Media Checking
+    public static final Scheduler forMediaChecking;
 
     //For Main Media
     public static final Scheduler forMainMedia;
@@ -54,18 +67,12 @@ public class DisposableTools {
     // For Second Media
     public static final Scheduler forSecondMedia;
 
-    // For Media Checking
-    public static final Scheduler forMediaChecking;
-
-    // For generators
+    // For Generators
     public static final Scheduler forGenerators;
 
     // For blocking I/O tasks (network, disk, database) or operations that are not CPU-intensive.
     // Suitable for slower hardware because it allows unlimited thread growth.
     public static final Scheduler ioThreadPoolScheduler;
-
-    // On Server Starting
-    public static final Scheduler forServer;
 
     private static final int timeoutBackgroundTaskMS;
     private static final int timeoutUiTaskMS;
@@ -78,10 +85,13 @@ public class DisposableTools {
 
         try {
             lifoQueuedThreadPool = new LifoThreadPool(50,"LifoThreadPool", Process.THREAD_PRIORITY_BACKGROUND, timeoutBackgroundTaskMS + 15000);
-            lifo = Schedulers.from(lifoQueuedThreadPool);
-            forServer = lifo;
+
+            lifo = Schedulers.from(lifoQueuedThreadPool,true);
+            forRestarter = Schedulers.from(lifoQueuedThreadPool.fifoWay(1),true);
+            forCleaner = Schedulers.from(lifoQueuedThreadPool.fifoWay(2),true);
+            forDetector = Schedulers.from(lifoQueuedThreadPool.fifoWay(3), true);
+            forMediaChecking = Schedulers.from(lifoQueuedThreadPool.fifoWay(4), true);
             forGenerators = lifo;
-            forMediaChecking = lifo;
             forSecondMedia = lifo;
             forMainMedia = lifo;
             ioThreadPoolScheduler = Schedulers.io();
@@ -90,14 +100,21 @@ public class DisposableTools {
         }
     }
 
-    public static void waitMS(long milliseconds)
+    /**
+     * Sleeps. Returns false if the thread was interrupted (the interrupt flag is kept), so
+     * wait loops can stop instead of sleeping on. Existing callers that ignore the result
+     * still compile.
+     */
+    public static boolean waitMS(long milliseconds)
     {
         try {
             Thread.sleep(milliseconds);
+            return true;
         }
         catch (InterruptedException e)
         {
-            onErrorSave("Thread sleep: ",e);
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 

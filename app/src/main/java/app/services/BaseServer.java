@@ -24,6 +24,7 @@ import android.os.PowerManager;
 
 import app.App.AppBack;
 import app.tools.AndroidOsUpdatesListener;
+import app.tools.Players.all.PlayerControllerBase;
 import app.tools.Recyclable;
 import app.tools.SData;
 import app.tools.StaticFunctions;
@@ -31,7 +32,6 @@ import server.JettyServer;
 
 import androidx.annotation.Nullable;
 import app.Main;
-//import it.ennova.zerxconf.model.NetworkServiceDiscoveryInfo;
 
 import com.emb.player.R;
 
@@ -42,8 +42,7 @@ import java.net.SocketException;
 import java.util.Enumeration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static app.tools.DisposableTools.forServer;
-import static app.tools.DisposableTools.lifo;
+import static app.tools.DisposableTools.forRestarter;
 import static server.Home.app;
 
 public class BaseServer extends ServiceBackgroud {
@@ -80,7 +79,7 @@ public class BaseServer extends ServiceBackgroud {
         tasks.add(()->{
             setup("ForegroundServiceChannel", "inputExtra", "EMB Remote Player", "EMB Remote Player", R.mipmap.noti);
             super.onCreate();
-        },forServer,"onCreate");
+        }, forRestarter,"onCreate");
     }
 
     // In BaseServer.java
@@ -116,7 +115,7 @@ public class BaseServer extends ServiceBackgroud {
                     BaseServer.GetLocalhostIP(),      // Your device's LAN IP
                     port                  // Port
             );*/
-        },forServer,"onStartCommand");
+        }, forRestarter,"onStartCommand");
 
         return START_NOT_STICKY;
     }
@@ -135,16 +134,16 @@ public class BaseServer extends ServiceBackgroud {
         tasks.add(()->{
             app().sendURLWithoutCleanData();
             super.onDestroy();
-        },forServer,"onDestroying");
+        }, forRestarter,"onDestroying");
     }
 
     @Override
     public void onTaskRemoved(Intent rootIntent)
     {
         tasks.add(()->{
-            SData.nullData();
+            //StaticFunctions.killAndReset();
             StaticFunctions.kill();
-        },forServer,"onDestroyingTrigger");
+        }, forRestarter,"onDestroyingTrigger");
     }
 
     public static void restart(){
@@ -235,8 +234,8 @@ public class BaseServer extends ServiceBackgroud {
                 StaticFunctions.Empty.a,
                 500,
                 30000,
-                lifo,
-                lifo,
+                forRestarter,
+                forRestarter,
                 "updateLocalHost");
     }
 
@@ -309,12 +308,13 @@ public class BaseServer extends ServiceBackgroud {
                 } catch (Exception e) {
                     reset();
                 }
-            },forServer,"Can't_Make_Server");
+            }, forRestarter,"Can't_Make_Server");
         }
 
         @Override
         protected void secondLaunches() {
             tasks.add(()->{
+                PlayerControllerBase.releaseAll();
                 portLoad.run();
 
                 if(!updateAndCheckIsHaveConnection())
@@ -331,7 +331,7 @@ public class BaseServer extends ServiceBackgroud {
                 catch(Exception e){}
 
                 isDestroying.set(false);
-            },forServer,"Can't_Make_Server");
+            }, forRestarter,"Can't_Make_Server");
         }
 
         private boolean updateAndCheckIsHaveConnection(){

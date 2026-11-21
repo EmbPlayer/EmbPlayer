@@ -90,14 +90,9 @@ public abstract class Generator {
         mediaErrorStop();
     }
 
-    public long getMaxSeekForPlayer()
+    public final long getMaxSeekMS()
     {
-        return maxSeek.maxSeek;
-    }
-
-    public int getMaxSeek()
-    {
-        return (int)maxSeek.maxSeek/1000;
+        return maxSeek.maxSeekMS;
     }
 
     public void waitMake(Callable<PlayerControllerBase> playerGetter, boolean isLive, Recyclable.ListDisposable disposableCollection, Runnable onEnd) throws Exception {
@@ -193,7 +188,7 @@ public abstract class Generator {
 
     public static class MaxSeek
     {
-        public long maxSeek;
+        public long maxSeekMS;
 
         public void UpdateMaxSeekWithTryCountdown(int count, int mills, PlayerControllerBase player)
         {
@@ -201,15 +196,15 @@ public abstract class Generator {
             {
                 waitMS(mills);
 
-                if(UpdateMaxSeek(player))
+                if(UpdateMaxSeekMS(player))
                     break;
             }
         }
 
-        public boolean UpdateMaxSeek(PlayerControllerBase player)
+        public boolean UpdateMaxSeekMS(PlayerControllerBase player)
         {
-            maxSeek = player.getDuration();
-            return maxSeek != 0;
+            maxSeekMS = player.getDurationMS();
+            return maxSeekMS != 0;
         }
     }
 }

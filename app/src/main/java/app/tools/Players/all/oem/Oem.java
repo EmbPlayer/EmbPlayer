@@ -243,7 +243,7 @@ public abstract class Oem extends Player {
                     oldM.pause();
                 }
 
-                cleaned = true;
+                releaseWStop();
                 oldM.release();
             }
             catch (Exception e){

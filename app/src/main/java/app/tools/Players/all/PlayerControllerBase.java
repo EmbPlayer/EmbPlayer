@@ -21,6 +21,7 @@ package app.tools.Players.all;
 import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import androidx.annotation.NonNull;
 import app.App.AppBack;
@@ -41,7 +42,7 @@ import static app.tools.StaticFunctions.onErrorSave;
 import static server.Home.app;
 import static app.tools.StaticFunctions.TryToComplete;
 
-public abstract class PlayerControllerBase {
+public abstract class PlayerControllerBase implements Releaser {
     private final TryToComplete isLoadedChecking = new TryToComplete() {
 
         @Override
@@ -49,7 +50,8 @@ public abstract class PlayerControllerBase {
 
             for (int i = 0; i<75; i++)
             {
-                waitMS(250);
+                if(!waitMS(250))
+                    break;
                 if(loading != Loading.Loading)
                     break;
             }
@@ -65,12 +67,15 @@ public abstract class PlayerControllerBase {
 
             for(int i = 0; i< maxTryingsInPreparing(); i++)
             {
-                waitMS(250);
+                if(!waitMS(250))
+                    break;
                 if(prepared())
                 {
                     loading = Loading.Loaded;
                     return false;
                 }
+                if(playerFailed())      // the player already reported an error: no point waiting
+                    break;
             }
             onNotLoaded();
 
@@ -94,23 +99,46 @@ public abstract class PlayerControllerBase {
 
     private Disposable waitActionCompleteAndStartDisposable;
     private Loading loading = Loading.Loading;
+    private static GlobalReleaser globalReleaser;
 
     public PlayerControllerBase(Listeners listeners)
     {
+        GlobalReleaser.addItem(this);
         this.listeners = listeners;
     }
 
-    public final long getCurrentPosition()
+    public static void activateGlobalReleaser(){
+        globalReleaser = new GlobalReleaser();
+    }
+
+    public static void releaseAll(){
+        globalReleaser.releaseAll();
+    }
+
+    public final long getCurrentPositionMS()
     {
-        if(isEnded() || isLive()){
+        if(checkBeforeGet()){
             return 0;
         }
 
-        return modifyGetCurrentPosition();
+        return getCurrentPositionPureMS();
     }
 
-    public final long getCurrentPositionPure(){
-        return modifyGetCurrentPosition();
+    private long getCurrentPositionMS(long mills)
+    {
+        if(checkBeforeGet()){
+            return 0;
+        }
+
+        return mills;
+    }
+
+    public final long getCurrentPositionPureMS(){
+        return modifyGetCurrentPositionMS();
+    }
+
+    private boolean checkBeforeGet(){
+        return isEnded() || isLive();
     }
 
     public final boolean isEnded()
@@ -142,8 +170,8 @@ public abstract class PlayerControllerBase {
     public final void start(long mills)
     {
         baseData().waitSeek.onStartOrPause(()->{
-            baseData().updateSeekSecondAndResetEndState(mills);
-            modifyStart(baseData().getSeekSecond());
+            baseData().updateSeekSecondAndResetEndStateMS(mills);
+            modifyStart(baseData().getSeekSecondMS());
             listeners.onStarted();
             loadVolume();
             return true;
@@ -168,12 +196,6 @@ public abstract class PlayerControllerBase {
         },()->"Pause-Error");
     }
 
-    public final void resetGC()
-    {
-        onClean();
-        modifyResetGC();
-    }
-
     public final void reset()
     {
         onClean();
@@ -190,6 +212,15 @@ public abstract class PlayerControllerBase {
 
     public final void release()
     {
+        releaseWithoutWait();
+        // bounded: a player that never reports "released" must not block the caller forever
+        for (int i = 0; i < 20 && !isReleased(); i++) {
+            if(!DisposableTools.waitMS(500))
+                break;
+        }
+    }
+
+    public void releaseWithoutWait(){
         AppBack.Panel.blackPanelFix = false;
         disposeWaitActionCompleteAndStart();
         onClean();
@@ -211,20 +242,32 @@ public abstract class PlayerControllerBase {
         },()->"LoadError");
     }
 
-    public final long getSeekAfterIsPlayingDynamic()
+    public final long getSeekAfterIsPlayingDynamicMS()
     {
-        return baseData().savedSeekByIsPlayingDynamic;
+        return baseData().getDynamicSeekMS();
     }
 
     public final void seekAfterIsPlayingDynamicReset()
     {
-        baseData().savedSeekByIsPlayingDynamic = 0;
+        baseData().resetDynamicSeek();
     }
     public final void seekAfterIsPlayingDynamicUpdate()
     {
-        long newSeek = getCurrentPosition();
-        if(baseData().savedSeekByIsPlayingDynamic<newSeek)
-            baseData().savedSeekByIsPlayingDynamic = newSeek;
+        long newSeek = getCurrentPositionMS();
+
+        if(baseData().getDynamicSeekMS() < newSeek){
+            baseData().updateDynamicSeekMS(newSeek);
+        }
+    }
+
+    public final void seekAfterIsPlayingDynamicUpdate(long inputSeek, Consumer<Long> onUpdate)
+    {
+        long newSeek = getCurrentPositionMS(inputSeek);
+
+        if(baseData().getDynamicSeekMS() < newSeek){
+            baseData().updateDynamicSeekMS(newSeek);
+            onUpdate.accept(newSeek);
+        }
     }
 
     public final boolean waitStarted()
@@ -252,6 +295,21 @@ public abstract class PlayerControllerBase {
         return baseData().firstPlayIsStarted;
     }
 
+    /** Non-blocking replacement for firstPlayTrigger(): the caller saw the position move. */
+    public final void markFirstPlayed()
+    {
+        baseData().firstPlayIsStarted = true;
+    }
+
+    private boolean playerFailed()
+    {
+        try {
+            return getError();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public final void setMaxSeek(long seek)
     {
         baseData().maxSeek = seek;
@@ -269,7 +327,7 @@ public abstract class PlayerControllerBase {
     {
         baseData().waitSeek.loadAndAfter(canLoad(),()->{
 
-            baseData().updateSeekSecondAndResetEndState(seek);
+            baseData().updateSeekSecondAndResetEndStateMS(seek);
             loadVolume.reset();
             afterLoad_StartAndSeek().run();
             listeners.onStarted();
@@ -483,10 +541,10 @@ public abstract class PlayerControllerBase {
     {
         if(isLive())
         {
-            baseData().updateSeekSecondAndResetEndState(0);
+            baseData().updateSeekSecondAndResetEndStateMS(0);
             return afterLoad_Start();
         }
-        else if(baseData().getSeekSecond() == 0)
+        else if(baseData().getSeekSecondMS() == 0)
         {
             return afterLoad_Start();
         }
@@ -507,7 +565,7 @@ public abstract class PlayerControllerBase {
     }
 
     protected final boolean isCanBeEnd(){
-        if(getCurrentPosition()<(getDuration()-1500))
+        if(getCurrentPositionMS()<(getDurationMS()-1500))
             return false;
 
         if (baseData().getLoop()){
@@ -529,7 +587,7 @@ public abstract class PlayerControllerBase {
 
     protected boolean onCantBeSeek(long curPos)
     {
-        return curPos > getDuration()-300;
+        return curPos > getDurationMS()-300;
     }
 
     protected final void onPrepareMaking()
@@ -568,8 +626,9 @@ public abstract class PlayerControllerBase {
         app().loadVolume();
     }
 
+    public abstract boolean isReleased();
     public abstract boolean isNull();
-    public abstract long getDuration();
+    public abstract long getDurationMS();
     public abstract boolean getError();
     public abstract boolean isPlayingDynamic(int tryCount, int millSecond);
     public abstract boolean isPlayingDynamic(int tryCount, int millSecond, Runnable ifMaked);
@@ -579,10 +638,9 @@ public abstract class PlayerControllerBase {
 
     protected abstract BaseData baseData();
     protected abstract Runnable afterLoad_Start();
-    protected abstract long modifyGetCurrentPosition();
+    protected abstract long modifyGetCurrentPositionMS();
     protected abstract void modifyPause();
     protected abstract void inLoadTriggeredLoad() throws IOException;
-    protected abstract void modifyResetGC();
     protected abstract void modifyReset();
     protected abstract void modifyRelease();
     protected abstract void modifySetVolume(float volume);
@@ -594,6 +652,8 @@ public abstract class PlayerControllerBase {
     }
     public class SeekAndEnd extends StaticFunctions.Starter
     {
+        private long savedDynamicSeek;
+
         private boolean isEnded;
 
         public final boolean isEnded()
@@ -607,9 +667,10 @@ public abstract class PlayerControllerBase {
 
         public final void updateTemp(long tempSeek)
         {
-            if(!isLive()&&tempSeek< getDuration())
+            if(!isLive()&&tempSeek< getDurationMS())
             {
-                SData.setLong(SData.Data.SavedSeek,tempSeek);
+                savedDynamicSeek = tempSeek;
+                SData.setLong(SData.Data.SavedSeekMS,tempSeek);
             }
         }
 
@@ -633,6 +694,12 @@ public abstract class PlayerControllerBase {
     public class WaitSeek extends StaticFunctions.ActionWait
     {
         private boolean isTryingToStopOrStart;
+
+        @Override
+        public final synchronized void currentStopAndResetState(){
+            super.currentStopAndResetState();
+            isTryingToStopOrStart = false;
+        }
 
         public synchronized void loadAndAfter(Callable<Boolean> CanLoad, Runnable Start, Callable<String> OnError) {
 
@@ -660,7 +727,7 @@ public abstract class PlayerControllerBase {
                 return output;
             }, () -> {
                 String output = OnError.call();
-                currentStopAndResetStateAndUIWait();
+                onEnteredInError();
                 return output;
             });
         }
@@ -693,13 +760,13 @@ public abstract class PlayerControllerBase {
             isTryingToStopOrStart = true;
 
             disposeAndRun(() -> {
-                boolean output = Base.call();
-                isTryingToStopOrStart = false;
-                return output;
+                //boolean output = Base.call();
+                //isTryingToStopOrStart = false;
+                return Base.call();
             },()->{
-                String output = OnError.call();
-                isTryingToStopOrStart = false;
-                return output;
+                //String output = OnError.call();
+                //isTryingToStopOrStart = false;
+                return OnError.call();
             });
         }
 
@@ -712,12 +779,6 @@ public abstract class PlayerControllerBase {
         protected synchronized Disposable onThread(Callable<Boolean> Base, Callable<String> OnError)
         {
             return addTask(Base,OnError, mainScheduler());
-        }
-
-        @Override
-        protected void onSuccessEnd()
-        {
-            currentStopAndResetState();
         }
 
         private void reSeekBase(@NonNull Callable<Boolean> seeking,
@@ -770,7 +831,6 @@ public abstract class PlayerControllerBase {
 
         public boolean seeking;
         public boolean hardwareDecoding;
-        public long savedSeekByIsPlayingDynamic;
 
         private boolean mediaIsPaused;
         private boolean firstPlayIsStarted;
@@ -778,17 +838,29 @@ public abstract class PlayerControllerBase {
         private boolean loop;
         private boolean playListLoop;
         private boolean pauseAfterLoad;
-        private long seekSecond;
+        private long seekSecondMS;
 
-        public final void updateSeekSecondAndResetEndState(long mills)
+        public final void updateSeekSecondAndResetEndStateMS(long mills)
         {
-            updateSeekSecond(mills);
+            updateSeekSecondMS(mills);
             seekAndEnd.run();
         }
-        public final void updateSeekSecond(long mills)
+        public final void updateSeekSecondMS(long mills)
         {
-            seekSecond = mills;
-            seekAndEnd.updateTemp(seekSecond);
+            seekSecondMS = mills;
+            seekAndEnd.updateTemp(seekSecondMS);
+        }
+
+        public final void updateDynamicSeekMS(long mills){
+            seekAndEnd.savedDynamicSeek = mills;
+        }
+
+        public final void resetDynamicSeek(){
+            seekAndEnd.savedDynamicSeek = 0;
+        }
+
+        public final long getDynamicSeekMS(){
+            return seekAndEnd.savedDynamicSeek;
         }
 
         public long getMaxSeek()
@@ -807,9 +879,65 @@ public abstract class PlayerControllerBase {
         {
             return pauseAfterLoad;
         }
-        public long getSeekSecond()
+        public long getSeekSecondMS()
         {
-            return seekSecond;
+            return seekSecondMS;
+        }
+    }
+
+    public static class GlobalReleaser{
+        private static Consumer<PlayerControllerBase> addItem = StaticFunctions.Empty.c;
+
+        private final ReleaseItems globalCollection = new ReleaseItems();
+
+        public GlobalReleaser(){
+            addItem = (player) ->{
+                releaseAll();
+                globalCollection.add(player);
+            };
+        }
+
+        public static void addItem(PlayerControllerBase current){
+            addItem.accept(current);
+        }
+
+        public void releaseAll(){
+            for(Releaser n : globalCollection.item){
+                try{
+                    n.releaseWithoutWait();
+                } catch (Exception e) {}
+            }
+        }
+
+        public final class ReleaseItems {
+            private final int MAX = 5;
+
+            private final Releaser empty = new Releaser() {
+                @Override
+                public boolean isReleased() {
+                    return true;
+                }
+
+                @Override
+                public void releaseWithoutWait() {}
+
+                @Override
+                public void release() {}
+            };
+
+            public final Releaser[] item = new Releaser[MAX];
+            private int next = 0;
+
+            public ReleaseItems(){
+                for(int i = 0; i<MAX; i++){
+                    item[i] = empty;
+                }
+            }
+
+            public void add(Releaser item) {
+                this.item[next] = item;
+                next = (next + 1) % MAX;
+            }
         }
     }
 }

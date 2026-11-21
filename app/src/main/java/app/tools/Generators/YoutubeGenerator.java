@@ -28,18 +28,15 @@ import org.schabi.newpipe.extractor.stream.VideoStream;
 
 import java.io.IOException;
 
-import app.App.AppBack;
 import app.tools.Generators.Requirements.GeneratorWithExpire;
 //import server.tools.HostedContents;
 import app.tools.Players.all.PlayerControllerBase;
-import app.tools.Players.all.PlayersCollection;
 import app.tools.StaticFunctions;
 import server.tools.VideoSettings;
 
 import app.tools.Generators.Requirements.Piped.ContentId;
 import app.tools.Generators.Requirements.Piped.NewPipeEx;
 import app.tools.Generators.Requirements.Piped.StreamSelectionPolicy;
-import app.tools.Generators.Requirements.Piped.VideoQuality;
 import app.tools.Generators.Requirements.Piped.VideoResolution;
 import app.tools.HlsSelector;
 import app.tools.Players.all.Listeners;
@@ -106,10 +103,15 @@ public class YoutubeGenerator extends GeneratorWithExpire {
         return size;
     }
 
+    @Override
     public PlayerControllerBase onErrorLive(boolean DisplayOn, boolean loop, boolean playlistLoop)
     {
-        notLive();
-        return startPanel(DisplayOn,loop,playlistLoop);
+        try{
+            notLive();
+            return startPanelBase(DisplayOn,loop,playlistLoop);
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     public StreamingService.LinkType getType()
@@ -155,7 +157,7 @@ public class YoutubeGenerator extends GeneratorWithExpire {
         isLive = false;
         //contentType = ContentTypes.TYPE_OTHER;
 
-        maxSeek.maxSeek=info.getDuration()*1000;
+        maxSeek.maxSeekMS = info.getDuration()*1000;
 
         StreamSelectionPolicy.StreamSelection selection = null;
 
@@ -219,7 +221,7 @@ public class YoutubeGenerator extends GeneratorWithExpire {
         StreamType streamType = info.getStreamType();
         if (streamType == StreamType.LIVE_STREAM || streamType == StreamType.AUDIO_LIVE_STREAM) {
             try {
-                maxSeek.maxSeek = 0;
+                maxSeek.maxSeekMS = 0;
 
                 if (!info.getHlsUrl().isEmpty()){
                     displayOn = videoSettings.resolutionLive() != VideoResolution.Audio;

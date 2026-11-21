@@ -22,6 +22,7 @@ import java.util.concurrent.Callable;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Scheduler;
+import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.functions.Action;
 import io.reactivex.rxjava3.subjects.CompletableSubject;
 
@@ -29,6 +30,7 @@ public class Recyclable {
 
     public static class ListDisposable {
         private final String name;
+        private Disposable cleaner;
 
         private CompletableSubject killSignal = CompletableSubject.create();
 
@@ -135,10 +137,19 @@ public class Recyclable {
             this.addUI(make,StaticFunctions.Empty.r,taskName);
         }
 
-        public final void clear(){
-            killSignal.onComplete();
-            killSignal = CompletableSubject.create();
-            tasker.updateKillSignal(killSignal);
+        public final void clear(Runnable make,Scheduler forClean){
+            if(cleaner!=null&&!cleaner.isDisposed())
+                cleaner.dispose();
+
+            cleaner = DisposableTools.addTask(()->{
+                killSignal.onComplete();
+                killSignal = CompletableSubject.create();
+                tasker.updateKillSignal(killSignal);
+
+                make.run();
+
+                return true;
+            },()->name+"-Cleaner",forClean);
         }
     }
 }

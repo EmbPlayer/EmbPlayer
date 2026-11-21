@@ -39,18 +39,17 @@ import server.web.ErrorCodeApp;
 import server.web.Sources;
 import server.web.Wait;
 
-import static app.tools.DisposableTools.forServer;
 import static app.tools.DisposableTools.lifo;
+import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.getAllForJson;
 import static app.tools.StaticFunctions.setData;
 import static server.Home.app;
 
 public class AppControl extends HttpServletAdvanced {
 
-    private static final int MAX_ACTION_WAIT_TIMEOUT = 3000;
+    private static final StaticFunctions.MaxWaiter waiter = new StaticFunctions.MaxWaiter(3000);
     private static final AtomicBoolean actionStarted = new AtomicBoolean(false);
     private static final String[] LANGUAGES;
-    private static long maxTimeoutTime;
     private static final StaticFunctions.Starter onFirstStart = new StaticFunctions.Starter() {
         @Override
         protected void firstLaunch() {
@@ -72,8 +71,8 @@ public class AppControl extends HttpServletAdvanced {
         app().mediaUpdateSeekPosition();
 
         String data = setData(StaticFunctions.objectsToString(
-                app().volumePosition.getSave(), app().getSeekMax(),
-                app().getSeekPosition(), app().timer.getInt(),
+                app().volumePosition.getSave(), app().getSeekMaxS(),
+                app().getSeekPositionS(), app().timer.getInt(),
                 app().setUp.getInt(), app().loop.getInt(1),
                 app().mediaProviderClientSideID.getSave(), app().playlist.getInt(),
                 app().loop.getInt(2), app().isSavable.getInt(), app().isLiveAsInt(),
@@ -92,15 +91,9 @@ public class AppControl extends HttpServletAdvanced {
 
             if(actionStarted.getAndSet(true)){
                 try{
-                    long waitTime = maxTimeoutTime - currentTime;
+                    if(waiter.onCheckCantStart(currentTime))
+                        return;
 
-                    if(waitTime>MAX_ACTION_WAIT_TIMEOUT){
-                        maxTimeoutTime = currentTime+MAX_ACTION_WAIT_TIMEOUT;
-                        return;
-                    }
-                    if(waitTime>0){
-                        return;
-                    }
                     app().forceStopActivate();
                 }
                 catch (Exception e){
@@ -110,7 +103,7 @@ public class AppControl extends HttpServletAdvanced {
                 }
             }
 
-            maxTimeoutTime = currentTime+MAX_ACTION_WAIT_TIMEOUT;
+            waiter.onActionStart(currentTime);
 
             ErrorCodeApp.postResiver.set(StaticFunctions.getInfo("currentAction")+System.lineSeparator());
             Wait.webUIWaitStart();
@@ -126,7 +119,7 @@ public class AppControl extends HttpServletAdvanced {
             },()->waitAndIsWorkingStop(),()->{
                 app().forceStopActivate();
                 waitAndIsWorkingStop();
-            },forServer,"ClientAction-Error",5000);
+            },lifo,"ClientAction-Error",5000);
 
             resp.setStatus(HttpServletResponse.SC_ACCEPTED);
         } catch (Exception e) {
@@ -237,17 +230,27 @@ public class AppControl extends HttpServletAdvanced {
 
         int page = getInt(Obj,0);
 
+        if(page == Action.sendURL){
+            if(app().setUp.get()){
+                app().sendURL();
+                return empty();
+            }
+            else{
+                String l = getString(Obj,1);
+                if(l == null || l.isEmpty()){
+                    app().sendURL();
+                    return empty();
+                }
+            }
+        }
+
         if(page == Action.sendLanguagesRefresh){
             Sources.getSourcesController().recreate(()->waitAndIsWorkingStop());
             return empty();
         }
         else if(app().setUp.get())
         {
-            if(page == Action.sendURL){
-                app().sendURL();
-                return empty();
-            }
-            else if(!app().mediaIsNull())
+            if(!app().mediaIsNull())
             {
                 switch (page)
                 {
@@ -259,12 +262,13 @@ public class AppControl extends HttpServletAdvanced {
                                 seek = getInt(Obj,1)+1;
                             } catch (JSONException e) {}
 
-                            if(app().getSeekMax()<seek){
+                            if(app().getSeekMaxMS()<seek){
+                                waitMS(100);
                                 waitAndIsWorkingStop();
                                 return;
                             }
 
-                            app().seekPosition(seek);
+                            app().seekPositionMS(seek*1000);
 
                             if(!app().timer.get()&&!app().mediaSeekStart()){
                                 waitAndIsWorkingStop();

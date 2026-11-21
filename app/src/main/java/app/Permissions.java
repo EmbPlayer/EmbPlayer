@@ -32,7 +32,7 @@ import io.reactivex.rxjava3.disposables.Disposable;
 
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.addTaskUI;
-import static app.tools.DisposableTools.forServer;
+import static app.tools.DisposableTools.forRestarter;
 import static server.Home.app;
 
 public class Permissions extends DefaultActivity {
@@ -70,7 +70,7 @@ public class Permissions extends DefaultActivity {
                     return true;
                 },()->"PermissionsLoaderFinish");
                 return true;
-            },()->"PermissionsLoader",forServer);
+            },()->"PermissionsLoader", forRestarter);
         });
 
         pBase.close.setEnabled(true);

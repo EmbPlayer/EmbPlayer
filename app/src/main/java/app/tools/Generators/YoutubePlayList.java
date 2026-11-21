@@ -21,6 +21,7 @@ package app.tools.Generators;
 import org.schabi.newpipe.extractor.ListExtractor;
 import org.schabi.newpipe.extractor.Page;
 import org.schabi.newpipe.extractor.ServiceList;
+import org.schabi.newpipe.extractor.exceptions.ContentNotAvailableException;
 import org.schabi.newpipe.extractor.exceptions.ExtractionException;
 import org.schabi.newpipe.extractor.playlist.PlaylistExtractor;
 import org.schabi.newpipe.extractor.stream.StreamInfoItem;
@@ -32,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -45,7 +47,7 @@ import server.tools.VideoSettings;
 
 import app.tools.Connection;
 import app.tools.Players.all.Listeners;
-import server.web.ErrorCodeApp;
+
 import static app.tools.DisposableTools.killAll;
 import static app.tools.DisposableTools.ioThreadPoolScheduler;
 
@@ -77,15 +79,21 @@ public class YoutubePlayList {
     private static Page secondPage;
     private static int changeCount = 0;
 
+    /** Playlist indexes that can never play (deleted, private, blocked, age-restricted...). */
+    private static final Set<Integer> unavailable = ConcurrentHashMap.newKeySet();
+    /** Playlist indexes that a background load is working on right now. */
+    private static final Set<Integer> inFlight = ConcurrentHashMap.newKeySet();
+
     public static YoutubeGenerator createCollection(String videoURL, VideoSettings VideoSettings, Listeners Listeners, boolean Loop, boolean Hardware) throws ExtractionException, IOException {
         synchronized (lock) {
             isDisposed.set(false);
             isAdded = new ArrayList<>();
-            loadedVideoUrls = new HashSet<>(); // Initialize URL tracker
-            // Extract index BEFORE cleaning the URL
+            loadedVideoUrls = new HashSet<>();
+            unavailable.clear();
+            inFlight.clear();
+
             int urlIndex = extractIndexFromUrl(videoURL);
 
-            // Use clean URL for extractor
             cleanUrl = cleanUrlForExtractor(videoURL);
             playlistExtractor = ServiceList.YouTube.getPlaylistExtractor(cleanUrl);
             playlistExtractor.fetchPage();
@@ -97,49 +105,35 @@ public class YoutubePlayList {
             videoSettings = VideoSettings;
             hardware = Hardware;
 
-            // Set current index (convert 1-based URL index to 0-based list index)
-            current = Math.max(0, urlIndex - 1); // Subtract 1, but ensure not negative
+            // 1-based URL index -> 0-based list index
+            current = Math.max(0, urlIndex - 1);
 
-            if (current >= streamInfoItem.size()) {
-                current = 0; // Reset to 0 if index is out of bounds
+            final int total = streamInfoItem.size();
+            if (current >= total) {
+                current = 0;
             }
 
-            // Load the video at the specified index
-            if (!streamInfoItem.isEmpty()) {
-                String targetUrl = streamInfoItem.get(current).getUrl();
-                YoutubeGenerator targetGenerator = new YoutubeGenerator(
-                        targetUrl, videoSettings, listeners, hardware
-                );
+            // Try the requested video first, then the following ones, until one plays.
+            for (int hop = 0; hop < total; hop++) {
+                int i = (current + hop) % total;
+                String url = streamInfoItem.get(i).getUrl();
 
-                // Try to generate link for the target index
-                if (targetGenerator.generateLink(1)) {
-                    youtubeGenerators.add(targetGenerator);
-                    targetGenerator.reloadContent();
-                    updateToDefault(targetGenerator);
-                    isAdded.add(current);
-                    loadedVideoUrls.add(targetUrl); // Track the URL
-                    return targetGenerator;
-                } else {
-                    // Fallback: try other items if target fails
-                    for (int i = 0; i < streamInfoItem.size(); i++) {
-                        if (i == current) continue; // Skip the one that failed
-
-                        String fallbackUrl = streamInfoItem.get(i).getUrl();
-                        YoutubeGenerator fallbackGenerator = new YoutubeGenerator(
-                                fallbackUrl, videoSettings, listeners, hardware
-                        );
-
-                        if (fallbackGenerator.generateLink(1)) {
-                            current = i; // Update current index
-                            youtubeGenerators.add(fallbackGenerator);
-                            fallbackGenerator.reloadContent();
-                            updateToDefault(fallbackGenerator);
-                            isAdded.add(current);
-                            loadedVideoUrls.add(fallbackUrl); // Track the URL
-                            return fallbackGenerator;
-                        }
+                YoutubeGenerator g = new YoutubeGenerator(url, videoSettings, listeners, hardware);
+                try {
+                    if (!g.generateLink(1)) continue;
+                    g.reloadContent();
+                } catch (ExtractionException e) {
+                    if (isPermanentFailure(e)) {
+                        unavailable.add(i);
+                        continue;                    // dead: try the next one
                     }
+                    throw e;                         // temporary: let the caller decide
                 }
+
+                current = i;
+                putGenerator(i, g);                  // stored at its real index
+                updateToDefault(g);
+                return g;
             }
             return null;
         }
@@ -194,6 +188,118 @@ public class YoutubePlayList {
         }
     }
 
+    /**
+     * True when retrying can never help. "Confirm you're not a bot" is also a
+     * ContentNotAvailableException in some NewPipe versions, but it is temporary, so it is
+     * excluded (checked by class name, so it compiles whether or not your version has it).
+     */
+    public static boolean isPermanentFailure(Throwable t) {
+        for (Throwable c = t; c != null; c = c.getCause()) {
+            if (c instanceof ContentNotAvailableException) {
+                return !c.getClass().getSimpleName().contains("SignInConfirmNotBot");
+            }
+        }
+        return false;
+    }
+
+    public static void markUnavailable(int index) {
+        unavailable.add(index);
+    }
+
+    public static boolean isUnavailable(int index) {
+        return unavailable.contains(index);
+    }
+
+    /** True while a background load for this playlist index is running. */
+    public static boolean isLoadingIndex(int index) {
+        return inFlight.contains(index);
+    }
+
+    /** Stores the generator at its real playlist index (pads with null). */
+    public static void putGenerator(int index, YoutubeGenerator g) {
+        synchronized (lock) {
+            if (g == null || index < 0 || youtubeGenerators == null) return;
+
+            while (youtubeGenerators.size() <= index) {
+                youtubeGenerators.add(null);
+            }
+            youtubeGenerators.set(index, g);
+
+            if (isAdded != null && !isAdded.contains(index)) isAdded.add(index);
+            if (loadedVideoUrls != null) loadedVideoUrls.add(g.getVideoUrl());
+        }
+    }
+
+    /** First playlist index that is neither loaded nor known dead, or -1. */
+    private static int firstPendingIndex() {
+        synchronized (lock) {
+            if (streamInfoItem == null || isAdded == null) return -1;
+            for (int i = 0; i < streamInfoItem.size(); i++) {
+                if (!isAdded.contains(i) && !unavailable.contains(i)) return i;
+            }
+            return -1;
+        }
+    }
+
+    /** How many playlist items are neither loaded nor known dead. */
+    private static int pendingCount() {
+        synchronized (lock) {
+            if (streamInfoItem == null || isAdded == null) return 0;
+            return Math.max(0, streamInfoItem.size() - isAdded.size() - unavailable.size());
+        }
+    }
+
+    /**
+     * Loads one playlist item. The network request runs OUTSIDE {@code lock}.
+     *
+     * @return true when the item is loaded afterwards.
+     */
+    private static boolean loadInto(int index, int linkTries) {
+        final String url;
+        synchronized (lock) {
+            if (isDisposed.get() || streamInfoItem == null || youtubeGenerators == null
+                    || index < 0 || index >= streamInfoItem.size()) {
+                return false;
+            }
+            if (unavailable.contains(index)) return false;
+
+            YoutubeGenerator existing = index < youtubeGenerators.size() ? youtubeGenerators.get(index) : null;
+            if (existing != null && existing.IsLoaded()) return true;
+
+            url = streamInfoItem.get(index).getUrl();
+        }
+
+        YoutubeGenerator g = new YoutubeGenerator(url, videoSettings, listeners, hardware);
+        try {
+            if (!g.generateLink(linkTries)) return false;
+            g.reloadContent();                       // network, no lock held
+        } catch (Exception e) {
+            if (isPermanentFailure(e)) {
+                unavailable.add(index);              // remember it, never ask again
+            } else {
+                StaticFunctions.onErrorSave("YoutubePlayList-LoadInto idx=" + index, e);
+            }
+            return false;
+        }
+
+        synchronized (lock) {
+            if (isDisposed.get() || youtubeGenerators == null) {
+                g.kill();                            // playlist was closed while we were loading
+                return false;
+            }
+
+            YoutubeGenerator existing = index < youtubeGenerators.size() ? youtubeGenerators.get(index) : null;
+            if (existing != null && existing.IsLoaded()) {
+                g.kill();                            // someone else finished first
+                return true;
+            }
+
+            putGenerator(index, g);
+            if (index == current) updateToDefault(g);
+            return true;
+        }
+    }
+
     // Improved background loading with index awareness
     public static void loadInitialVideosInBackground(String videoURL, int count) {
         synchronized (lock) {
@@ -201,54 +307,34 @@ public class YoutubePlayList {
                     isDisposed.get() || isLoading.get()) {
                 return;
             }
-
             isLoading.set(true);
+        }
 
-            adder.add(()->{
-                synchronized (lock) {
+        adder.add(() -> {
+            try {
+                int total = getTotalVideosCount();
+                int startIndex = Math.max(0, current - 1);
+                int endIndex = Math.min(current + count + 1, total);
+
+                for (int i = startIndex; i < endIndex; i++) {
+                    if (isDisposed.get()) break;
+                    if (isAdded(i) || isUnavailable(i)) continue;
+
+                    loadInto(i, 3);
+
                     try {
-                        // Pre-load items around the current index for better UX
-                        int startIndex = Math.max(0, current - 1);
-                        int endIndex = Math.min(current + count + 1, streamInfoItem.size());
-
-                        for (int i = startIndex; i < endIndex; i++) {
-                            if (isDisposed.get()) break;
-                            if (isAdded(i)) continue; // Skip already added items
-
-                            String videoUrl = streamInfoItem.get(i).getUrl();
-                            if (loadedVideoUrls.contains(videoUrl)) continue; // Double-check by URL
-
-                            YoutubeGenerator generator = new YoutubeGenerator(
-                                    videoUrl, videoSettings, listeners, hardware
-                            );
-
-                            if (generator.generateLink(3)) {
-                                youtubeGenerators.add(generator);
-                                generator.reloadContent();
-                                isAdded.add(i);
-                                loadedVideoUrls.add(videoUrl);
-
-                                // Prioritize loading of current item
-                                if (i == current) {
-                                    updateToDefault(generator);
-                                }
-                            }
-
-                            try {
-                                Thread.sleep(30);
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                break;
-                            }
-                        }
-                    } catch (Exception e) {
-                        // Silent handling
-                    } finally {
-                        isLoading.set(false);
+                        Thread.sleep(30);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
                     }
                 }
-            },ioThreadPoolScheduler,"LoadInitialVideosInBackground");
-        }
+            } catch (Exception e) {
+                StaticFunctions.onErrorSave("YoutubePlayList-LoadInitial", e);
+            } finally {
+                isLoading.set(false);
+            }
+        }, () -> isLoading.set(false), () -> isLoading.set(false), ioThreadPoolScheduler, "LoadInitialVideosInBackground");
     }
 
     // Get current item based on URL index
@@ -303,70 +389,41 @@ public class YoutubePlayList {
             if (isDisposed.get() || isLoading.get() || streamInfoItem == null) {
                 return;
             }
-
             isLoading.set(true);
+        }
 
-            adder.add(()->{
-                synchronized (lock) {
-                    try {
-                        // Find the first unloaded index
-                        int startIndex = 0;
-                        for (int i = 0; i < streamInfoItem.size(); i++) {
-                            String videoUrl = streamInfoItem.get(i).getUrl();
-                            if (!isAdded(i) && !loadedVideoUrls.contains(videoUrl)) {
-                                startIndex = i;
-                                break;
-                            }
+        adder.add(() -> {
+            try {
+                int startIndex = firstPendingIndex();
+
+                if (startIndex >= 0) {
+                    int endIndex = Math.min(startIndex + count, getTotalVideosCount());
+
+                    for (int i = startIndex; i < endIndex; i++) {
+                        if (isDisposed.get()) break;
+                        if (isAdded(i) || isUnavailable(i)) continue;
+
+                        loadInto(i, 10);        // a dead video no longer aborts the whole batch
+
+                        try {
+                            Thread.sleep(100);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
                         }
-
-                        int itemsToLoad = Math.min(count, streamInfoItem.size() - startIndex);
-
-                        for (int i = startIndex; i < startIndex + itemsToLoad; i++) {
-                            if (i >= streamInfoItem.size() || isDisposed.get()) {
-                                break;
-                            }
-
-                            String videoUrl = streamInfoItem.get(i).getUrl();
-
-                            // Double-check for duplicates using URL
-                            if (loadedVideoUrls.contains(videoUrl)) {
-                                continue;
-                            }
-
-                            YoutubeGenerator generator = new YoutubeGenerator(
-                                    videoUrl, videoSettings, listeners, hardware
-                            );
-
-                            if (generator.generateLink(10)) {
-                                youtubeGenerators.add(generator);
-                                generator.reloadContent();
-                                loadedVideoUrls.add(videoUrl); // Track URL
-                                isAdded.add(i); // Track index
-
-                                // Only update and start session for current item
-                                if (i == current) {
-                                    updateToDefault(generator);
-                                }
-
-                                try {
-                                    Thread.sleep(100);
-                                } catch (InterruptedException e) {
-                                    Thread.currentThread().interrupt();
-                                    break;
-                                }
-                            }
-                        }
-
-                        countLoaded++;
-                        loaded = true;
-                    } catch (Exception e) {
-                        // Handle exceptions
-                    } finally {
-                        isLoading.set(false);
                     }
                 }
-            },ioThreadPoolScheduler,"AddElements-YoutubePlayList");
-        }
+
+                synchronized (lock) {
+                    countLoaded++;
+                    loaded = true;
+                }
+            } catch (Exception e) {
+                StaticFunctions.onErrorSave("YoutubePlayList-AddElements", e);
+            } finally {
+                isLoading.set(false);
+            }
+        }, () -> isLoading.set(false), () -> isLoading.set(false), ioThreadPoolScheduler, "AddElements-YoutubePlayList");
     }
 
     // Add this method for progressive loading
@@ -444,23 +501,16 @@ public class YoutubePlayList {
         synchronized (lock) {
             if (isDisposed.get()) return false;
 
-            // Check if initial page has next page
             if (playlistExtractor.getInitialPage().getNextPage() != null) {
                 return true;
             }
 
-            // Check if we have a stored next page
             if (secondPage != null) {
                 return true;
             }
 
-            // Check if there are more videos in streamInfoItem than loaded
-            if (streamInfoItem != null && youtubeGenerators != null &&
-                    streamInfoItem.size() > youtubeGenerators.size()) {
-                return true;
-            }
-
-            return false;
+            // items we know about that are neither loaded nor dead
+            return pendingCount() > 0;
         }
     }
 
@@ -468,9 +518,9 @@ public class YoutubePlayList {
         synchronized (lock) {
             if (isDisposed.get() || isLoading.get()) return;
 
-            int currentSize = youtubeGenerators.size();
-            if (currentSize < streamInfoItem.size()) {
-                AddSingleElement(currentSize); // Load just one more video
+            int next = firstPendingIndex();
+            if (next >= 0) {
+                AddSingleElement(next);              // load just one more video
             }
         }
     }
@@ -479,9 +529,9 @@ public class YoutubePlayList {
         synchronized (lock) {
             if (isDisposed.get() || loaded || isLoading.get()) return;
 
-            int currentSize = youtubeGenerators.size();
-            if (currentSize < streamInfoItem.size()) {
-                addElements(streamInfoItem.size() - currentSize);
+            int pending = pendingCount();
+            if (pending > 0) {
+                addElements(pending);
             }
         }
     }
@@ -536,6 +586,9 @@ public class YoutubePlayList {
                 loadedVideoUrls = null;
             }
 
+            unavailable.clear();
+            inFlight.clear();
+
             current = 0;
             countLoaded = 0;
             loaded = false;
@@ -554,10 +607,7 @@ public class YoutubePlayList {
             }
 
             if(run)
-                return ()->{
-
-                    adder.clear();
-
+                return () -> adder.clear(()->{
                     if(generatorsOld != null){
 
                         killAll(generatorsOld.stream()
@@ -566,7 +616,7 @@ public class YoutubePlayList {
 
                         generatorsOld.clear();
                     }
-                };
+                },DisposableTools.forCleaner);
 
             return null;
         }
@@ -582,6 +632,7 @@ public class YoutubePlayList {
         }
     }
 
+    /** Returns the generator of the current item if loaded, otherwise the first loaded one. */
     public static YoutubeGenerator getFirst(int tryCount, int mills) {
         for (int i = 0; i < tryCount; i++) {
             try {
@@ -596,9 +647,13 @@ public class YoutubePlayList {
                     continue;
                 }
 
-                YoutubeGenerator y = youtubeGenerators.get(0);
-                if (y != null && y.IsLoaded()) {
-                    return y;
+                if (current >= 0 && current < youtubeGenerators.size()) {
+                    YoutubeGenerator c = youtubeGenerators.get(current);
+                    if (c != null && c.IsLoaded()) return c;
+                }
+
+                for (YoutubeGenerator y : youtubeGenerators) {
+                    if (y != null && y.IsLoaded()) return y;
                 }
             }
         }
@@ -657,60 +712,46 @@ public class YoutubePlayList {
     }
 
     public static void loadMultipleVideos(int startIndex, int count) {
+        final int endIndex;
         synchronized (lock) {
             if (isDisposed.get() || isLoading.get() || streamInfoItem == null) return;
 
-            int endIndex = Math.min(startIndex + count, streamInfoItem.size());
+            endIndex = Math.min(startIndex + count, streamInfoItem.size());
             if (startIndex >= endIndex) return;
 
             isLoading.set(true);
+        }
 
-            adder.add(()->{
-                synchronized (lock) {
+        adder.add(() -> {
+            try {
+                for (int i = startIndex; i < endIndex; i++) {
+                    if (isDisposed.get()) break;
+                    if (isAdded(i) || isUnavailable(i)) continue;
+
+                    loadInto(i, 5);
+
                     try {
-                        for (int i = startIndex; i < endIndex; i++) {
-                            if (isDisposed.get()) break;
-
-                            String videoUrl = streamInfoItem.get(i).getUrl();
-                            if (!loadedVideoUrls.contains(videoUrl)) {
-                                YoutubeGenerator generator = new YoutubeGenerator(
-                                        videoUrl, videoSettings, listeners, hardware
-                                );
-
-                                if (generator.generateLink(5)) {
-                                    youtubeGenerators.add(generator);
-                                    generator.reloadContent();
-                                    loadedVideoUrls.add(videoUrl);
-                                    isAdded.add(i);
-
-                                    // Small delay to avoid overwhelming
-                                    try {
-                                        Thread.sleep(50);
-                                    } catch (InterruptedException e) {
-                                        Thread.currentThread().interrupt();
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        // Silent fail
-                    } finally {
-                        isLoading.set(false);
+                        Thread.sleep(50);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
                     }
                 }
-            },ioThreadPoolScheduler,"LoadMultipleVideos");
-        }
+            } catch (Exception e) {
+                StaticFunctions.onErrorSave("YoutubePlayList-LoadMultiple", e);
+            } finally {
+                isLoading.set(false);
+            }
+        }, () -> isLoading.set(false), () -> isLoading.set(false), ioThreadPoolScheduler, "LoadMultipleVideos");
     }
 
     public static void preloadVideos(int count) {
         synchronized (lock) {
-            int currentLoaded = getLoadedVideosCount();
+            int start = firstPendingIndex();
             int totalAvailable = getTotalVideosCount();
 
-            if (currentLoaded < totalAvailable && !isLoading.get()) {
-                int videosToLoad = Math.min(count, totalAvailable - currentLoaded);
-                loadMultipleVideos(currentLoaded, videosToLoad);
+            if (start >= 0 && !isLoading.get()) {
+                loadMultipleVideos(start, Math.min(count, totalAvailable - start));
             }
         }
     }
@@ -740,57 +781,29 @@ public class YoutubePlayList {
             }
             return loadedCount;
         }
-    }public static void AddSingleElement(int index) {
+    }
+
+    public static void AddSingleElement(int index) {
         synchronized (lock) {
-            if (isDisposed.get() || isLoading.get() || streamInfoItem == null ||
-                    index >= streamInfoItem.size()) {
+            if (isDisposed.get() || streamInfoItem == null || youtubeGenerators == null
+                    || index < 0 || index >= streamInfoItem.size()) {
                 return;
             }
+            if (unavailable.contains(index)) return;
 
-            // Check if already exists at this index
-            if (index < youtubeGenerators.size() && youtubeGenerators.get(index) != null) {
-                YoutubeGenerator existing = youtubeGenerators.get(index);
-                if (existing.IsLoaded()) {
-                    return; // Already loaded
-                }
-            }
+            YoutubeGenerator existing = index < youtubeGenerators.size() ? youtubeGenerators.get(index) : null;
+            if (existing != null && existing.IsLoaded()) return;
 
-            isLoading.set(true);
-
-            adder.add(()->{
-                synchronized (lock) {
-                    try {
-                        if (index < streamInfoItem.size() && !isDisposed.get()) {
-                            String videoUrl = streamInfoItem.get(index).getUrl();
-
-                            // CHECK FOR DUPLICATE by URL
-                            if (!loadedVideoUrls.contains(videoUrl)) {
-                                YoutubeGenerator generator = new YoutubeGenerator(
-                                        videoUrl, videoSettings, listeners, hardware
-                                );
-
-                                if (generator.generateLink(3)) {
-                                    // Ensure the list is big enough
-                                    while (youtubeGenerators.size() <= index) {
-                                        youtubeGenerators.add(null);
-                                    }
-
-                                    // Add or replace at the correct index
-                                    youtubeGenerators.set(index, generator);
-                                    generator.reloadContent();
-                                    loadedVideoUrls.add(videoUrl);
-                                    isAdded.add(index);
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        // Handle exceptions during loading
-                    } finally {
-                        isLoading.set(false);
-                    }
-                }
-            },ioThreadPoolScheduler,"AddSingleElement");
+            if (!inFlight.add(index)) return;       // already loading this index
         }
+
+        adder.add(() -> {
+            try {
+                loadInto(index, 3);
+            } finally {
+                inFlight.remove(index);
+            }
+        }, () -> inFlight.remove(index), () -> inFlight.remove(index), ioThreadPoolScheduler, "AddSingleElement");
     }
 
     // Clean URL by removing index parameter for the extractor

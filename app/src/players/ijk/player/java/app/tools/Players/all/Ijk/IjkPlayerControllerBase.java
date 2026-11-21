@@ -73,7 +73,7 @@ public abstract class IjkPlayerControllerBase extends OemPlayerControllerBase {
                     listeners.onErrorListener();
                 }
                 else if(IjkPlayerControllerBase.this.isPlaying()){
-                    long s = IjkPlayerControllerBase.this.getCurrentPosition();
+                    long s = IjkPlayerControllerBase.this.getCurrentPositionMS();
                     if(s<media.getDuration()-1500)
                     {
                         s = s-1000;

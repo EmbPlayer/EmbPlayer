@@ -129,7 +129,7 @@ android {
     buildTypes {
         release {
             minifyEnabled true
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
         debug {
             minifyEnabled false
@@ -220,6 +220,10 @@ android {
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
 
         coreLibraryDesugaringEnabled true
     }
@@ -250,7 +254,7 @@ dependencies {
     // includes jars and aars in libs/ijkplayer/libsLegacy
     implementation fileTree(dir: 'libs/ijkplayer/libsLegacy', include: ['*.aar', '*.jar'], exclude: [])
 
-    implementation("com.github.teamnewpipe:newpipeextractor:v0.26.5")
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.27.0")
     //implementation("com.github.SkyTubeTeam:NewPipeExtractor:skytube-2026-09-12")
     if(allTasksForFlavor("M21"))
     {

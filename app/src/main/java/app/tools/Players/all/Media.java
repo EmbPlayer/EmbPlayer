@@ -19,7 +19,6 @@
 package app.tools.Players.all;
 
 import java.io.IOException;
-import java.lang.ref.WeakReference;
 
 import androidx.annotation.CallSuper;
 import app.tools.DisposableTools;
@@ -65,7 +64,12 @@ public abstract class Media<T extends Player> extends PlayerController {
     }
 
     @Override
-    public long modifyGetCurrentPosition()
+    public boolean isReleased(){
+        return data.isReleased();
+    }
+
+    @Override
+    public long modifyGetCurrentPositionMS()
     {
         return data.getCurrentPosition();
     }
@@ -92,14 +96,15 @@ public abstract class Media<T extends Player> extends PlayerController {
 
         for(int i = 0; i<tryCount; i++)
         {
-            waitMS(millsecond);
+            if(!waitMS(millsecond) || data.getError())
+                return false;
             long newPos = data.getCurrentPosition();
 
             if(actionStarted())
                 return true;
             if(currentPos<newPos)
             {
-                baseData().savedSeekByIsPlayingDynamic = newPos;
+                baseData().updateDynamicSeekMS(newPos);
                 ifMaked.run();
                 return true;
             }
@@ -115,11 +120,12 @@ public abstract class Media<T extends Player> extends PlayerController {
 
         for(int i = 0; i<tryCount; i++)
         {
-            waitMS(millsecond);
+            if(!waitMS(millsecond) || data.getError())
+                return false;
             long newPos = data.getCurrentPosition();
             if(currentPos<newPos)
             {
-                baseData().savedSeekByIsPlayingDynamic = newPos;
+                baseData().updateDynamicSeekMS(newPos);
                 return true;
             }
         }
@@ -157,7 +163,7 @@ public abstract class Media<T extends Player> extends PlayerController {
 
         if(outPut==null)
             outPut = ()->{
-                modifyStart(baseData().getSeekSecond());
+                modifyStart(baseData().getSeekSecondMS());
                 loadVolume();
             };
 
@@ -170,7 +176,7 @@ public abstract class Media<T extends Player> extends PlayerController {
     }
 
     @Override
-    public long getDuration()
+    public long getDurationMS()
     {
         return data.getDuration();
     }
@@ -191,24 +197,9 @@ public abstract class Media<T extends Player> extends PlayerController {
     protected void runInConstructor(){}
 
     @Override
-    protected void modifyResetGC()
-    {
-        dispose();
-        WeakReference<T> oldAudio = data.resetGC();
-
-        System.gc();
-
-        if(oldAudio.get()!=null)
-        {
-            oldAudio.get().release();
-        }
-    }
-
-
-    @Override
     protected void modifyPause()
     {
-        baseData().updateSeekSecond(data.getCurrentPosition());
+        baseData().updateSeekSecondMS(data.getCurrentPosition());
         data.pause();
     }
 

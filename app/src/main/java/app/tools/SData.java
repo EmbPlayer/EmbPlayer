@@ -31,7 +31,6 @@ import java.util.function.Consumer;
 
 import app.Main;
 import io.reactivex.rxjava3.core.Completable;
-import server.web.ErrorCodeApp;
 
 import static android.content.Context.MODE_PRIVATE;
 
@@ -56,7 +55,7 @@ public class SData {
             if(!SData.get(Data.FirstStartMade))
                 defaultData();
 
-            StaticFunctions.onLoadData();
+            LoadedData.onLoadData();
             load = StaticFunctions.Empty.c;
         }
     };
@@ -84,16 +83,19 @@ public class SData {
 
                     // Enforce MAX_DISK_ARCHIVE_ROWS_PER_KEY
                     Cursor c = db.rawQuery("SELECT COUNT(*) FROM data_archive WHERE key_name = ?", new String[]{key.name()});
-                    if (c.moveToFirst()) {
-                        int rowCount = c.getInt(0);
-                        if (rowCount > MAX_DISK_ARCHIVE_ROWS_PER_KEY) {
-                            int rowsToDelete = rowCount - MAX_DISK_ARCHIVE_ROWS_PER_KEY;
-                            db.execSQL("DELETE FROM data_archive WHERE _id IN " +
-                                            "(SELECT _id FROM data_archive WHERE key_name = ? ORDER BY timestamp ASC LIMIT ?)",
-                                    new Object[]{key.name(), rowsToDelete});
+                    try {
+                        if (c.moveToFirst()) {
+                            int rowCount = c.getInt(0);
+                            if (rowCount > MAX_DISK_ARCHIVE_ROWS_PER_KEY) {
+                                int rowsToDelete = rowCount - MAX_DISK_ARCHIVE_ROWS_PER_KEY;
+                                db.execSQL("DELETE FROM data_archive WHERE _id IN " +
+                                                "(SELECT _id FROM data_archive WHERE key_name = ? ORDER BY _id ASC LIMIT ?)",
+                                        new Object[]{key.name(), rowsToDelete});
+                            }
                         }
+                    } finally {
+                        c.close();
                     }
-                    c.close();
                 })
                 .subscribeOn(DisposableTools.ioThreadPoolScheduler) // Use existing IO Scheduler
                 .onErrorComplete()
@@ -256,10 +258,24 @@ public class SData {
         appendStringWithLimits(key,value);
     }
 
+    private static final Object appendLock = new Object();
+
+    /**
+     * Atomically adds text to the end of a stored string. The old pattern
+     * setString(key, getString(key) + text) lost entries when two threads wrote at once.
+     */
+    public static void appendString(Data key, String text) {
+        if (text == null || text.isEmpty()) return;
+        synchronized (appendLock) {
+            String old = getString(key, "");
+            appendStringWithLimits(key, (old == null ? "" : old) + text);
+        }
+    }
+
     public static void resetToDefault()
     {
         SData.setString(SData.Data.SavedMedia,null);
-        SData.setLong(SData.Data.SavedSeek,0);
+        SData.setLong(SData.Data.SavedSeekMS,0);
         SData.setInt(SData.Data.SavedIndexPlayList,0);
     }
 
@@ -339,7 +355,7 @@ public class SData {
         ResolutionIndex,MediaProviderClientSideID,
         LanguageIndex, VolumePosition,
         HardwareDecoding, Port,
-        UndefiledError, SavedSeek,
+        UndefiledError, SavedSeekMS,
         SavedAsPlaylist,SavedLoop,
         SavedLoopForPlaylist, StoppingTime,
         SavedIndexPlayList, SavedDisposableErrors,

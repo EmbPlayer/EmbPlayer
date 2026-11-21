@@ -21,7 +21,6 @@ package app.tools.Players.all;
 import android.view.SurfaceHolder;
 
 import java.io.IOException;
-import java.lang.ref.WeakReference;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -33,7 +32,6 @@ import app.tools.Players.PlayerController;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Scheduler;
 import io.reactivex.rxjava3.disposables.Disposable;
-import server.web.Wait;
 
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.forMainMedia;
@@ -45,7 +43,7 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
     // Ideal polling interval for extreme low latency
     private static final long SYNC_INTERVAL_MS = 4000; // 4000ms
     // The maximum acceptable delay before an emergency seek/jump
-    private static final long MAX_DELAY_MS = 90; // 90ms
+    private static final long MAX_DELAY_MS = 30; // 30ms
 
     private final MediaTools videoT = new MediaTools() {
         @Override
@@ -199,8 +197,21 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
 
         return video.isNull()|| audio.data.isNull();
     }
+
     @Override
-    public long modifyGetCurrentPosition()
+    public boolean isReleased(){
+        if(audio.isReleased()){
+            if(video.isNull())
+                return video.isReleased();
+            else
+                return true;
+        }
+
+        return false;
+    }
+
+    @Override
+    public long modifyGetCurrentPositionMS()
     {/*
             if(displayOff)
                 return audio.GetCurrentPosition();
@@ -216,14 +227,14 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
         return pos1;*//*
             return Math.max(pos1, pos2);*/
         if(displayOFF())
-            return audio.modifyGetCurrentPosition();
+            return audio.modifyGetCurrentPositionMS();
         return video.getCurrentPosition();
     }
 
     @Override
-    public long getDuration() {
+    public long getDurationMS() {
         if(displayOFF())
-            return audio.getDuration();
+            return audio.getDurationMS();
         return video.getDuration();
     }
 
@@ -274,7 +285,8 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
 
         for(int i = 0; i<tryCount; i++)
         {
-            waitMS(millisecond);
+            if(!waitMS(millisecond) || video.getError() || audio.getError())
+                return false;
             long newPos = video.getCurrentPosition();
 
             if(actionStarted())
@@ -282,7 +294,7 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
 
             if(currentPos<newPos)
             {
-                baseData().savedSeekByIsPlayingDynamic = newPos;
+                baseData().updateDynamicSeekMS(newPos);
                 ifMaked.run();
                 return true;
             }
@@ -301,11 +313,12 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
 
         for(int i = 0; i<tryCount; i++)
         {
-            waitMS(millsecond);
+            if(!waitMS(millsecond) || video.getError() || audio.getError())
+                return false;
             long newPos = video.getCurrentPosition();
             if(currentPos<newPos)
             {
-                baseData().savedSeekByIsPlayingDynamic = newPos;
+                baseData().updateDynamicSeekMS(newPos);
                 return true;
             }
         }
@@ -359,7 +372,7 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
 
     @Override
     protected void modifyStart(long mills) {
-        baseData().updateSeekSecondAndResetEndState(mills);
+        baseData().updateSeekSecondAndResetEndStateMS(mills);
         modifyStartBase(() -> {
             if(!displayOFF())
                 return false;
@@ -392,33 +405,6 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
     }
 
     @Override
-    protected void modifyResetGC()
-    {
-        disposeVideoElements();
-        if(displayOFF())
-        {
-            audio.modifyResetGC();
-            return;
-        }
-
-        audio.dispose();
-
-        WeakReference<Player> oldVideo = video.resetGC();
-        WeakReference<Player> oldAudio = audio.data.resetGC();
-
-        System.gc();
-
-        if(oldVideo.get()!=null)
-        {
-            oldVideo.get().release();
-        }
-        if(oldAudio.get()!=null)
-        {
-            oldAudio.get().release();
-        }
-    }
-
-    @Override
     protected void modifyReset()
     {
         disposeVideoElements();
@@ -439,10 +425,9 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
         disposeVideoElements();
 
         audio.modifyRelease();
-        if(!displayOFF())
-        {
+
+        if(!video.isNull())
             video.release();
-        }
     }
 
     @Override
@@ -632,15 +617,15 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
             return true;
         }
 
-        if(baseData().getSeekSecond()<300)
+        if(baseData().getSeekSecondMS()<300)
         {
-            baseData().updateSeekSecondAndResetEndState(100);
+            baseData().updateSeekSecondAndResetEndStateMS(100);
         }
 
-        boolean forceStarter = baseData().getSeekSecond()>500;
+        boolean forceStarter = baseData().getSeekSecondMS()>500;
 
         baseData().seeking = true;
-        long seekM = baseData().getSeekSecond()+1;
+        long seekM = baseData().getSeekSecondMS()+1;
 
         cleanSync();
         audioSyncInBackground = addTask(()->{
@@ -697,11 +682,11 @@ public abstract class VideoAndAudio extends PlayerController implements IVideoPl
         reSeekOrLoad(runInAnotherThread,()->
         {
             if(currPosUpdate)
-                baseData().updateSeekSecondAndResetEndState(audio.getCurrentPosition());
+                baseData().updateSeekSecondAndResetEndStateMS(audio.getCurrentPositionMS());
 
             if(displayOFF()||videoT.isLoaded)
             {
-                modifyStart(baseData().getSeekSecond());
+                modifyStart(baseData().getSeekSecondMS());
 
                 return onTrue.call();
             }

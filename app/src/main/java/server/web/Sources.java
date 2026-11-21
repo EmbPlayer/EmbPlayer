@@ -49,7 +49,7 @@ import server.tools.HttpServletAdvanced;
 
 import static app.Main.getContext;
 import static app.services.BaseServer.restartWithClean;
-import static app.tools.DisposableTools.forServer;
+import static app.tools.DisposableTools.lifo;
 
 public class Sources extends HttpServletAdvanced {
     private static Sources sourcesController;
@@ -159,7 +159,7 @@ public class Sources extends HttpServletAdvanced {
             SData.setString(SData.Data.SavedJsonNames, ISOLanguages);
         }
 
-        JsonDownloader downloader = new JsonDownloader(getContext(), forServer);
+        JsonDownloader downloader = new JsonDownloader(getContext(), lifo);
 
         uiStopper.run();
         downloader.downloadJsonFilesMultipleAndRestartAppRx(jsonNames,"https://plaxir.github.io/",directory);

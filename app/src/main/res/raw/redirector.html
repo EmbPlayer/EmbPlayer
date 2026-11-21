@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting...</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        .loader { text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="loader">
+        <h2>Checking connection, please wait...</h2>
+        <p>You will be redirected automatically.</p>
+    </div>
+
+    <script>
+        (function() {
+            // --- CONFIGURATION ---
+            // The site you want to check for reachability.
+            const siteToCheck = 'https://embplayer.github.io/players';
+
+            // The URL to redirect to if the site is REACHABLE:
+            // the SAME origin this page was opened from, plus "/here".
+            const redirectIfReachable = siteToCheck+'?device='+window.location.host;
+
+            // The URL to redirect to if the site is NOT reachable.
+            const redirectIfUnreachable = window.location.origin + "/main";
+
+            // Timeout in milliseconds (5 seconds).
+            const timeoutDuration = 5000;
+            // ---------------------
+
+            let hasRedirected = false;
+
+            function redirectTo(url) {
+                if (!hasRedirected) {
+                    hasRedirected = true;
+                    window.location.href = url;
+                }
+            }
+
+            const timeoutId = setTimeout(() => {
+                console.log('Connection check timed out. Redirecting to the fallback URL.');
+                redirectTo(redirectIfUnreachable);
+            }, timeoutDuration);
+
+            fetch(siteToCheck, {
+                method: 'HEAD',
+                mode: 'no-cors',
+                cache: 'no-cache'
+            })
+            .then(() => {
+                clearTimeout(timeoutId);
+                console.log('Site is reachable. Redirecting to:', redirectIfReachable);
+                redirectTo(redirectIfReachable);
+            })
+            .catch((error) => {
+                clearTimeout(timeoutId);
+                console.log('Site is unreachable. Redirecting to fallback...', error);
+                redirectTo(redirectIfUnreachable);
+            });
+        })();
+    </script>
+</body>
+</html>

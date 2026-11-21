@@ -309,7 +309,7 @@ public abstract class Exo extends Player {
         super.release();
 
         if(playerHandler == null) {
-            cleaned = true;
+            releaseWStop();
             return;
         }
 
@@ -327,7 +327,7 @@ public abstract class Exo extends Player {
                     beforeClean(oldM);
                 }
 
-                cleaned = true;
+                releaseWStop();
                 oldM.release();
                 looperClose(handler);
             }
@@ -414,6 +414,15 @@ public abstract class Exo extends Player {
         return onFalse;
     }*/
 
+    /** Longest a call waits for the player thread when it was asked to wait without a limit. */
+    private static final long MAX_UNLIMITED_WAIT_MS = 15_000;
+
+    /**
+     * Runs the call on the player thread and waits for its result.
+     * {@code maxWaitCentiseconds} is really a number of SECONDS (3 = three seconds); -1 used to
+     * mean "wait forever" and now means 15 seconds, so one stuck player thread can no longer
+     * freeze every caller (the freeze detector among them) for good.
+     */
     private <T> T makeTry(Callable<T> tryGetFromExoThread, T onFalse, int maxWaitCentiseconds) {
         // 1. Capture a local reference to avoid concurrent modification nulls
         HandlerCustom handler = playerHandler;
@@ -423,10 +432,20 @@ public abstract class Exo extends Player {
             return onFalse;
         }
 
+        // 3. Already on the player thread (a listener callback, for example): run it right here.
+        //    Posting and then waiting would wait for a task that only this blocked thread can run.
+        if (Looper.myLooper() == handler.looper) {
+            try {
+                T direct = tryGetFromExoThread.call();
+                return direct != null ? direct : onFalse;
+            } catch (Exception e) {
+                return onFalse;
+            }
+        }
+
         AtomicReference<T> wait = new AtomicReference<>(null);
 
-        // 3. Use the local reference
-        handler.post(() -> {
+        boolean posted = handler.post(() -> {
             try {
                 wait.set(tryGetFromExoThread.call());
             } catch (Exception e) {
@@ -434,21 +453,21 @@ public abstract class Exo extends Player {
             }
         });
 
+        if (!posted) {            // the player thread has already quit: nothing will ever run it
+            return onFalse;
+        }
+
+        long limitMs = maxWaitCentiseconds == -1
+                ? MAX_UNLIMITED_WAIT_MS
+                : maxWaitCentiseconds * 1000L;
+        long deadline = System.nanoTime() + limitMs * 1_000_000L;
+
         try {
-            if(maxWaitCentiseconds == -1) {
-                while (true) {
-                    waitMS(100);
-                    T curr = wait.get();
-                    if(curr != null) return curr;
-                }
-            }
-
-            maxWaitCentiseconds = maxWaitCentiseconds * 10;
-
-            for(int p = 0; p < maxWaitCentiseconds; p++) {
-                waitMS(100);
+            while (System.nanoTime() < deadline) {
+                if (!waitMS(25))          // interrupted: stop waiting
+                    return onFalse;
                 T curr = wait.get();
-                if(curr != null) return curr;
+                if (curr != null) return curr;
             }
         } catch (Exception e) {
             onErrorSave("ExPlayer-Try", e);
@@ -492,22 +511,25 @@ public abstract class Exo extends Player {
             playerHandlerr = new Handler(looper);
         }
 
-        public void post(Runnable run)
+        /** False when the task was not queued (for example the looper has already quit). */
+        public boolean post(Runnable run)
         {
-            try{
-                playerHandlerr.post(() -> {
-                    try {
-                        run.run();
-                    } catch (Exception e) {
-                        onErrorSave("Exo-Error",e);
-                    }
-                });
+            for (int attempt = 0; attempt < 3; attempt++) {
+                try {
+                    return playerHandlerr.post(() -> {
+                        try {
+                            run.run();
+                        } catch (Exception e) {
+                            onErrorSave("Exo-Error",e);
+                        }
+                    });
+                }
+                catch (Exception e)
+                {
+                    waitMS(30);
+                }
             }
-            catch (Exception e)
-            {
-                waitMS(30);
-                post(run);
-            }
+            return false;
         }
     }
 }

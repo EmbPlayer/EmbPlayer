@@ -31,12 +31,10 @@ import app.services.BaseServer;
 import app.tools.Generators.Requirements.Piped.VideoQuality;
 import app.tools.Generators.YoutubeGenerator;
 import app.tools.Players.PlayerControllerChangeable;
-import app.tools.activity.DefaultActivity;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.exceptions.UndeliverableException;
 import io.reactivex.rxjava3.functions.Action;
 import io.reactivex.rxjava3.functions.BiConsumer;
-import server.web.Wait;
 
 import org.apache.commons.net.ntp.NTPUDPClient;
 import org.apache.commons.net.ntp.TimeInfo;
@@ -44,6 +42,7 @@ import org.eclipse.jetty.io.EofException;
 
 import java.net.InetAddress;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -53,21 +52,66 @@ import static app.tools.DisposableTools.lifo;
 import static app.tools.DisposableTools.waitMS;
 
 public class StaticFunctions {
-    private static String oldBSSID;
-    private static String oldIP;
 
-    public static void onLoadData(){
-        oldBSSID = SData.getString(SData.Data.BSSID);
-        oldIP = SData.getString(SData.Data.IP);
-        DefaultActivity.brightness = SData.getFloat(SData.Data.BrightnessLevel,0.5f);
+    private static final long NTP_REFRESH_MS = 10 * 60_000L;   // re-sync the clock offset this often
+    private static final long NTP_RETRY_MS = 60_000L;          // wait this long after a failed attempt
+    private static final int NTP_TIMEOUT_MS = 3_000;
+    private static volatile long ntpOffsetMs = 0;
+    private static volatile long ntpNextTryAt = 0;
+    private static final AtomicBoolean ntpBusy = new AtomicBoolean();
+
+    /**
+     * Network time in milliseconds. The NTP offset is cached: the network is asked at most once per
+     * NTP_REFRESH_MS (NTP_RETRY_MS after a failure), by one caller at a time, so this is cheap and
+     * safe to call in a loop. It used to open a UDP socket on every call, never closed it when the
+     * request failed (a file descriptor leaked each time) and could block for 10 s per call.
+     */
+    public static long getNtpUnixTimeMillis() {
+        long now = System.currentTimeMillis();
+
+        if (now >= ntpNextTryAt && ntpBusy.compareAndSet(false, true)) {
+            NTPUDPClient client = null;
+            try {
+                ntpNextTryAt = now + NTP_RETRY_MS;             // a failure backs off by default
+                client = new NTPUDPClient();
+                client.setDefaultTimeout(NTP_TIMEOUT_MS);
+                client.open();
+
+                InetAddress hostAddr = InetAddress.getByName("pool.ntp.org");
+                TimeInfo timeInfo = client.getTime(hostAddr);
+                timeInfo.computeDetails();
+
+                Long offset = timeInfo.getOffset();
+                ntpOffsetMs = offset != null ? offset : 0;
+                ntpNextTryAt = System.currentTimeMillis() + NTP_REFRESH_MS;
+            } catch (Throwable e) {
+                try { onErrorSave("getNtpUnixTimeMillis", e); } catch (Throwable ignore) {}
+            } finally {
+                if (client != null) {
+                    try { client.close(); } catch (Throwable ignore) {}   // always release the socket
+                }
+                ntpBusy.set(false);
+            }
+        }
+
+        return System.currentTimeMillis() + ntpOffsetMs;
     }
 
-    public static String oldBSSID(){
-        return oldBSSID;
-    }
+    public static int getCurrentTimeAsSeconds() {
+        //long num = Math.abs(number);
+        //long num = System.currentTimeMillis();
+        long num = getNtpUnixTimeMillis();
 
-    public static String oldIP(){
-        return oldIP;
+        // Count the number of digits
+        int digitCount = (int) Math.log10(num) + 1;
+
+        if (digitCount <= 10) {
+            return (int) num;
+        }
+
+        // Remove extra digits from the right
+        long result = num / (long) Math.pow(10, digitCount - 10);
+        return (int) result;
     }
 
     public static void onThrows(Thread thread, Throwable throwable){
@@ -177,7 +221,7 @@ public class StaticFunctions {
     }
     private static void saveError(String output)
     {
-        SData.setString(SData.Data.SavedDisposableErrors,SData.getString(SData.Data.SavedDisposableErrors,"")+"["+output+"] ");
+        SData.appendString(SData.Data.SavedDisposableErrors, "[" + output + "] ");
     }
 
     public static void makeTry(Runnable task){
@@ -301,55 +345,19 @@ public class StaticFunctions {
         return output;
     }
 
-    public static int getCurrentTimeAsSeconds() {
-        //long num = Math.abs(number);
-        //long num = System.currentTimeMillis();
-        long num = getNtpUnixTimeMillis();
-
-        // Count the number of digits
-        int digitCount = (int) Math.log10(num) + 1;
-
-        if (digitCount <= 10) {
-            return (int) num;
-        }
-
-        // Remove extra digits from the right
-        long result = num / (long) Math.pow(10, digitCount - 10);
-        return (int) result;
-    }
-
-    // Alternative method that returns milliseconds
-    public static long getNtpUnixTimeMillis() {
-        try {
-            NTPUDPClient client = new NTPUDPClient();
-            client.setDefaultTimeout(10000);
-            client.open();
-
-            InetAddress hostAddr = InetAddress.getByName("pool.ntp.org");
-            TimeInfo timeInfo = client.getTime(hostAddr);
-            timeInfo.computeDetails();
-
-            Long offset = timeInfo.getOffset();
-            long ntpTime = System.currentTimeMillis() + (offset != null ? offset : 0);
-            client.close();
-
-            return ntpTime;
-
-        } catch (Exception e) {
-            onErrorSave("getNtpUnixTimeMillis",e);
-            //e.printStackTrace();
-            return System.currentTimeMillis(); // Fallback to system time
-        }
-    }
-
     public static void kill()
     {
         //android.os.Process.killProcess(android.os.Process.myPid());
         System.exit(0);
     }
 
+    public static void killAndReset(){
+        SData.nullData();
+        kill();
+    }
+
     public static class StarterPost implements Runnable{
-        protected Runnable run = Empty.r;
+        protected volatile Runnable run = Empty.r;
 
         public void post(Runnable task){
             run = ()->{
@@ -365,7 +373,7 @@ public class StaticFunctions {
     }
 
     public static abstract class StarterBase implements Runnable{
-        protected Runnable run;
+        protected volatile Runnable run;
 
         public StarterBase(){
             run = ()->secondLaunches();
@@ -571,19 +579,10 @@ public class StaticFunctions {
             return actionStarted;
         }
 
-        public final synchronized void currentStopAndResetStateAndUIWait() {
-            disposeOnly();
-            resetStateAndUIWait();
-        }
-        public final synchronized void currentStopAndResetState() {
+        @CallSuper
+        public synchronized void currentStopAndResetState() {
             disposeOnly();
             onResetState();
-        }
-
-        public final synchronized void resetStateAndUIWait()
-        {
-            onResetState();
-            Wait.webUIWaitStop();
         }
 
         protected synchronized long maxWaitMs()
@@ -603,9 +602,16 @@ public class StaticFunctions {
 
         protected synchronized void onDisposeMissed(){}
         protected synchronized void onDispose(){}
+        protected synchronized void onActionStarted(){}
 
         protected synchronized void onSuccessEnd()
-        {}
+        {
+            currentStopAndResetState();
+        }
+
+        protected synchronized void onEnteredInError(){
+            currentStopAndResetState();
+        }
 
         protected final synchronized void activate()
         {
@@ -621,12 +627,13 @@ public class StaticFunctions {
         protected final synchronized void run(Callable<Boolean> Base, Callable<String> OnError)
         {
             currentAction = onThread(() -> {
+                onActionStarted();
                 boolean output = Base.call();
                 onSuccessEnd();
                 return output;
             }, () -> {
                 String output = OnError.call();
-                currentStopAndResetStateAndUIWait();
+                onEnteredInError();
                 return output;
             });
         }
@@ -636,5 +643,32 @@ public class StaticFunctions {
             if(currentAction!=null && !currentAction.isDisposed())
                 currentAction.dispose();
         }
+    }
+
+    public static class MaxWaiter{
+        private final int max_action_wait_timeout;
+        private long maxTimeoutTime;
+
+        public MaxWaiter(int max_action_wait_timeout){
+            this.max_action_wait_timeout = max_action_wait_timeout;
+        }
+
+        public final void onActionStart(long currentTime){
+            maxTimeoutTime = currentTime+ max_action_wait_timeout;
+        }
+
+        public final boolean onCheckCantStart(long currentTime){
+            long waitTime = maxTimeoutTime - currentTime;
+
+            if(waitTime> max_action_wait_timeout){
+                onActionStart(currentTime);
+                return true;
+            }
+            if(waitTime>0){
+                return true;
+            }
+            return false;
+        }
+
     }
 }

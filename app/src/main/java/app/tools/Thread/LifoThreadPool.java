@@ -15,16 +15,16 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package app.tools;
+package app.tools.Thread;
 
 import android.os.Process;
 
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 
 import java.util.concurrent.Callable;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
-import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * Jetty {@link QueuedThreadPool} of up to {@code threads} workers that runs the most recently
@@ -41,6 +41,9 @@ import java.util.concurrent.LinkedBlockingDeque;
  * Future<Bitmap> f = pool.submit(() -> decode(file));   // a Future works too
  * f.cancel(true);
  * pool.purge();                                         // drop work that became stale
+ *
+ * pool.fifoWay(1).execute(watchdog);                    // urgent: served before everything that waits
+ * pool.fifoWay(3).execute(cleanup);                     // less urgent, still before any waiting LIFO task
  * pool.shutdown();
  * }</pre>
  *
@@ -48,7 +51,10 @@ import java.util.concurrent.LinkedBlockingDeque;
  *
  * <p>Things to be aware of:
  * <ul>
- *   <li>Under sustained load the oldest queued tasks can starve. That is the price of LIFO.</li>
+ *   <li>Under sustained load the oldest queued tasks can starve. That is the price of LIFO.
+ *       The {@link #fifoWay(int)} lane is the other way round: it is always served first, and
+ *       inside it the lower numbers go first, so a steady stream of urgent tasks can keep the
+ *       less urgent ones waiting. Use that lane for small, occasional work.</li>
  *   <li>A task cancelled through its Future never runs, but a small empty entry stays in the
  *       queue until a worker reaches it or you call {@link #purge()}.</li>
  *   <li>Jetty starts with no workers here (min 0) and grows on demand up to {@code threads}.
@@ -62,8 +68,11 @@ public final class LifoThreadPool extends QueuedThreadPool {
 
     private static final long DEFAULT_KEEP_ALIVE_MS = 60000L;
 
-    private final LifoBlockingQueue queue;
+    private final LifoAndFifoBlockingQueue queue;
     private final int androidPriority;
+
+    /** Created once, so {@link #fifoWay()} costs nothing no matter how often it is called. */
+    private final Executor fifoExecutor = newFifoExecutor(LifoAndFifoBlockingQueue.DEFAULT_FIFO_PRIORITY);
 
     /** Workers are named "lifo-pool-N" and run at {@link Process#THREAD_PRIORITY_BACKGROUND}. */
     public LifoThreadPool(int threads) {
@@ -87,11 +96,11 @@ public final class LifoThreadPool extends QueuedThreadPool {
      * @param keepAliveMS    how long an idle worker waits before it exits
      */
     public LifoThreadPool(int threads, String name, int threadPriority, long keepAliveMS) {
-        this(threads, name, threadPriority, keepAliveMS, new LifoBlockingQueue());
+        this(threads, name, threadPriority, keepAliveMS, new LifoAndFifoBlockingQueue());
     }
 
     private LifoThreadPool(int threads, String name, int threadPriority, long keepAliveMS,
-                           LifoBlockingQueue q) {
+                           LifoAndFifoBlockingQueue q) {
         super(q);
         this.queue = q;
         this.androidPriority = threadPriority;
@@ -105,6 +114,35 @@ public final class LifoThreadPool extends QueuedThreadPool {
         } catch (Exception e) {
             throw new IllegalStateException("Cannot start " + name, e);
         }
+    }
+
+    /**
+     * Same as {@code fifoWay(LifoAndFifoBlockingQueue.DEFAULT_FIFO_PRIORITY)}, which is priority 5.
+     */
+    public Executor fifoWay() {
+        return fifoExecutor;
+    }
+
+    /**
+     * An {@link Executor} on the same workers for work that must not wait behind the LIFO tasks.
+     *
+     * <p>{@code priority}: <b>1 is served first</b>, bigger numbers later. Any int is accepted; a
+     * number below 1 is simply even more urgent. Tasks with the same number run in arrival order.
+     * Whatever the number, these tasks run before any waiting LIFO task.
+     *
+     * <p>It goes through {@link #execute(Runnable)}, so a worker is started on demand exactly
+     * like for a normal submission. Once the pool is stopped it throws
+     * {@link java.util.concurrent.RejectedExecutionException}. Keep the Executor in a field if you
+     * use it often.
+     */
+    public Executor fifoWay(int priority) {
+        return priority == LifoAndFifoBlockingQueue.DEFAULT_FIFO_PRIORITY
+                ? fifoExecutor
+                : newFifoExecutor(priority);
+    }
+
+    private Executor newFifoExecutor(final int priority) {
+        return task -> execute(new LifoAndFifoBlockingQueue.FifoTask(task, priority));
     }
 
     /** Runs a task and returns a Future for it. */
@@ -144,26 +182,13 @@ public final class LifoThreadPool extends QueuedThreadPool {
         return new Thread(() -> {
             try {
                 Process.setThreadPriority(androidPriority);
-            } catch (SecurityException e) {
-                // Some devices refuse priorities above the default. Keep the default
-                // instead of letting the exception kill the app.
+            } catch (RuntimeException e) {
+                // Some devices refuse priorities above the default (SecurityException). Keep the
+                // default instead of letting the exception kill the app. This must never escape:
+                // if it did, jettyWorker would not run, and Jetty would count a worker that does
+                // not exist, until the pool believes it is full.
             }
             jettyWorker.run();
         });
-    }
-
-    /**
-     * Work queue with stack behaviour: the task added last is the first one taken.
-     *
-     * <p>Jetty adds work through offer() and its workers always take from the head, so
-     * inserting at the head is all it takes.
-     */
-    public static class LifoBlockingQueue extends LinkedBlockingDeque<Runnable> {
-        private static final long serialVersionUID = 1L;
-
-        @Override
-        public boolean offer(Runnable e) {
-            return offerFirst(e);
-        }
     }
 }

@@ -26,14 +26,19 @@ import app.tools.QRCode.io.nayuki.qrcodegen.QrCode;
 public class QrCodePage {
     private final String ip;
     private final String withHostname;
+    private final String qrData;
 
     public QrCodePage(String ip,int port,boolean isHaveHostname,String hostname){
         this.ip = make(ip,port);
 
+        qrData = this.ip;
+
+        String all = this.ip;
+
         if(isHaveHostname)
-            withHostname = this.ip + System.lineSeparator() + make(hostname,port);
+            withHostname = all + System.lineSeparator() + make(hostname,port);
         else
-            withHostname = this.ip;
+            withHostname = all;
     }
 
     public String qrMessage()
@@ -46,7 +51,7 @@ public class QrCodePage {
 
     public Bitmap qrImage()
     {
-        return toImage(QrCode.encodeText(ip, QrCode.Ecc.LOW),15,2,0xFFFFFF, 0x000000);
+        return toImage(QrCode.encodeText(qrData, QrCode.Ecc.LOW),15,2,0xFFFFFF, 0x000000);
     }
 
     private String make(String ipOrDomain,int port){

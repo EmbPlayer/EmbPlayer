@@ -785,8 +785,12 @@
                     </button> -->
                     
                     <!-- NEW BUTTON IN TOP RIGHT CORNER id="ListButton"-->
-                    <button class="top-left-button btn btn-primary Devices" data-bs-toggle="modal" data-bs-target="#newModalV2" onclick= "loadLinkCollections()">
+                    <button class="top-right-button btn btn-primary Devices" data-bs-toggle="modal" data-bs-target="#newModalV2" onclick= "loadLinkCollections()">
                         Links
+                    </button>
+
+                    <button class="top-left-button btn btn-primary Devices" onclick="window.location.href='https://embplayer.github.io/players?load=' + encodeURIComponent(window.location.host);">
+                        Players
                     </button>
                     
                     <!-- ORIGINAL CONTENT (NO CHANGES) -->
@@ -876,7 +880,6 @@
                 <div class="modal-dialog modal-lg">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title" id="newModalLabel">Links Collections</h5>
                             <button type="button" class="btn-close Devices" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
             
@@ -905,7 +908,7 @@
                             <!-- Compact Code Selector (hidden by default) -->
                             <div class="compact-code-selector" id="compactCodeSelector">
                                 <div class="compact-header">
-                                    <h6 class="mb-0">Select ISO 639-1 Codes</h6>
+                                    <h6 class="mb-0">Select Sources</h6>
                                 </div>
                                 <div class="p-3">
                                     <div class="compact-search">
@@ -1022,7 +1025,6 @@
                                 
                                 <!-- Modal Header -->
                                 <div class="modal-header">
-                                <h5 class="modal-title" id="videoSettingsPopLabel">Video Settings</h5>
                                 <button type="button" class="btn-close videoSettingsButton" data-bs-dismiss="modal" aria-label="Close"></button>
                                 </div>
             <!-- Modal Body (Scrollable content) -->

@@ -26,11 +26,10 @@ import org.json.JSONObject;
 import org.schabi.newpipe.extractor.StreamingService;
 import org.schabi.newpipe.extractor.exceptions.ExtractionException;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BooleanSupplier;
 
 import androidx.annotation.CallSuper;
@@ -42,6 +41,7 @@ import app.tools.Generators.Requirements.GeneratorWithExpire;
 import app.tools.Generators.Requirements.MediaSourceProviders;
 import app.tools.Generators.SiteGenerator;
 import app.tools.LinksDbHelper;
+import app.tools.LoadedData;
 import app.tools.Players.all.PlayerControllerBase;
 import app.tools.Generators.Requirements.Generator;
 import app.tools.Players.all.IVideoPlayer;
@@ -60,6 +60,7 @@ import app.tools.SData;
 import app.tools.StaticFunctions;
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Completable;
+import io.reactivex.rxjava3.core.CompletableOnSubscribe;
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.functions.BiConsumer;
@@ -68,17 +69,19 @@ import io.reactivex.rxjava3.plugins.RxJavaPlugins;
 import app.tools.DisposableTools.WaitDisposable;
 
 import static app.Main.getContext;
+import static app.tools.DisposableTools.forCleaner;
+import static app.tools.DisposableTools.forDetector;
 import static app.tools.DisposableTools.killAll;
 import static app.tools.DisposableTools.forGenerators;
 import static app.tools.DisposableTools.lifo;
 import static app.tools.DisposableTools.ioThreadPoolScheduler;
 import static app.tools.DisposableTools.waitMS;
 import static app.tools.StaticFunctions.onErrorSave;
-import static app.tools.StaticFunctions.onThrows;
 import static server.Home.app;
 
 import android.media.MediaPlayer;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.SurfaceHolder;
 import server.tools.MediaProxyServlet;
 import server.tools.VideoSettings;
@@ -106,11 +109,16 @@ public class AppBack extends AppWeb {
     public PlayerControllerBase mediaPlayer;
     public Generator globalGenerator;
 
+
+    private Loops loopData;
     private VideoSettings videoSettings;
-    private Runnable panelRun;
     private boolean mediaSeekStart;
     private int bufferedPercentage;
+    private boolean isAudioOnly;
 
+    static {
+        PlayerControllerBase.activateGlobalReleaser();
+    }
 
     public AppBack() {
         super();
@@ -133,21 +141,19 @@ public class AppBack extends AppWeb {
     public static void recreateWithCleanData() {
         app().forceStopActivate();
 
-        cleaningInBackground.clear();
-        getApp().closePanel(() -> getApp().sendURLBeforeDestroy(),() -> {
+        cleaningInBackground.clear(()-> getApp().closePanel(() -> getApp().sendURLBeforeDestroy(),() -> {
             getApp().sendURLAfterDestroy();
             new AppBack();
-        }, StaticFunctions.Empty.r);
+        }, StaticFunctions.Empty.r), forCleaner);
     }
 
     public static void recreateWithoutCleanData() {
         app().forceStopActivate();
 
-        cleaningInBackground.clear();
-        getApp().closePanel(() -> getApp().sendURLBeforeDestroyWithoutCleanData(), () -> {
+        cleaningInBackground.clear(()-> getApp().closePanel(() -> getApp().sendURLBeforeDestroyWithoutCleanData(), () -> {
             getApp().sendURLAfterDestroy();
             create();
-        }, StaticFunctions.Empty.r);
+        }, StaticFunctions.Empty.r), forCleaner);
     }
 
     public String nameOfMedia() {
@@ -167,7 +173,17 @@ public class AppBack extends AppWeb {
     }
 
     public boolean mediaIsNullFully() {
-        return mediaIsNull() || mediaPlayer.isNull();
+        if(!Panel.panelIsNull())
+            return false;
+
+        if(Panel.check(BasePanel.PanelInfo.Created))
+            return false;
+
+        if(mediaIsNull())
+            return true;
+
+        return false;
+        //return mediaPlayer.isNull();
     }
 
 
@@ -175,19 +191,11 @@ public class AppBack extends AppWeb {
         return appStarted;
     }
 
-    public int saveSeek(int MediaPlayerCurrentPos) {
-        return MediaPlayerCurrentPos / 1000;
-    }
-
-    public long seekLoad() {
-        return getSeekPosition() * 1000L;
-    }
-
     public void uiReset() {
         jsonData.jsonSelectedRes=null;
         timer.set(false);
-        seekMax(0);
-        seekPosition(-1);
+        seekMaxMS(0);
+        seekPositionMS(-1);
         setUp.set(false);
     }
 
@@ -201,23 +209,19 @@ public class AppBack extends AppWeb {
     }
 
     public void sendURLWithoutCleanData() {
-        cleaningInBackground.clear();
-
-        closePanel(() -> {
+        cleaningInBackground.clear(()->closePanel(() -> {
             sendURLBeforeDestroyWithoutCleanData();
         }, () -> {
             sendURLAfterDestroy();
         }, () -> {
-        });
+        }), forCleaner);
     }
 
     public void sendURL() {
-        cleaningInBackground.clear();
-
-        closePanel(() -> {
+        cleaningInBackground.clear(()->closePanel(() -> {
             sendURLBeforeDestroy();
         }, () -> sendURLAfterDestroy(), () -> {
-        });
+        }), forCleaner);
     }
 
     public void stopSenderOnlyInCurrentThread(){
@@ -247,12 +251,7 @@ public class AppBack extends AppWeb {
     }
 
     public boolean displayOn() {
-        return videoPanelIsActive() && !Main.notDisplaying();
-    }
-
-    public void startPanel() {
-        panelRun.run();
-        setUp.set(true);
+        return videoPanelIsActive() && !Main.notDisplaying() && !isAudioOnly;
     }
 
     public void reloadPanel(boolean refreshDisplay) {
@@ -297,11 +296,13 @@ public class AppBack extends AppWeb {
             String jsRes = null;
 
             Sources.Source selectedSource = Sources.getSourcesController().getSource(sourceName);
-            boolean isRadio = sourceName != null && sourceName.endsWith("_Radio");
+            isAudioOnly = sourceName != null && sourceName.endsWith("_Radio");
             if (selectedSource == null) {
                 sender.sendUrlStartedResetOnlyBoolean();
                 AppControl.workingStop();
-                return jsonData.fullUpdate(wi,he,jsRes);
+
+                jsonData.fullUpdate(wi,he,jsRes);
+                return true;
             }
             JSONArray loadJson = selectedSource.jsonFile;
             JSONObject object = loadJson.getJSONObject(subCollectionIndex);
@@ -334,7 +335,7 @@ public class AppBack extends AppWeb {
                     link = new MediaData(
                             subDirectory.getString("name"),
                             object.getString("url") + subDirectory.getString("directory"),
-                            provider(isRadio, MediaSourceProviders.EXTRACTOR_AUDIO, MediaSourceProviders.EXTRACTOR)
+                            provider(MediaSourceProviders.EXTRACTOR_AUDIO, MediaSourceProviders.EXTRACTOR)
                     );
                     break;
                 case "Youtube":
@@ -366,22 +367,22 @@ public class AppBack extends AppWeb {
                                         link = new MediaData(
                                                 subDirectory.getString("name"),
                                                 outLink,
-                                                provider(isRadio, MediaSourceProviders.LIVE_AUDIO_URL, MediaSourceProviders.LIVE_VIDEO_URL)
+                                                provider(MediaSourceProviders.LIVE_AUDIO_URL, MediaSourceProviders.LIVE_VIDEO_URL)
                                         );
                                     } catch (Exception ed) {
                                         link = new MediaData(
                                                 subDirectory.getString("name"),
                                                 outLink,
-                                                provider(isRadio, MediaSourceProviders.LIVE_AUDIO_URL, MediaSourceProviders.LIVE_VIDEO_URL)
+                                                provider(MediaSourceProviders.LIVE_AUDIO_URL, MediaSourceProviders.LIVE_VIDEO_URL)
                                         );
 
                                         onErrorSave("StartFromJson", ed);
                                         extractorPattern(subDirectory.getString("defaultPatternExtractStream"));
                                         extractorExpirePattern(subDirectory.getString("defaultPatternExtractExpire"));
 
-                                        MediaData finalLink = link;
-                                        onStop.onMediaChanging(finalLink.directory, finalLink.provider, finalLink.name);
-                                        return jsonData.fullUpdate(wi,he,jsRes);
+                                        jsonData.fullUpdate(wi,he,jsRes);
+                                        onStop.onMediaChanging(link.directory, link.provider, link.name);
+                                        return true;
                                     }
                                 }
                                 break;
@@ -392,31 +393,38 @@ public class AppBack extends AppWeb {
                             link = new MediaData(
                                     subDirectory.getString("name"),
                                     subDirectory.getString("directory"),
-                                    provider(isRadio, MediaSourceProviders.LIVE_AUDIO_URL, MediaSourceProviders.LIVE_VIDEO_URL)
+                                    provider(MediaSourceProviders.LIVE_AUDIO_URL, MediaSourceProviders.LIVE_VIDEO_URL)
                             );
                         }
                     } else {
                         link = new MediaData(
                                 subDirectory.getString("name"),
                                 subDirectory.getString("directory"),
-                                provider(isRadio, MediaSourceProviders.LIVE_AUDIO_URL, MediaSourceProviders.LIVE_VIDEO_URL)
+                                provider(MediaSourceProviders.LIVE_AUDIO_URL, MediaSourceProviders.LIVE_VIDEO_URL)
                         );
                     }
                     break;
             }
 
+            jsonData.fullUpdate(wi,he,jsRes);
             if (link == null){
                 sender.sendUrlStartedResetOnlyBoolean();
                 AppControl.workingStop();
-                return jsonData.fullUpdate(wi,he,jsRes);
+                return true;
             }
 
-            MediaData finalLink1 = link;
+            onStop.onMediaChanging(link.directory, link.provider, link.name);
 
-            onStop.onMediaChanging(finalLink1.directory, finalLink1.provider, finalLink1.name);
-
-            return jsonData.fullUpdate(wi,he,jsRes);
+            return true;
         }, () -> "StartFromJson-Error");
+    }
+
+    private MediaSourceProviders provider(MediaSourceProviders audio, MediaSourceProviders video) {
+
+        if (isAudioOnly)
+            return audio;
+
+        return video;
     }
 
     public void deleteFromCollection(int tableIndex, String id) {
@@ -425,13 +433,14 @@ public class AppBack extends AppWeb {
     }
 
     public void sendURLClose(String url) {
-        cleaningInBackground.clear();
-        isSavable.set(true);
+        cleaningInBackground.clear(()->{
+            isSavable.set(true);
 
-        sender.sendUrlStart(() -> {
-            loadDataWithoutChecking(url, mediaProviderClientSideID.getSave(), null);
-            return true;
-        }, () -> "SendURLClose-Error");
+            sender.sendUrlStart(() -> {
+                loadDataWithoutChecking(url, mediaProviderClientSideID.getSave(), null);
+                return true;
+            }, () -> "SendURLClose-Error");
+        }, forCleaner);
     }
 
     public void loadDataWithoutChecking(String url, int MediaProviderID, String nameOfMedia) {
@@ -453,7 +462,7 @@ public class AppBack extends AppWeb {
                 youtubeGenerator = YoutubePlayList.createCollection(baseUrl, videoSettings, new ListenersYoutube(), loopOn(), hardware.get());
             } catch (ExtractionException | IOException e) {
                 onErrorSave("SendURLClose-YoutubePlayList.CreateCollection", e);
-                return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type,youtubeGenerator);
+                return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type,youtubeGenerator,null);
             }
 
             if (youtubeGenerator == null) {
@@ -461,7 +470,7 @@ public class AppBack extends AppWeb {
                 waitMS(1000);
                 youtubeGenerator = YoutubePlayList.getFirst(10, 300);
                 if (youtubeGenerator == null) {
-                    return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type,youtubeGenerator);
+                    return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type,youtubeGenerator,null);
                 }
             }
 
@@ -471,14 +480,14 @@ public class AppBack extends AppWeb {
                 youtubeGenerator.generateInfoAuto();
             } catch (ExtractionException | IOException e) {
                 onErrorSave("SendURLClose-GenerateInfoAuto", e);
-                return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type,youtubeGenerator);
+                return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type,youtubeGenerator,null);
             }
         } else {
             try {
                 youtubeGenerator.generateInfoAuto();
             } catch (ExtractionException | IOException e) {
                 onErrorSave("SendURLClose-GenerateInfoAuto", e);
-                return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type,youtubeGenerator);
+                return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Error, type,youtubeGenerator,null);
             }
 
             switch (youtubeGenerator.getInfo().getStreamType()) {
@@ -490,22 +499,16 @@ public class AppBack extends AppWeb {
             }
         }
 
-        new LoaderForPlayerYoutube(youtubeGenerator).updateLoader();
+        UpdateErrorForYoutube ly = new UpdateErrorForYoutube(youtubeGenerator);
 
         // Load content and start media session
         youtubeGenerator.loadContent();
         Players.updateIsLive(youtubeGenerator.isLive());
 
         if (youtubeGenerator.isNotGenerated())
-            return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.NotMade, type,youtubeGenerator);
+            return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.NotMade, type,youtubeGenerator,ly);
 
-        return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Made, type,youtubeGenerator);
-    }
-
-    private void onYoutubeLoadEnd()
-    {
-        seekMax(globalGenerator.getMaxSeek());
-        startPanel();
+        return new YoutubeGeneratorTryAndType(YoutubeGeneratorTry.Made, type,youtubeGenerator,ly);
     }
 
     private void youtubeVideoScreenSizeUpdate(YoutubeGenerator youtubeGenerator,ListenersYoutube listenersYoutube){
@@ -517,7 +520,22 @@ public class AppBack extends AppWeb {
             Panel.aspectChange(videoSize.getWidth(), videoSize.getHeight());
     }
 
+    private boolean onLoadDataFail(){
+        //setUp.set(false);
+        return AppControl.waitAndIsWorkingStop();
+    }
+
+    private boolean onLoadDataFailFully(){
+        sendURL();
+        return true;
+    }
+
     public boolean loadData(String url, MediaSourceProviders sourceProvider, String nameOfMedia) {
+        if(!mediaIsNullFully()){
+            onStop.onMediaChanging(url,sourceProvider,nameOfMedia);
+            return true;
+        }
+
         saveMedia(sourceProvider, url, nameOfMedia);
 
         this.baseUrl = url;
@@ -533,7 +551,7 @@ public class AppBack extends AppWeb {
             case YOUTUBE:
 
                 if (!Connection.isHaveInternet())
-                    return AppControl.waitAndIsWorkingStop();
+                    return onLoadDataFail();
 
                 onExo.setTemp(ExoPlayerOnly.Types.Youtube);
                 legacyYoutubePlayer.reset();
@@ -558,14 +576,14 @@ public class AppBack extends AppWeb {
                 while (true) {
                     //start from here again if failed
                     if (!youtubeGenerator.generateLink(10))
-                        return AppControl.waitAndIsWorkingStop();
+                        return onLoadDataFail();
 
                     current = tryGenerateYoutubeContent(youtubeGenerator);
 
                     if (current.made == YoutubeGeneratorTry.Made)
                         break;
                     else if (current.made == YoutubeGeneratorTry.Error || i > 5)
-                        return AppControl.waitAndIsWorkingStop();
+                        return onLoadDataFail();
 
                     i++;
                 }
@@ -576,7 +594,7 @@ public class AppBack extends AppWeb {
 
                     loop.switchToPlaylist();
 
-                    onYoutubeLoadEnd();
+                    current.youtubeLoader.onYoutubeLoadEnd();
 
                     // Start background loading of next few videos (not all)
                     YoutubePlayList.loadInitialVideosInBackground(baseUrl, Math.min(3, YoutubePlayList.streamInfoItem.size() - 1));
@@ -591,22 +609,23 @@ public class AppBack extends AppWeb {
                 else
                     youtubeVideoScreenSizeUpdate(youtubeGenerator,listenn);
 
-                onYoutubeLoadEnd();
+                current.youtubeLoader.onYoutubeLoadEnd();
                 break;
 
             case EXTRACTOR:
                 updateVideoSettings(player(playerID.getSave()), player(playerID.getSave()), getLivePlayer());
                 Players.updateIsLive(true);
                 if (!extractorLoader(nameOfMedia))
-                    return AppControl.waitAndIsWorkingStop();
+                    return onLoadDataFail();
 
                 break;
 
             case EXTRACTOR_AUDIO:
+                isAudioOnly = true;
                 updateAudioSettings(player(playerID.getSave()), player(playerID.getSave()), getRadioPlayer());
                 Players.updateIsLive(true);
                 if (!extractorLoader(nameOfMedia))
-                    return AppControl.waitAndIsWorkingStop();
+                    return onLoadDataFail();
 
                 break;
 
@@ -626,12 +645,14 @@ public class AppBack extends AppWeb {
                 break;
 
             case AUDIO_URL:
+                isAudioOnly = true;
                 updateAudioSettings(player(playerID.getSave()), player(playerID.getSave()), getRadioPlayer());
                 Players.updateIsLive(false);
                 urlLoader(false, nameOfMedia);
                 break;
 
             case LIVE_AUDIO_URL:
+                isAudioOnly = true;
                 updateAudioSettings(player(playerID.getSave()), player(playerID.getSave()), getRadioPlayer());
                 Players.updateIsLive(true);
                 urlLoader(true, nameOfMedia);
@@ -656,7 +677,7 @@ public class AppBack extends AppWeb {
             return;
         }
 
-        mediaPlayer.start(seekLoad());
+        mediaPlayer.start(getSeekPositionMS());
 
         mediaPlayer.waitPlay(()->{
             timer.set(true);
@@ -672,7 +693,7 @@ public class AppBack extends AppWeb {
         if (mediaIsNull()) return;
 
         badSoundFixer.run();
-        seekPosition(value);
+        seekPositionMS(value);
         mediaPlayer.pause();
         timer.set(false);
     }
@@ -753,12 +774,12 @@ public class AppBack extends AppWeb {
             if(globalGenerator.waitStarted())
                 return;
 
-            long curP = mediaPlayer.getCurrentPosition();
+            long curP = mediaPlayer.getCurrentPositionMS();
 
             if(curP==0)
-                seekPosition(0);
+                seekPositionMS(0);
             else
-                seekPosition(saveSeek((int)curP));
+                seekPositionMS(curP);
 
         } catch (Exception e) {}
     }
@@ -780,31 +801,75 @@ public class AppBack extends AppWeb {
         errorHandel = new AsyncRun();
     }
 
+    /** Errors since the player last played normally. Two in a row mean "reloading the same link does not help". */
+    private final AtomicInteger errorStreak = new AtomicInteger();
+
+    /**
+     * A cached generator is only reused while its link is known to stay valid for a while:
+     * its media session (the timer that refreshes the link before it expires) is still running
+     * and the link has more than this many seconds left.
+     */
+    private static final int MIN_LINK_REMAINING_SEC = 20 * 60;
+
+    /**
+     * Set when a failure shows that the current link is dead although it has not expired
+     * (for example the device's IP changed, YouTube links are tied to the IP). The next link
+     * refresh then regenerates the link instead of trusting the expiry time.
+     */
+    private volatile boolean forceNewLink;
+
+    private boolean isFresh(YoutubeGenerator g) {
+        if (g == null || !g.IsLoaded() || !g.mediaSessionWorking())
+            return false;
+        int expire = g.expireTime();
+        return expire < 1 || expire - StaticFunctions.getCurrentTimeAsSeconds() > MIN_LINK_REMAINING_SEC;
+    }
+
+    /** Regenerates the current link and reloads the player with it, now, on the calling thread. */
+    private void recoverWithFreshLinkNow() {
+        if (mediaIsNullFully() || globalGenerator == null)
+            return;
+        if (!AndroidOsUpdatesListener.isHaveConnection())
+            return;                                   // the detector tries again when the network is back
+        if (globalGenerator.mediaError.started)
+            return;                                   // a refresh is already running
+        errorStreak.set(0);
+        forceNewLink = true;
+        globalGenerator.mediaError.started = true;
+        globalGenerator.mediaErrorRun();
+    }
+
+    private void recoverWithFreshLink() {
+        cleaningInBackground.add(() -> recoverWithFreshLinkNow(),
+                StaticFunctions.Empty.a, StaticFunctions.Empty.r, forGenerators, "FreshLinkRecover");
+    }
+
+    private static final int PRELOAD_AHEAD = 4;
+    private static final int PRELOAD_BEHIND = 2;
+
+    private void preloadIndex(int index, int totalVideos) {
+        if (index < 0 || index >= totalVideos) return;
+        if (YoutubePlayList.isUnavailable(index)) return;          // never ask again
+
+        YoutubeGenerator gen = YoutubePlayList.getGenerator(index);
+        if (!isFresh(gen)) {
+            YoutubePlayList.AddSingleElement(index);               // ignores an index already loading
+        }
+    }
+
     private void preloadAdjacentVideos(int currentIndex) throws ExtractionException, IOException {
-        if (YoutubePlayList.isLoadingMoreVideos() || YoutubePlayList.isDisposed()) {
+        if (YoutubePlayList.isDisposed()) {
             return;
         }
 
         int totalVideos = YoutubePlayList.getTotalVideosCount();
 
-        // Pre-load next 2 videos
-        for (int i = 1; i <= 2; i++) {
-            int nextIndex = currentIndex + i;
-            if (nextIndex < totalVideos) {
-                YoutubeGenerator nextGen = YoutubePlayList.getGenerator(nextIndex);
-                if (nextGen == null || !nextGen.IsLoaded()) {
-                    YoutubePlayList.AddSingleElement(nextIndex);
-                }
-            }
-
-            // Pre-load previous video (for going back)
-            int prevIndex = currentIndex - i;
-            if (prevIndex >= 0) {
-                YoutubeGenerator prevGen = YoutubePlayList.getGenerator(prevIndex);
-                if (prevGen == null || !prevGen.IsLoaded()) {
-                    YoutubePlayList.AddSingleElement(prevIndex);
-                }
-            }
+        // nearest first, so the video that plays next is ready first
+        for (int i = 1; i <= PRELOAD_AHEAD; i++) {
+            preloadIndex(currentIndex + i, totalVideos);
+        }
+        for (int i = 1; i <= PRELOAD_BEHIND; i++) {
+            preloadIndex(currentIndex - i, totalVideos);
         }
 
         // Check if we need to load more pages
@@ -826,14 +891,6 @@ public class AppBack extends AppWeb {
                 }, ioThreadPoolScheduler, "LoadNextError-Preloader");
             }
         }
-    }
-
-    private MediaSourceProviders provider(boolean isAudio, MediaSourceProviders audio, MediaSourceProviders video) {
-
-        if (isAudio)
-            return audio;
-
-        return video;
     }
 
     private void detectionRecover() {
@@ -886,26 +943,14 @@ public class AppBack extends AppWeb {
     private void sendURLBeforeDestroy()
     {
         beforeDestroy();
-
+        isAudioOnly = false;
         jsonData.reset();
         MediaProxyServlet.mediaProxyDefault();
         SData.resetToDefault();
         timer.set(false);
-        seekMax(0);
-        seekPosition(-1);
+        seekMaxMS(0);
+        seekPositionMS(-1);
         sendURLBeforeDestroyWithoutCleanData();
-    }
-    private boolean isStreamAvailable(String streamUrl) throws IOException {
-        URL url = new URL(streamUrl);
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-        connection.setRequestMethod("HEAD");
-        connection.setConnectTimeout(5000);
-        connection.setReadTimeout(5000);
-
-        int responseCode = connection.getResponseCode();
-
-        // Check if response indicates success (200-299)
-        return responseCode >= 200 && responseCode < 300;
     }
 
     private void updateVideoSettings(PlayersCollection audioOrVideo, PlayersCollection video, PlayersCollection live)
@@ -932,11 +977,11 @@ public class AppBack extends AppWeb {
     {
         UrlGenerator urlGenerator = new UrlGenerator(isLive,baseUrl, listenerSet(new ListenersSet()), hardware.get(),nameOfMedia);
 
-        new LoaderForPlayerURL(urlGenerator).updateLoaderAndKiller();
+        UpdateErrorForURL lu = new UpdateErrorForURL(urlGenerator);
 
         selectedTable(LinksDbHelper.TableName.URLS.getIndex());
 
-        startPanel();
+        createAndLoad();
     }
 
     private boolean extractorLoader(String nameOfMedia)
@@ -957,7 +1002,7 @@ public class AppBack extends AppWeb {
             return false;
         }
 
-        new LoaderForSiteGenerator(siteGenerator).updateLoaderAndKiller();
+        UpdateErrorForSiteGenerator lsg = new UpdateErrorForSiteGenerator(siteGenerator);
 
         // Load content and start media session
         siteGenerator.loadContent();
@@ -965,7 +1010,7 @@ public class AppBack extends AppWeb {
         if(siteGenerator.isNotGenerated())
             return false;
 
-        startPanel();
+        createAndLoad();
 
         return true;
     }
@@ -974,19 +1019,17 @@ public class AppBack extends AppWeb {
         return true;
     }
     private void saveTempCheck(){
-        ErrorCodeApp.checkIsEqualToSavedData.set("|| ip: "+BaseServer.getIP()+" oldIP: "+StaticFunctions.oldIP()+
-                " BSSID: "+AndroidOsUpdatesListener.getCurrentBSSID()+" oldBSSID: "+StaticFunctions.oldBSSID()+" |");
+        ErrorCodeApp.checkIsEqualToSavedData.set("|| ip: "+BaseServer.getIP()+" oldIP: "+ LoadedData.oldIP.get()+
+                " BSSID: "+AndroidOsUpdatesListener.getCurrentBSSID()+" oldBSSID: "+ LoadedData.oldBSSID.get()+" |");
     }
     private void loadMedia(){
         sender.sendUrlStart(()->{
-            boolean undefi = SData.get(SData.Data.UndefiledError);
-
-            if(mediaPlayer!=null || !undefi)
+            if(mediaPlayer!=null || !LoadedData.isSaved.get())
                 return loadMediaOnFail();
 
             int s = 0;
-            while (!BaseServer.getIP().equals(StaticFunctions.oldIP()) ||
-                    !AndroidOsUpdatesListener.getCurrentBSSID().equals(StaticFunctions.oldBSSID()))
+            while (!BaseServer.getIP().equals(LoadedData.oldIP.get()) ||
+                    !AndroidOsUpdatesListener.getCurrentBSSID().equals(LoadedData.oldBSSID.get()))
             {
                 if(s<10){
                     s++;
@@ -995,12 +1038,15 @@ public class AppBack extends AppWeb {
                 else{
                     saveTempCheck();
                     ErrorCodeApp.checkIsEqualToSavedData.append(" NOT LOADED BECAUSE NOT SAME ||");
+
+                    SData.set(SData.Data.UndefiledError,false);
+
                     return loadMediaOnFail();
                 }
             }
 
             saveTempCheck();
-            SavedMedia recovered = getSavedMedia();
+            SavedMedia recovered = SavedMedia.getSavedMedia();
 
             if(recovered==null)
                 return loadMediaOnFail();
@@ -1008,12 +1054,12 @@ public class AppBack extends AppWeb {
             ErrorCodeApp.checkIsEqualToSavedData.append(System.lineSeparator()+
                     "| Name:"+recovered.getName()+
                     " URL:"+recovered.getURL()+
-                    " Seek:"+recovered.getSeek()+
+                    " Seek:"+recovered.getSeekMS()+
                     " ProviderID:"+recovered.getProviderID()+" ||");
 
             if(globalGenerator == null && mediaPlayer == null)
             {
-                seekPosition((int)(recovered.getSeek()/1000));
+                seekPositionMS(recovered.getSeekMS());
                 mediaClientSideProvider = MediaSourceProviders.values()[recovered.getProviderID()];
                 int i = 0;
                 while (i<20){
@@ -1052,12 +1098,6 @@ public class AppBack extends AppWeb {
             mediaPlayer.load();
     }
 
-    private void onErrorFail(Exception e)
-    {
-        onErrorSave("AppBack-OnError",e);
-        globalGenerator.mediaError.started = true;
-        globalGenerator.mediaErrorRun();
-    }
     private void volumeSetup()
     {
         if(volumePosition.getSave()==-1)
@@ -1066,19 +1106,78 @@ public class AppBack extends AppWeb {
             loadVolume();
     }
 
+    private void loadOrAndStartAndDetection(){
+        loadOrAndStartAndDetection(()-> getSeekPositionMS());
+        setUp.set(true);
+    }
+
+    private void loadOrAndStartAndDetection(@NonNull Callable<Long> seek)
+    {
+        loadOrLoadAndStart(timer.get(),seek,StaticFunctions.Empty.r);
+        errorHandel.detection.startDetectionLost();
+    }
+
+    private void resetPlayerAndUpdateLink(@NonNull GeneratorWithExpire generatorWithExpire)
+    {
+        mediaPlayer.resetWithoutResetPlayingState();
+        mediaPlayer.addData(generatorWithExpire.getAudioStream(),generatorWithExpire.getVideoStream());
+    }
+
+    private void createAndLoadOrAndStartAndDetection(){
+        mediaPlayer = globalGenerator.startPanel(false, loopData.getLoop(), loopData.getPlayListLoop());
+        loadOrAndStartAndDetection();
+    }
+
+    private void createAndLoadOrAndStartAndPanelAndDetection(){
+        Panel.loadPanel((hol)->{
+            mediaPlayer = globalGenerator.startPanel(true, loopData.getLoop(), loopData.getPlayListLoop());
+
+            if(mediaIsNull())
+                return;
+
+            ((IVideoPlayer)mediaPlayer).setDisplay(hol);
+
+            loadOrAndStartAndDetection(()->{
+                long seek = getSeekPositionMS();
+                if(seek == 0)
+                    seek = 1;
+                return seek;
+            });
+        });
+        setUp.set(true);
+    }
+
+    private void createAndLoad(){
+
+        if(!mediaIsNullFully()){
+            onLoadDataFailFully();
+            return;
+        }
+
+        loopData = null;
+        loopData = loopUpdate();
+
+        if(displayOn())
+            createAndLoadOrAndStartAndPanelAndDetection();
+        else
+            createAndLoadOrAndStartAndDetection();
+    }
+
     public enum YoutubeGeneratorTry{
         NotMade, Error, Made
     }
 
     public class YoutubeGeneratorTryAndType{
-        private YoutubeGeneratorTry made;
-        private StreamingService.LinkType type;
-        private YoutubeGenerator youtubeGenerator;
+        private final YoutubeGeneratorTry made;
+        private final StreamingService.LinkType type;
+        private final YoutubeGenerator youtubeGenerator;
+        private final UpdateErrorForYoutube youtubeLoader;
 
-        public YoutubeGeneratorTryAndType(YoutubeGeneratorTry made,StreamingService.LinkType type,YoutubeGenerator youtubeGenerator){
+        public YoutubeGeneratorTryAndType(YoutubeGeneratorTry made, StreamingService.LinkType type, YoutubeGenerator youtubeGenerator, UpdateErrorForYoutube youtubeLoader){
             this.made = made;
             this.type = type;
             this.youtubeGenerator = youtubeGenerator;
+            this.youtubeLoader = youtubeLoader;
         }
     }
 
@@ -1086,11 +1185,38 @@ public class AppBack extends AppWeb {
         private final int MAX_TRY_COUNT = 3;
         private final int MAX_TRY_CHECK_COUNT = 3;
 
-        // Standard variables are safe now because of the synchronized block
         private boolean isRan;
         private int currentTryCounts;
 
         private final Callable<Boolean> checkingOnlyIsRan = () -> isRan;
+
+        private final Runnable recreateMWithPanel = ()->{
+            mediaPlayer.release();
+            createAndLoadOrAndStartAndPanelAndDetection();
+            onCompleteDefault();
+        };
+
+        private final Runnable recreateM = ()->{
+            mediaPlayer.release();
+            createAndLoadOrAndStartAndDetection();
+            onCompleteDefault();
+        };
+
+        private final Runnable reloadM = ()->{
+            mediaPlayer.reset();
+            loadOrAndStartAndDetection();
+            onCompleteDefault();
+        };
+
+        private final Callable<Boolean> checking = new Callable<Boolean>() {
+            private int i;
+            @Override
+            public Boolean call() throws Exception {
+                boolean result = mediaPlayer.notClosable() && i < MAX_TRY_CHECK_COUNT;
+                i++;
+                return result;
+            }
+        };
 
         private final Callable<Boolean> checkingMultiple = () -> {
             if (isRan)
@@ -1105,88 +1231,54 @@ public class AppBack extends AppWeb {
             return false;
         };
 
-        private Callable<Boolean> checking = checkingMultiple;
+        private Callable<Boolean> checkingCurrent = checkingMultiple;
 
-        // Synchronize state changes
+        public final MediaRecreate recreate = new MediaRecreate();
+        public final MediaReloadWithCheck reloadWithCheck = new MediaReloadWithCheck();
+        public final MediaRecreateWithTask recreateWithTask = new MediaRecreateWithTask();
+
         public synchronized void reset() {
             currentTryCounts = 0;
             isRan = false;
-            checking = checkingMultiple;
+            checkingCurrent = checkingMultiple;
         }
 
-        // Synchronize state changes
         public synchronized void tryLoadAfterFirstPlay() {
-            checking = checkingOnlyIsRan;
+            checkingCurrent = checkingOnlyIsRan;
         }
 
-        public void tryLoad(Callable<Boolean> ifTrueMake, @NonNull Runnable onEnd) {
-            // Lock the critical check-and-update section so only one thread
-            // can enter at a time. This fixes the Samsung memory cache issue!
-            synchronized (this) {
-                try {
-                    if (checking.call())
-                        return;
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
+        private void onCompleteDefault(){
+            isRan = false;
+        }
+
+        private class MediaReloadBase {
+            private void beforeTryLoadStop(){
+                modifyBeforeTryLoadStop();
+                videoChanger.stop();
+                globalGenerator.mediaErrorStop();
+            }
+
+            @CallSuper
+            protected void modifyBeforeTryLoadStop(){
+                detectionRecover();
+            }
+
+            protected void tryLoad(Runnable onComp) {
+                synchronized (this) {
+                    try {
+                        if (checkingCurrent.call())
+                            return;
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    isRan = true;
                 }
 
-                isRan = true;
-            }
-
-            // Run tryBase OUTSIDE the synchronized block so it doesn't block
-            // other non-critical operations while the media loads.
-            closePanel(() -> {
-                        try {
-                            if (!ifTrueMake.call())
-                                return;
-                        } catch (Exception e) {
-                            throw new RuntimeException(e);
-                        }
-
-                        detectionRecover();
-                    },
-                    () ->{
-                        mediaKillOnly(()->{
-                            startPanel();
-                            onEnd.run();
-                        });
-                    },
-                    onEnd);
-        }
-        private void mediaKillOnly(Runnable onComplete){
-            if(mediaIsNull()){
-                isRan = false;
-                onComplete.run();
-                return;
-            }
-
-            PlayerControllerBase oldPlayer = mediaPlayer;
-
-            videoChanger.stop();
-
-            globalGenerator.mediaErrorStop();
-
-            if(oldPlayer != null)
-            {
-                Runnable onComp = ()->{
-                    oldPlayer.release();
-                    mediaPlayer = null;
-                    isRan = false;
-                    onComplete.run();
-                };
-
-                Callable<Boolean> check = new Callable<Boolean>() {
-                    private int i;
-                    @Override
-                    public Boolean call() throws Exception {
-                        boolean result = oldPlayer.notClosable() && i < MAX_TRY_CHECK_COUNT;
-                        i++;
-                        return result;
-                    }
-                };
+                beforeTryLoadStop();
 
                 cleaningInBackground.addPollingTaskWithTimeOut(
-                        check,
+                        checking,
                         StaticFunctions.Empty.r,
                         onComp,
                         onComp,
@@ -1201,13 +1293,51 @@ public class AppBack extends AppWeb {
                         lifo,
                         lifo,
                         "mediaKillOnly");
+            }
+        }
 
-                return;
+        public class MediaRecreate extends MediaReloadBase {
+            public void reload(){
+                tryLoad(recreateM);
+            }
+            public void reloadWithPanel(){
+                tryLoad(recreateMWithPanel);
+            }
+        }
+
+        public class MediaReloadWithCheck extends MediaReloadBase {
+            private Callable<Boolean> detectionRecoverStop;
+
+            @Override
+            protected void modifyBeforeTryLoadStop(){
+                try {
+                    if (detectionRecoverStop.call())
+                        super.modifyBeforeTryLoadStop();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
             }
 
-            mediaPlayer = null;
-            isRan = false;
-            onComplete.run();
+            public void reload(@NonNull Callable<Boolean> detectionRecoverStop){
+                this.detectionRecoverStop = detectionRecoverStop;
+                tryLoad(reloadM);
+            }
+        }
+
+        public class MediaRecreateWithTask extends MediaReloadBase {
+
+            private Runnable task;
+
+            @Override
+            protected void modifyBeforeTryLoadStop(){
+                task.run();
+                super.modifyBeforeTryLoadStop();
+            }
+
+            public void reloadWithPanel(@NonNull Runnable task){
+                this.task = task;
+                tryLoad(recreateMWithPanel);
+            }
         }
     }
 
@@ -1236,22 +1366,45 @@ public class AppBack extends AppWeb {
 
     public class ChangeVideo {
 
-        private final Runnable pureUpdate = () -> updateChanger(1, 10, 1000);
-        private final Runnable updateInNewTask = () ->
-                cleaningInBackground.add(pureUpdate, StaticFunctions.Empty.a, StaticFunctions.Empty.r, lifo, "PlayListLoop");
+        /** Longest a run waits for a background load of the next video. It stops earlier as soon
+         *  as that load finishes or fails, so this is only a safety cap. */
+        private static final int MAX_BACKGROUND_WAIT_MS = 8000;
+        private static final int MAX_LOOP_RETRIES = 5;
 
-        private final StaticFunctions.Starter playlistLoop = new StaticFunctions.Starter() {
-            @Override
-            protected void firstLaunch() {
-                current.run();
+        /** Next index in the given direction (same wrap rules as before). */
+        private int stepIndex(int from, int plusOrMinus, int total) {
+            int next = from + plusOrMinus;
+
+            if (plusOrMinus == -1 && from == 0) {
+                next = total - 1;
+            } else if (from == total - 1 && plusOrMinus == 1) {
+                next = 0;
+            } else {
+                boolean shouldLoop = playlistLoopOn();
+                if (next < 0) {
+                    next = shouldLoop ? total - 1 : 0;
+                } else if (next >= total) {
+                    next = shouldLoop ? 0 : total - 1;
+                }
             }
+            return next;
+        }
 
-            @Override
-            protected void secondLaunches() {
+        /**
+         * Replaces AppBack.notLoaded() inside ChangeVideo. Moves the playlist one step in the run's
+         * direction (not always +1), and does nothing for a cancelled run: a cancelled run was
+         * replaced by a newer one, and moving the index here would corrupt that newer run.
+         */
+        private boolean notLoaded(ChangerData ch) {
+            int total = YoutubePlayList.getTotalVideosCount();
+            if (!ch.isCancelled() && !YoutubePlayList.isDisposed() && total > 0) {
+                YoutubePlayList.current = stepIndex(YoutubePlayList.current, ch.plusOrMinus, total);
             }
-        };
+            return false;
+        }
 
-        private Runnable current = updateInNewTask;
+        private final Looper playlistLoop = new Looper();
+
         private Disposable mediaChanger;
 
         public synchronized Disposable updateChanger(int plusOrMinus) {
@@ -1259,22 +1412,10 @@ public class AppBack extends AppWeb {
         }
 
         private synchronized Disposable updateChanger(int plusOrMinus, int maxAttempts, long delayMillis) {
-            badSoundFixer.run();
-            disposeChanger();
-            mediaPlayer.resetOnlyIsEnded();
-            SData.setLong(SData.Data.SavedSeek, 0);
-
-            ChangerData ch = new ChangerData(plusOrMinus);
-            int attempts = Math.max(1, maxAttempts);
+            NewData item = new NewData(plusOrMinus,maxAttempts,delayMillis);
 
             mediaChanger = Completable
-                    .create(emitter -> {
-                        ch.bindCancellation(emitter::isDisposed);
-                        runPipeline(ch, attempts, delayMillis);
-                        if (!emitter.isDisposed()) {
-                            emitter.onComplete();
-                        }
-                    })
+                    .create(item.getCompletable)
                     .subscribeOn(forGenerators)
                     .subscribe(() -> {}, t -> onErrorSave("ChangeVideo-Error", t));
 
@@ -1283,25 +1424,24 @@ public class AppBack extends AppWeb {
 
         public synchronized void stop() {
             disposeChanger();
-            current = updateInNewTask;
+            playlistLoop.resetTask();
             playlistLoop.reset();
             ErrorCodeApp.videoChanger.set("videoChanger: ");
         }
 
-        public synchronized void onPlaylistLoop() {
-            playlistLoop.run();
-        }
-
-        public synchronized void onPlaylistLoopInCurrentTask() {
-            current = pureUpdate;
-            playlistLoop.run();
-            current = updateInNewTask;
-        }
-
-        /** check -> (maybe) generate -> apply, retried up to maxAttempts times on transient failures. */
+        /**
+         * check -> (maybe) generate -> apply.
+         * Temporary failures (network) are retried up to maxAttempts times.
+         * Permanent failures (deleted / private / blocked video) are never retried: the index is
+         * marked unavailable and the run continues with the next video.
+         */
         private void runPipeline(ChangerData ch, int maxAttempts, long delayMillis) throws ExtractionException, IOException {
             int attempt = 0;
             while (true) {
+                // a retry must start clean, otherwise a stale ch.generate=true regenerates a loaded video
+                ch.selected = null;
+                ch.generate = false;
+
                 try {
                     if (!inFirstCheck(ch)) {
                         ErrorCodeApp.videoChanger.append("|inFirstCheck did not pass| ");
@@ -1313,10 +1453,23 @@ public class AppBack extends AppWeb {
                         ErrorCodeApp.videoChanger.append("|ifNotLoadedAgain did not pass| ");
                     }
                     return;
-                } catch (IOException | ExtractionException retryable) {
+                } catch (IOException | ExtractionException e) {
+                    if (ch.isCancelled()) {
+                        throw e;
+                    }
+
+                    if (YoutubePlayList.isPermanentFailure(e)) {
+                        // Dead video: remember it and go round again. inFirstCheck skips every
+                        // marked index, so each pass moves on, and the loop ends after at most
+                        // "playlist size" passes. This does not count as a retry attempt.
+                        YoutubePlayList.markUnavailable(ch.newIndex);
+                        ErrorCodeApp.videoChanger.append("|skipped unavailable #" + ch.newIndex + "| ");
+                        continue;
+                    }
+
                     attempt++;
-                    if (attempt >= maxAttempts || ch.isCancelled()) {
-                        throw retryable;
+                    if (attempt >= maxAttempts) {
+                        throw e;
                     }
                     waitMS(delayMillis);
                 }
@@ -1338,85 +1491,104 @@ public class AppBack extends AppWeb {
             }
 
             ch.currentIndex = YoutubePlayList.current;
-            int totalVideos = YoutubePlayList.getTotalVideosCount();
-            ch.newIndex = ch.currentIndex + ch.plusOrMinus;
+            final int totalVideos = YoutubePlayList.getTotalVideosCount();
 
-            if (ch.plusOrMinus == -1 && ch.currentIndex == 0) {
-                ch.newIndex = totalVideos - 1;
-            } else if (ch.currentIndex == totalVideos - 1 && ch.plusOrMinus == 1) {
-                ch.newIndex = 0;
-            } else {
-                boolean shouldLoop = playlistLoopOn();
-                if (ch.newIndex < 0) {
-                    ch.newIndex = shouldLoop ? totalVideos - 1 : 0;
-                } else if (ch.newIndex >= totalVideos) {
-                    ch.newIndex = shouldLoop ? 0 : totalVideos - 1;
+            int from = ch.currentIndex;
+
+            // At most one pass over the playlist, so an all-dead playlist ends instead of looping.
+            for (int hops = 0; hops < totalVideos; hops++) {
+                int idx = stepIndex(from, ch.plusOrMinus, totalVideos);
+
+                if (idx < 0 || idx >= totalVideos) {
+                    return notLoaded(ch);
+                }
+
+                // Known dead: step over it at once, no network and no waiting.
+                if (YoutubePlayList.isUnavailable(idx)) {
+                    from = idx;
+                    continue;
+                }
+
+                ch.newIndex = idx;
+                ch.selected = YoutubePlayList.getGenerator(idx);
+
+                if (isFresh(ch.selected)) {
+                    return true;                                  // preloaded and recent, nothing to wait for
+                }
+
+                YoutubePlayList.AddSingleElement(idx);
+
+                // Wait only while that background load is really running. It stops the moment the
+                // video is loaded, marked dead, or the load ended without a result.
+                final long deadline = System.currentTimeMillis() + MAX_BACKGROUND_WAIT_MS;
+                while (System.currentTimeMillis() < deadline) {
+                    if (ch.isCancelled()) return notLoaded(ch);
+
+                    ch.selected = YoutubePlayList.getGenerator(idx);
+                    if (isFresh(ch.selected)) break;
+                    if (YoutubePlayList.isUnavailable(idx)) break;
+                    if (YoutubePlayList.isDisposed()) return notLoaded(ch);
+                    if (!YoutubePlayList.isLoadingIndex(idx)) break;   // finished without a result
+
+                    waitMS(25);
+                }
+
+                if (ch.isCancelled()) return notLoaded(ch);
+
+                if (YoutubePlayList.isUnavailable(idx)) {
+                    from = idx;                                   // found dead while waiting
+                    continue;
+                }
+
+                if (isFresh(ch.selected)) {
+                    return true;
+                }
+
+                // Not loaded (or too old) and not known dead (temporary failure or too slow):
+                // build our own generator, ifNotGeneratedGenerate loads it.
+                try {
+                    if (YoutubePlayList.streamInfoItem != null && idx < YoutubePlayList.streamInfoItem.size()) {
+                        String videoUrl = YoutubePlayList.streamInfoItem.get(idx).getUrl();
+                        ch.selected = new YoutubeGenerator(
+                                videoUrl,
+                                YoutubePlayList.videoSettings,
+                                YoutubePlayList.listeners,
+                                YoutubePlayList.hardware
+                        );
+                        ch.generate = true;
+                        return true;
+                    }
+                    return notLoaded(ch);
+                } catch (Exception e) {
+                    onErrorSave("ChangeVideo", e);
+                    return notLoaded(ch);
                 }
             }
 
-            if (ch.newIndex < 0 || ch.newIndex >= totalVideos) {
-                return notLoaded();
-            }
-
-            ch.selected = YoutubePlayList.getGenerator(ch.newIndex);
-
-            if (ch.selected == null || !ch.selected.IsLoaded()) {
-                YoutubePlayList.AddSingleElement(ch.newIndex);
-
-                int maxWaitAttempts = 10;
-                for (int waitAttempt = 0; waitAttempt < maxWaitAttempts; waitAttempt++) {
-                    if (ch.isCancelled()) return notLoaded();
-                    waitMS(300);
-                    if (ch.isCancelled()) return notLoaded();
-
-                    ch.selected = YoutubePlayList.getGenerator(ch.newIndex);
-                    if (ch.selected != null && ch.selected.IsLoaded()) {
-                        break;
-                    }
-
-                    if (YoutubePlayList.isDisposed()) {
-                        return notLoaded();
-                    }
-                }
-
-                if (ch.selected == null || !ch.selected.IsLoaded()) {
-                    try {
-                        if (YoutubePlayList.streamInfoItem != null && ch.newIndex < YoutubePlayList.streamInfoItem.size()) {
-                            String videoUrl = YoutubePlayList.streamInfoItem.get(ch.newIndex).getUrl();
-                            ch.selected = new YoutubeGenerator(
-                                    videoUrl,
-                                    YoutubePlayList.videoSettings,
-                                    YoutubePlayList.listeners,
-                                    YoutubePlayList.hardware
-                            );
-                            ch.generate = true;
-                        } else {
-                            return notLoaded();
-                        }
-                    } catch (Exception e) {
-                        onErrorSave("ChangeVideo", e);
-                        return notLoaded();
-                    }
-                }
-            }
-
-            return true;
+            ErrorCodeApp.videoChanger.append("|every video in the playlist is unavailable| ");
+            return false;
         }
 
         private boolean ifNotGeneratedGenerate(ChangerData ch) throws ExtractionException, IOException {
             if (ch.selected.generateLink(5)) {
-                ch.selected.reloadContent();
-                if (YoutubePlayList.getGenerator(ch.newIndex) == null) {
-                    YoutubePlayList.youtubeGenerators.add(ch.selected);
+                ch.selected.reloadContent();      // throws for a dead video, runPipeline skips it
+
+                // stored at its real playlist index, not appended at the end of the list
+                YoutubeGenerator existing = YoutubePlayList.getGenerator(ch.newIndex);
+                if (existing != null && existing != ch.selected && isFresh(existing)) {
+                    ch.selected.kill();           // the background load finished first, use that one
+                    ch.selected = existing;
+                } else {
+                    YoutubePlayList.putGenerator(ch.newIndex, ch.selected);
                 }
                 return true;
             }
-            return notLoaded();
+            return notLoaded(ch);
         }
 
         private boolean ifNotLoadedAgain(ChangerData ch) throws ExtractionException, IOException {
             if (ch.selected == null || !ch.selected.IsLoaded()) {
-                return notLoaded();
+                return notLoaded(ch);
             }
 
             YoutubeGenerator.Size videoSize = ch.selected.getSize();
@@ -1427,7 +1599,7 @@ public class AppBack extends AppWeb {
             YoutubePlayList.current = ch.newIndex;
             YoutubePlayList.changed = true;
 
-            new LoaderForPlayerYoutube(ch.selected).updateLoaderAndKillerWithYoutubePlayListDispose();
+            UpdateErrorForYoutube lys = new UpdateErrorForYoutube(ch.selected);
 
             if (oldGenerator != null && oldGenerator != globalGenerator) {
                 try {
@@ -1436,6 +1608,9 @@ public class AppBack extends AppWeb {
                     onErrorSave("ChangeVideo-YoutubePlayList.UpdateToDefault", e);
                 }
             }
+
+            if (!isFresh(ch.selected))
+                forceNewLink = true;                      // cached link too old: regenerate it now
 
             globalGenerator.mediaError.started = true;
 
@@ -1446,9 +1621,9 @@ public class AppBack extends AppWeb {
             globalGenerator.mediaErrorRun();
 
             for (int i = 0; i < 5; i++) {
-                if (ch.isCancelled()) return notLoaded();
+                if (ch.isCancelled()) return notLoaded(ch);
                 waitMS(200);
-                if (ch.isCancelled()) return notLoaded();
+                if (ch.isCancelled()) return notLoaded(ch);
                 if (!globalGenerator.mediaError.started) break;
             }
 
@@ -1461,6 +1636,98 @@ public class AppBack extends AppWeb {
             Wait.webUIWaitStop();
             playlistLoop.reset();
             return true;
+        }
+
+        private class NewData{
+            private final int maxAttempts;
+            private final CompletableOnSubscribe getCompletable;
+            private ChangerData ch;
+
+            public NewData(int plusOrMinus, int maxAttempts, long delayMillis){
+                badSoundFixer.run();
+                SData.setLong(SData.Data.SavedSeekMS, 0);
+
+                disposeChanger();
+
+                reset(plusOrMinus);
+
+                this.maxAttempts = Math.max(1, maxAttempts);
+
+                getCompletable = emitter -> {
+                    ch.bindCancellation(emitter::isDisposed);
+                    runPipeline(ch, this.maxAttempts, delayMillis);
+                    if (!emitter.isDisposed()) {
+                        emitter.onComplete();
+                    }
+                };
+            }
+
+            private void reset(int plusOrMinus){
+                mediaPlayer.resetOnlyIsEnded();
+
+                int posNeg = plusOrMinus;
+
+                if(posNeg == 0)
+                    posNeg = 1;
+
+                ch = new ChangerData(posNeg);
+            }
+        }
+
+        private class Looper extends StaticFunctions.Starter{
+            private final Runnable pureUpdate = () -> updateChangerLoop(1, 3, 1000);//max = 10
+            private final Runnable updateInNewTask = () ->
+                    cleaningInBackground.add(pureUpdate, StaticFunctions.Empty.a, StaticFunctions.Empty.r, lifo, "PlayListLoop");
+
+            private Runnable current = updateInNewTask;
+
+            private synchronized Disposable updateChangerLoop(int plusOrMinus, int maxAttempts, long delayMillis) {
+                NewData item = new NewData(plusOrMinus, maxAttempts, delayMillis);
+
+                mediaChanger = Completable
+                        .create(item.getCompletable)
+                        .subscribeOn(forGenerators)
+                        .doOnError(t -> {
+                            // short pause before a temporary failure is tried again
+                            if (!YoutubePlayList.isPermanentFailure(t)) {
+                                waitMS(delayMillis);
+                            }
+                            item.reset(plusOrMinus);
+                        })
+                        .retry((count, t) -> count < MAX_LOOP_RETRIES
+                                && !YoutubePlayList.isPermanentFailure(t)
+                                && !YoutubePlayList.isDisposed())
+                        // Every way a run can end (done, failed, cancelled, returned without playing)
+                        // frees the latch. Before, only a fully successful run did, and after one failed
+                        // run every later playlist advance was silently ignored.
+                        .doFinally(() -> reset())
+                        .subscribe(() -> {}, t -> onErrorSave("ChangeVideo-LoopError", t));
+
+                return mediaChanger;
+            }
+
+            @Override
+            protected void firstLaunch() {
+                current.run();
+            }
+
+            @Override
+            protected void secondLaunches() {
+            }
+
+            public final void resetTask(){
+                current = updateInNewTask;
+            }
+
+            public final synchronized void onPlaylistLoop() {
+                run();
+            }
+
+            public final synchronized void onPlaylistLoopInCurrentTask() {
+                current = pureUpdate;
+                run();
+                current = updateInNewTask;
+            }
         }
     }
 
@@ -1560,24 +1827,55 @@ public class AppBack extends AppWeb {
             }
         };
 
-        private void onNotLoaded() {
+        private BiConsumer<Integer,Integer> screenUpdate;
+
+        public ListenersSet(){
+            onCreate();
+        }
+
+        protected void onCreate(){
+            setScreenUpdateToDefault();
+        }
+
+        public void setScreenUpdateToDefault(){
+            screenUpdate = (width,height) ->
+                    Panel.updateScreen(width, height);
+        }
+
+        public void setScreenUpdateToEmpty(){
+            screenUpdate = StaticFunctions.Empty.bC;
+        }
+
+        @Override
+        public final void onNotLoadedTryAgainToLoad() {
             try {
                 if(checkTryFix.call())
-                    mediaReload.tryLoad(()->{
-                        if(onExo.cachingFailed())
-                            return false;
+                {
+                    if(onExo.cachingFailed() || !onExo.getTemp())
+                    {
+                        // Already tried without the cache (or it was never used) and the server
+                        // still refuses the link. Reloading the same link can not help: that is what
+                        // used to happen, three times, and then sendURL() ended the whole session.
+                        recoverWithFreshLink();
+                    }
+                    else
+                        mediaReload.reloadWithCheck.reload(()->{
+                            if(onExo.cachingFailed())
+                                return false;
 
-                        if(onExo.getTemp())
-                            onExo.cachingFailed(true);
-                        else
-                            return false;
+                            if(onExo.getTemp())
+                                onExo.cachingFailed(true);
+                            else
+                                return false;
 
-                        return true;
-                    },StaticFunctions.Empty.r);
+                            return true;
+                        });
+                }
             } catch (Exception e) {}
         }
 
-        private void onError(){
+        @Override
+        public final void onErrorListener() {
             try {
                 if(checkTryFix.call())
                 {
@@ -1595,11 +1893,24 @@ public class AppBack extends AppWeb {
                             if(mediaIsNullFully())
                                 return;
 
+                            // A real "track ended" only: a failed player reports a negative or unset
+                            // duration, which used to look like "ended" and skipped to the next
+                            // item without ever fetching a fresh link.
+                            long duration = mediaPlayer.getDurationMS();
                             if(playlist.get()&& playlistLoopOn()&&
-                                    mediaPlayer.getDuration()<mediaPlayer.getSeekAfterIsPlayingDynamic()+10)
+                                    duration > 0 && duration != Long.MAX_VALUE &&
+                                    duration<mediaPlayer.getSeekAfterIsPlayingDynamicMS()+10)
                             {
                                 //videoChanger.UpdateChanger(1);
-                                videoChanger.onPlaylistLoopInCurrentTask();
+                                videoChanger.playlistLoop.onPlaylistLoopInCurrentTask();
+                                return;
+                            }
+
+                            // Second error in a row: the same link will fail again (expired / refused).
+                            // Use the same recovery as the freeze detector instead of reloading it.
+                            if(errorStreak.incrementAndGet() >= 2)
+                            {
+                                recoverWithFreshLinkNow();
                                 return;
                             }
 
@@ -1607,40 +1918,13 @@ public class AppBack extends AppWeb {
                             onErrorEnd();
                             globalGenerator.mediaError.started = false;
                         } catch (Exception e) {
-                            onErrorFail(e);
+                            onErrorSave("AppBack-OnError",e);
+                            globalGenerator.mediaError.started = true;
+                            globalGenerator.mediaErrorRun();
                         }
                     },StaticFunctions.Empty.a,StaticFunctions.Empty.r,forGenerators,"OnErrorListener");
                 }
             } catch (Exception e) {}
-        }
-
-        private BiConsumer<Integer,Integer> screenUpdate;
-
-        public ListenersSet(){
-            onCreate();
-        }
-
-        protected void onCreate(){
-            setScreenUpdateToDefault();
-        }
-
-        @CallSuper
-        protected void onErrorEnd(){
-            mediaPlayer.seekAfterIsPlayingDynamicUpdate();
-            mediaPlayer.resetWithoutResetPlayingState();
-
-            //if(timer.Get())
-            loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),()->{
-            });
-        }
-        
-        public void setScreenUpdateToDefault(){
-            screenUpdate = (width,height) ->
-                    Panel.updateScreen(width, height);
-        }
-
-        public void setScreenUpdateToEmpty(){
-            screenUpdate = StaticFunctions.Empty.bC;
         }
 
         @Override
@@ -1658,7 +1942,7 @@ public class AppBack extends AppWeb {
             try {
                 badSoundFixer.stop();
                 globalGenerator.waitMake(() -> mediaPlayer,globalGenerator.isLive(),cleaningInBackground,()->{
-                    seekMax(globalGenerator.getMaxSeek());
+                    seekMaxMS(globalGenerator.getMaxSeekMS());
                     AppControl.waitAndIsWorkingStop();
                 });
             } catch (Exception e) {
@@ -1666,14 +1950,14 @@ public class AppBack extends AppWeb {
             }
         }
 
-        @Override
-        public final void onNotLoadedTryAgainToLoad() {
-            onNotLoaded();
-        }
+        @CallSuper
+        protected void onErrorEnd(){
+            mediaPlayer.seekAfterIsPlayingDynamicUpdate();
+            mediaPlayer.resetWithoutResetPlayingState();
 
-        @Override
-        public final void onErrorListener() {
-            onError();
+            //if(timer.Get())
+            loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamicMS(),()->{
+            });
         }
 
         @Override
@@ -1686,7 +1970,7 @@ public class AppBack extends AppWeb {
         public final void onCompletionListener()
         {
             badSoundFixer.run();
-            SData.setLong(SData.Data.SavedSeek,0);
+            SData.setLong(SData.Data.SavedSeekMS,0);
             timer.set(false);
         }
     }
@@ -1701,7 +1985,7 @@ public class AppBack extends AppWeb {
         public void onPlayListLoop()
         {
             super.onPlayListLoop();
-            videoChanger.onPlaylistLoop();
+            videoChanger.playlistLoop.onPlaylistLoop();
         }
 
         @Override
@@ -1710,84 +1994,24 @@ public class AppBack extends AppWeb {
             AppControl.waitAndIsWorkingStop();
         }
     }
-    public abstract class LoaderForPlayer<T extends Generator>
+
+    public abstract class UpdateError<T extends Generator>
     {
         protected final T localGenerator;
 
-        public LoaderForPlayer(T localGenerator)
+        public UpdateError(T localGenerator)
         {
             this.localGenerator = localGenerator;
-            globalGenerator = localGenerator;
+            globalGenerator = this.localGenerator;
+            globalGenerator.onErrorUpdate(onUpdateError());
         }
 
-        void loadOrLoadAndStartAndStartDetection(boolean andStart,
-                                                 @NonNull Callable<Long> seek,
-                                                 @NonNull Runnable beforeForLoadAndStart)
-        {
-            loadOrLoadAndStart(andStart,seek,beforeForLoadAndStart);
-            errorHandel.detection.startDetectionLost();
-        }
-
-        void loadVideo(SurfaceHolder holder) throws IOException {
-            if(mediaIsNull())
-                return;
-
-            ((IVideoPlayer)mediaPlayer).setDisplay(holder);
-
-            loadOrLoadAndStartAndStartDetection(timer.get(),()->{
-                long seek = seekLoad();
-                if(seek == 0)
-                    seek = 1;
-                return seek;
-            },StaticFunctions.Empty.r);
-        }
-
-        protected void resetPlayer(@NonNull GeneratorWithExpire generatorWithExpire)
-        {
-            mediaPlayer.resetWithoutResetPlayingState();
-            mediaPlayer.addData(generatorWithExpire.getAudioStream(),generatorWithExpire.getVideoStream());
-        }
-
-        public Runnable getLoader()
-        {
-            return () -> {
-                Loops l = loopUpdate();
-                if(displayOn())
-                {
-                    Panel.loadPanel((hol)->{
-                        mediaPlayer = globalGenerator.startPanel(true,l.getLoop(),l.getPlayListLoop());
-                        /*if(!Panel.blackPanelFix)
-                            waitMS(500);*/
-
-                        loadVideo(hol);
-                    });
-                }
-                else
-                {
-                    mediaPlayer = globalGenerator.startPanel(false,l.getLoop(),l.getPlayListLoop());
-
-                    loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),StaticFunctions.Empty.r);
-                }
-            };
-        }
-
-        public abstract Callable<Boolean> onUpdateError();
-
-        public void updateLoader()
-        {
-            localGenerator.onErrorUpdate(onUpdateError());
-            panelRun = getLoader();
-        }
-
-        @CallSuper
-        public void updateLoaderAndKiller()
-        {
-            updateLoader();
-        }
+        protected abstract Callable<Boolean> onUpdateError();
     }
-    public class LoaderForPlayerYoutube extends LoaderForPlayer<YoutubeGenerator>
+
+    public class UpdateErrorForYoutube extends UpdateError<YoutubeGenerator>
     {
-        public LoaderForPlayerYoutube(YoutubeGenerator localGenerator) {
+        public UpdateErrorForYoutube(YoutubeGenerator localGenerator) {
             super(localGenerator);
         }
 
@@ -1800,8 +2024,9 @@ public class AppBack extends AppWeb {
                     try {
                         mediaPlayer.beforeOnErrorStarted();
 
-                        if(localGenerator.mediaIsExpired())
+                        if(forceNewLink || localGenerator.mediaIsExpired())
                         {
+                            forceNewLink = false;
                             localGenerator.generateContent();
                             localGenerator.reloadContent();
                         }
@@ -1844,24 +2069,24 @@ public class AppBack extends AppWeb {
                                 }
                             }
 
-                            resetPlayer(localGenerator);
+                            resetPlayerAndUpdateLink(localGenerator);
 
-                            seekPosition(0);
+                            seekPositionMS(0);
                             mediaPlayer.seekAfterIsPlayingDynamicReset();
-                            seekMax(localGenerator.getMaxSeek());
+                            seekMaxMS(localGenerator.getMaxSeekMS());
 
                             YoutubePlayList.changed = false;
                         }
                         else
                         {
                             //ErrorHandel.GetSeek();
-                            resetPlayer(localGenerator);
+                            resetPlayerAndUpdateLink(localGenerator);
                         }
                         reloadPanel(reload);
 
                         //if(timer.Get())
 
-                        loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),StaticFunctions.Empty.r);
+                        loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamicMS(),StaticFunctions.Empty.r);
 
                         errorHandel.posSaved = false;
                         localGenerator.mediaError.started = false;
@@ -1877,21 +2102,17 @@ public class AppBack extends AppWeb {
             };
         }
 
-        @Override
-        public void updateLoaderAndKiller()
+        public final void onYoutubeLoadEnd()
         {
-            super.updateLoaderAndKiller();
-        }
-
-        public void updateLoaderAndKillerWithYoutubePlayListDispose()
-        {
-            super.updateLoaderAndKiller();
+            seekMaxMS(globalGenerator.getMaxSeekMS());
+            createAndLoad();
         }
     }
-    public class LoaderForSiteGenerator extends LoaderForPlayer<SiteGenerator>
+
+    public class UpdateErrorForSiteGenerator extends UpdateError<SiteGenerator>
     {
 
-        public LoaderForSiteGenerator(SiteGenerator localGenerator) {
+        public UpdateErrorForSiteGenerator(SiteGenerator localGenerator) {
             super(localGenerator);
         }
 
@@ -1902,8 +2123,9 @@ public class AppBack extends AppWeb {
                 Connection.ifNotHaveConnectionWaitInfinityTime(cleaningInBackground,()->{
                     mediaPlayer.beforeOnErrorStarted();
                     try {
-                        if(localGenerator.mediaIsExpired())
+                        if(forceNewLink || localGenerator.mediaIsExpired())
                         {
+                            forceNewLink = false;
                             localGenerator.generateContent();
                             localGenerator.reloadContent();
                         }
@@ -1915,12 +2137,12 @@ public class AppBack extends AppWeb {
                         boolean reload = refreshDisplay();
 
                         //ErrorHandel.GetSeek();
-                        resetPlayer(localGenerator);
+                        resetPlayerAndUpdateLink(localGenerator);
                         reloadPanel(reload);
 
                         //if(timer.Get())
 
-                        loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),StaticFunctions.Empty.r);
+                        loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamicMS(),StaticFunctions.Empty.r);
 
                         errorHandel.posSaved = false;
                         localGenerator.mediaError.started = false;
@@ -1938,55 +2160,12 @@ public class AppBack extends AppWeb {
                 return true;
             };
         }
-
-        @Override
-        public void updateLoaderAndKiller()
-        {
-            super.updateLoaderAndKiller();
-        }
     }
-    public class LoaderForPlayerURL extends LoaderForPlayer<UrlGenerator>
+
+    public class UpdateErrorForURL extends UpdateError<UrlGenerator>
     {
-        public LoaderForPlayerURL(UrlGenerator genera) {
+        public UpdateErrorForURL(UrlGenerator genera) {
             super(genera);
-        }
-
-        @Override
-        public Runnable getLoader(){
-
-            return () -> {
-
-                /*try {
-                    if(!isStreamAvailable(url))
-                    {
-                        mediaPlayer.WaitStop();
-                        return;
-                    }
-                } catch (IOException e) {
-
-                }*/
-
-                Loops l = loopUpdate();
-                if(displayOn())
-                {
-                    Panel.loadPanel((hol)->{
-                        mediaPlayer = globalGenerator.startPanel(true,l.getLoop(),l.getPlayListLoop());
-                        /*if(!Panel.blackPanelFix)
-                            waitMS(500);*/
-
-                        loadVideo(hol);
-                    });
-                }
-                else
-                {/*
-                    if(!startedPanelOneTime)
-                        return;*/
-                    mediaPlayer = globalGenerator.startPanel(false,l.getLoop(),l.getPlayListLoop());
-                    //urlPlayer.Load();
-
-                    loadOrLoadAndStartAndStartDetection(timer.get(),()-> seekLoad(),StaticFunctions.Empty.r);
-                }
-            };
         }
 
         @Override
@@ -2003,7 +2182,7 @@ public class AppBack extends AppWeb {
                         mediaPlayer.resetWithoutResetPlayingState();
                         reloadPanel(reload);
 
-                        loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamic(),StaticFunctions.Empty.r);
+                        loadOrLoadAndStart(mediaPlayer.isPlaying(),()->mediaPlayer.getSeekAfterIsPlayingDynamicMS(),StaticFunctions.Empty.r);
 
                         errorHandel.posSaved = false;
                         globalGenerator.mediaError.started = false;
@@ -2018,13 +2197,8 @@ public class AppBack extends AppWeb {
                 return true;
             };
         }
-
-        @Override
-        public void updateLoaderAndKiller()
-        {
-            super.updateLoaderAndKiller();
-        }
     }
+
     public static abstract class DetectorSet{
         private static Detector detector;
         private static Exception exception;
@@ -2063,7 +2237,11 @@ public class AppBack extends AppWeb {
             PlayerStarting_Skipping,
             PlayerIsPlaying_Healthy,
             MediaPlayer_Is_Null,
-            Detection_Player_Is_Null
+            Detection_Player_Is_Null,
+            RecoverySkip_Global_Recovery_Started,
+            RecoveryErrorNull, GeneratorNull,
+            InSendState,Paused,
+            TickStuckRestarted, TickFailed
         }
     }
     public class AsyncRun
@@ -2079,7 +2257,20 @@ public class AppBack extends AppWeb {
             private int maxCheckOfIsNotPlaying;
             private long savedSeek;
             private int counter;
-            private Disposable detector;
+
+            private static final long TICK_STUCK_MS = 45_000;
+            private static final long GUARD_PERIOD_S = 10;
+
+            private Disposable tickDisposable;
+            private Disposable guardDisposable;
+            private final AtomicInteger generation = new AtomicInteger();
+            private volatile long tickStartedAt;      // 0 while no tick is running
+            private volatile long lastTickAt;         // when a tick last started or finished
+            private long lastStoppingWrite;           // throttles the StoppingTime disk write
+            private volatile boolean wanted;
+            private long firstPlaySeed = Long.MIN_VALUE;
+            private int notPlayingTicks;
+            private int maxNotPlayingTicks;
 
 
             private void setup(int intervalMS,int maxCheckOfIsNotPlayingMS){
@@ -2087,83 +2278,96 @@ public class AppBack extends AppWeb {
                 this.maxCheckOfIsNotPlayingMS = maxCheckOfIsNotPlayingMS;
             }
 
-            private void stop()
+            private synchronized void stop()
             {
-                if(detector !=null && !detector.isDisposed())
-                    detector.dispose();
+                wanted = false;
+                generation.incrementAndGet();     // any tick still running becomes a no-op
+                disposeTicker();
+                if(guardDisposable != null)
+                    guardDisposable.dispose();
+                guardDisposable = null;
+            }
 
-                //mediaIsChanged.Reset();
+            /**
+             * Stops the ticker. fifoForDetector is an interruptible scheduler, so a tick that is
+             * already running is interrupted; the generation check also makes it do nothing.
+             */
+            private synchronized void disposeTicker()
+            {
+                if(tickDisposable != null)
+                    tickDisposable.dispose();
+                tickDisposable = null;
             }
 
             private void recover()
             {
-                badSoundFixer.run();
+                DetectorSet.detector = Detector.StartingRecovery;
 
-                //String report = getWebUIWaitStopReport();
-                //ErrorCodeApp.code40 = ErrorCodeApp.code40 + System.lineSeparator() + report;
+                currentRecover.actionStart(() -> {
+                    if (globalGenerator.mediaError.started){
+                        DetectorSet.detector = Detector.RecoverySkip_Global_Recovery_Started;
+                        return true;
+                    }
 
-                if (AndroidOsUpdatesListener.isHaveConnection()) {
-                    DetectorSet.detector = Detector.StartingRecovery;
-                    errorHandel.currentRecover.recoverStarted = true;
+                    badSoundFixer.run();
 
-                    // Single recovery attempt with proper cleanup
-                    currentRecover.actionStart(() -> {
-                        if (globalGenerator.mediaError.started)
-                            return true;
-                        try {
-                            DetectorSet.detector = Detector.RecoveryStarted;
+                    if (!AndroidOsUpdatesListener.isHaveConnection()){
+                        DetectorSet.detector = Detector.No_Connection_SkippingRecovery;
+                        return true;
+                    }
 
-                            // Dispose current player
-                            if (!mediaIsNull()) {
-                                mediaPlayer.dispose();
-                            }
+                    try {
+                        DetectorSet.detector = Detector.RecoveryStarted;
 
-                            // Stop generator
-                            if (globalGenerator != null) {
-                                globalGenerator.mediaErrorStop();
-                            }
-
-                            if(!AndroidOsUpdatesListener.isHaveConnection())
-                                return true;
-                            //OnException();
-                            if (playlist.get()&& playlistLoopOn())
-                                videoChanger.updateChanger(1);
-                            else
-                                globalGenerator.mediaErrorRun();
-
-                            DetectorSet.detector = Detector.RecoveryCompleted;
-                            return true;
-
-                        } catch (Exception e) {
-                            onErrorSave("Player-OnCompletionListener",e);
-
-                            if (globalGenerator.mediaError.started)
-                                return true;
-                            if(!AndroidOsUpdatesListener.isHaveConnection())
-                                return true;
-
-                            DetectorSet.detector = Detector.RecoveryError;
-                            DetectorSet.exception = e;
-                            //TryIP();
-                            if (playlist.get()&& playlistLoopOn())
-                                videoChanger.updateChanger(1);
-                            else
-                                globalGenerator.mediaErrorRun();/*
-                        if(!mediaPlayer.IsLoaded())
-                        {
-                        }*/
-                            return false;
-                        } finally {
-                            cleaningInBackground.addStartAfterWait(2000,()->{
-                                errorHandel.currentRecover.recoverStarted = false;
-                                currentRecover.currentStopAndResetStateAndUIWait();
-                            },StaticFunctions.Empty.r, lifo,"RecoverError-After-2-Seconds-Delay");
+                        // Dispose current player
+                        if (!mediaIsNull()) {
+                            mediaPlayer.dispose();
                         }
-                    }, () -> "RecoverError");
 
-                } else {
-                    DetectorSet.detector = Detector.No_Connection_SkippingRecovery;
-                }
+                        // Stop generator
+                        if (globalGenerator != null) {
+                            globalGenerator.mediaErrorStop();
+                        }
+
+                        if(!AndroidOsUpdatesListener.isHaveConnection()){
+                            DetectorSet.detector = Detector.No_Connection_SkippingRecovery;
+                            return true;
+                        }
+
+                        if (playlist.get()&& playlistLoopOn())
+                            videoChanger.updateChanger(1);
+                        else
+                            globalGenerator.mediaErrorRun();
+
+                        DetectorSet.detector = Detector.RecoveryCompleted;
+                        return true;
+
+                    } catch (Exception e) {
+                        DetectorSet.detector = Detector.RecoveryError;
+                        DetectorSet.exception = e;
+                        onErrorSave("Player-OnCompletionListener",e);
+
+                        if (globalGenerator.mediaError.started){
+                            DetectorSet.detector = Detector.RecoverySkip_Global_Recovery_Started;
+                            return true;
+                        }
+                        if(!AndroidOsUpdatesListener.isHaveConnection()){
+                            DetectorSet.detector = Detector.No_Connection_SkippingRecovery;
+                            return true;
+                        }
+
+
+                        if (playlist.get()&& playlistLoopOn())
+                            videoChanger.updateChanger(1);
+                        else
+                            globalGenerator.mediaErrorRun();
+
+                        return false;
+                    }
+                }, () -> {
+                    DetectorSet.detector = Detector.RecoveryErrorNull;
+                    return "RecoverError";
+                });
             }
 
             private boolean startedRecover(int count){
@@ -2181,128 +2385,247 @@ public class AppBack extends AppWeb {
             private void startDetectionLost() {
                 maxCheckOfIsNotPlaying = maxCheckOfIsNotPlayingMS / intervalMS;
                 maxCheckOfNotCreatedCalculated = MAX_CHECK_OF_NOT_CREATED_MS / intervalMS;
+                // an error flag must stay for at least ~10 s before the detector recovers
+                maxNotPlayingTicks = Math.max(1, 10000 / intervalMS);
 
-                detector = Observable.interval(intervalMS, TimeUnit.MILLISECONDS, lifo)
-                        .retryWhen(errors -> errors.delay(2, TimeUnit.SECONDS, lifo))
-                        .subscribe(tick -> {
-                            try
+                synchronized (this) {
+                    stop();                       // never two detector loops at the same time
+                    firstPlaySeed = Long.MIN_VALUE;
+                    notPlayingTicks = 0;
+                    wanted = true;
+                    startTicker();
+
+                    startGuard();
+                }
+            }
+
+            private synchronized void startGuard() {
+                guardDisposable = Observable
+                        .interval(GUARD_PERIOD_S, GUARD_PERIOD_S, TimeUnit.SECONDS, forDetector)
+                        .subscribe(n -> guard(), e -> {});      // guard() catches everything itself
+            }
+
+            private synchronized void startTicker() {
+                final int gen = generation.incrementAndGet();
+                tickStartedAt = 0;
+                lastTickAt = SystemClock.elapsedRealtime();   // a new ticker gets a full grace period
+                disposeTicker();
+
+                // wait, run one tick, then wait again (fixed DELAY: ticks never overlap).
+                // safeTick catches Throwable, and retry() resubscribes even if something slips through.
+                tickDisposable = Completable
+                        .timer(intervalMS, TimeUnit.MILLISECONDS, forDetector)
+                        .andThen(Completable.fromAction(() -> safeTick(gen)))
+                        .repeat()
+                        .retry()
+                        .subscribe(() -> {}, e -> {});
+            }
+
+            private void safeTick(int gen) {
+                if (gen != generation.get())
+                    return;                       // a replaced ticker must do nothing
+                tickStartedAt = SystemClock.elapsedRealtime();
+                lastTickAt = tickStartedAt;
+                try {
+                    tick();
+                } catch (Throwable e) {           // Throwable: an Error used to kill the detector for good
+                    try {
+                        DetectorSet.detector = Detector.TickFailed;
+                        StaticFunctions.onErrorSave("PlayerFreezeDetection: ", e);
+                    } catch (Throwable ignore) {}
+                } finally {
+                    if (gen == generation.get()) {
+                        tickStartedAt = 0;
+                        lastTickAt = SystemClock.elapsedRealtime();
+                    }
+                }
+            }
+
+            /**
+             * Restarts the ticker if its subscription died, one tick has been running too long,
+             * or no tick has run for a long time (for example the pool never ran the timer task,
+             * so the subscription still looks alive).
+             */
+            private synchronized void guard() {
+                try {
+                    if (!wanted)
+                        return;
+                    long started = tickStartedAt;
+                    boolean stuck = started != 0
+                            && SystemClock.elapsedRealtime() - started > TICK_STUCK_MS;
+                    boolean dead = tickDisposable == null || tickDisposable.isDisposed();
+                    boolean silent = started == 0
+                            && SystemClock.elapsedRealtime() - lastTickAt > Math.max(30_000L, intervalMS * 20L);
+
+                    if (stuck || dead || silent) {
+                        Detector last = DetectorSet.detector;
+                        DetectorSet.detector = Detector.TickStuckRestarted;
+                        StaticFunctions.onErrorSave("PlayerFreezeDetection restarted, stuck=" + stuck
+                                + " dead=" + dead + " silent=" + silent + " last=" + last, new IllegalStateException("detector"));
+                        startTicker();                // disposes (and interrupts) the old ticker first
+                    }
+                } catch (Throwable ignore) {
+                    // the guard must never die either
+                }
+            }
+
+            private void tick() throws Exception
+            {
+                DetectorSet.detector = Detector.Idle;
+
+                if(globalGenerator == null){
+                    DetectorSet.detector = Detector.GeneratorNull;
+                    return;
+                }
+
+                if(globalGenerator.mediaError.started){
+                    DetectorSet.detector = Detector.RecoverySkip_Global_Recovery_Started;
+                    return;
+                }
+
+                if(!setUp.get()){
+                    DetectorSet.detector = Detector.InSendState;
+                    return;
+                }
+
+                if(!timer.get()){
+                    DetectorSet.detector = Detector.Paused;
+                    return;
+                }
+
+                if(!AndroidOsUpdatesListener.isHaveConnection()){
+                    DetectorSet.detector = Detector.No_Connection_SkippingRecovery;
+                    return;
+                }
+
+                if(mediaIsNull())
+                {
+                    DetectorSet.detector = Detector.Detection_Player_Is_Null_1;
+                    return;
+                }
+                else
+                {
+                    if(mediaPlayer.actionStarted())
+                    {
+                        DetectorSet.detector = Detector.PlayerAction_NotCompleted;
+                        return;
+                    }
+
+                    if(!mediaPlayer.isCreated())
+                    {
+                        if(!startedRecover(maxCheckOfNotCreatedCalculated))
+                            DetectorSet.detector = Detector.PlayerNotLoaded_SkippingDetection;
+                        return;
+                    }
+                }
+
+                if(!mediaPlayer.isLoaded())
+                {
+                    recover();
+                    return;
+                }
+
+                if(!mediaPlayer.firstPlayed())
+                {
+                    counter = 0;
+                    DetectorSet.detector = Detector.PlayerStarting_Skipping;
+
+                    // Non-blocking: compare the position with the previous tick (the old
+                    // firstPlayTrigger(50,500) could block this tick for 25 s).
+                    long p = mediaPlayer.getCurrentPositionPureMS();
+                    boolean moved = firstPlaySeed != Long.MIN_VALUE && p > firstPlaySeed;
+                    firstPlaySeed = p;
+
+                    if(moved)
+                    {
+                        mediaPlayer.markFirstPlayed();
+                        mediaPlayer.seekAfterIsPlayingDynamicUpdate(p,(s)->{});
+                        mediaReload.tryLoadAfterFirstPlay();
+                    }
+                    sender.sendUrlStartedReset();
+                }
+
+                // Check if already in recovery mode
+                if (errorHandel.currentRecover.isActivated()) {
+                    DetectorSet.detector = Detector.RecoveryInProgress_Skipping;
+                    return;
+                }
+
+                DetectorSet.detector = Detector.CheckingPlayerState;
+
+                if (!mediaIsNull()) {
+
+                    // Check if player is actually paused
+                    if(!mediaPlayer.isPlaying())
+                    {
+                        DetectorSet.detector = Detector.PlayerStarting_Healthy_Paused;
+                        if(!globalGenerator.isLive())
+                        {
+                            // The user wants playback (timer is on) but the player stopped because it
+                            // failed: it will never start by itself. A plain pause or an ended track
+                            // has no error flag and is left alone.
+                            if(!mediaPlayer.isEnded() && !mediaPlayer.waitStarted()
+                                    && mediaPlayer.getError()
+                                    && ++notPlayingTicks >= maxNotPlayingTicks)
                             {
-                                DetectorSet.detector = Detector.Idle;
-
-                                if(globalGenerator!=null&&!globalGenerator.mediaError.started && setUp.get() && timer.get() && AndroidOsUpdatesListener.isHaveConnection())
-                                {
-
-                                    // SKIP DETECTION if first load hasn't happened yet
-
-                                    if(mediaIsNull())
-                                    {
-                                        DetectorSet.detector = Detector.Detection_Player_Is_Null_1;
-                                        return;
-                                    }
-                                    else
-                                    {
-                                        if(mediaPlayer.actionStarted())
-                                        {
-                                            DetectorSet.detector = Detector.PlayerAction_NotCompleted;
-                                            return;
-                                        }
-
-                                        if(!mediaPlayer.isCreated())
-                                        {
-                                            if(!startedRecover(maxCheckOfNotCreatedCalculated))
-                                                DetectorSet.detector = Detector.PlayerNotLoaded_SkippingDetection;
-                                            return;
-                                        }
-                                    }
-
-                                    if(!mediaPlayer.isLoaded())
-                                    {
-                                        recover();
-                                        return;
-                                    }
-
-                                    if(!mediaPlayer.firstPlayed())
-                                    {
-                                        counter = 0;
-
-                                        if(mediaPlayer.firstPlayTrigger(50,500))
-                                        {
-                                            mediaReload.tryLoadAfterFirstPlay();
-                                            sender.sendUrlStartedReset();
-                                        }
-                                        else
-                                            sender.sendUrlStartedReset();
-                                    }
-
-                                    // Check if already in recovery mode
-                                    if (errorHandel.currentRecover.recoverStarted) {
-                                        DetectorSet.detector = Detector.RecoveryInProgress_Skipping;
-                                        return;
-                                    }
-
-                                    DetectorSet.detector = Detector.CheckingPlayerState;
-
-                                    if (!mediaIsNull()) {
-
-                                        // Check if player is actually paused
-                                        if(!mediaPlayer.isPlaying())
-                                        {
-                                            DetectorSet.detector = Detector.PlayerStarting_Healthy_Paused;
-                                            if(!globalGenerator.isLive())
-                                                return;
-
-                                            DetectorSet.detector = Detector.CheckingPlayerState_Recovering;
-                                            recover();
-
-                                            return;
-                                        }
-
-                                        // Skip if player is still starting up
-                                        if (mediaPlayer.waitStarted()) {
-                                            DetectorSet.detector = Detector.PlayerStarting_Skipping;
-                                            return;
-                                        }
-
-                                        // Check if player is actually playing
-                                        long curP = mediaPlayer.getCurrentPositionPure();
-                                        if (curP!=savedSeek){
-                                            savedSeek = curP;
-                                            counter = 0;
-                                            DetectorSet.detector = Detector.PlayerIsPlaying_Healthy;
-                                            SData.setLong(SData.Data.StoppingTime,System.currentTimeMillis());
-                                            if(!globalGenerator.isLive())
-                                                SData.setLong(SData.Data.SavedSeek,mediaPlayer.getSeekAfterIsPlayingDynamic());
-                                            return;
-                                        }
-                                        startedRecover(maxCheckOfIsNotPlaying);
-                                        return;
-                                    } else {
-                                        DetectorSet.detector = Detector.MediaPlayer_Is_Null;
-                                    }
-
-
-                                    recover();
-                                } else {
-                                    errorHandel.currentRecover.recoverStarted = false;
-                                }
+                                notPlayingTicks = 0;
+                                forceNewLink = true;
+                                DetectorSet.detector = Detector.CheckingPlayerState_Recovering;
+                                recover();
                             }
-                            catch (Exception e)
-                            {
-                                if(mediaIsNull())
-                                {
-                                    DetectorSet.detector = Detector.Detection_Player_Is_Null;
-                                }
-                            }
-                        },onError -> {});
+                            return;
+                        }
+
+                        DetectorSet.detector = Detector.CheckingPlayerState_Recovering;
+                        recover();
+
+                        return;
+                    }
+
+                    notPlayingTicks = 0;
+
+                    // Skip if player is still starting up
+                    if (mediaPlayer.waitStarted()) {
+                        DetectorSet.detector = Detector.PlayerStarting_Skipping;
+                        return;
+                    }
+
+                    // Check if player is actually playing
+                    long curP = mediaPlayer.getCurrentPositionPureMS();
+                    if (curP!=savedSeek){
+                        savedSeek = curP;
+                        counter = 0;
+                        DetectorSet.detector = Detector.PlayerIsPlaying_Healthy;
+                        errorStreak.set(0);
+                        long nowMs = System.currentTimeMillis();
+                        if (nowMs - lastStoppingWrite >= 1000) {      // not on every tick: commit() is a disk write
+                            lastStoppingWrite = nowMs;
+                            SData.setLong(SData.Data.StoppingTime, nowMs);
+                        }
+
+                        if(!globalGenerator.isLive())
+                            mediaPlayer.seekAfterIsPlayingDynamicUpdate(savedSeek,(seekk)->
+                                    SData.setLong(SData.Data.SavedSeekMS,seekk));
+                        return;
+                    }
+                    startedRecover(maxCheckOfIsNotPlaying);
+                    return;
+                } else {
+                    DetectorSet.detector = Detector.MediaPlayer_Is_Null;
+                }
+
+                recover();
+
             }
         }
 
         public class Recover extends StaticFunctions.ActionWait{
-            private boolean recoverStarted;
             @Override
-            public synchronized void onResetState(){
-                super.onResetState();
-                recoverStarted = false;
+            protected synchronized long maxWaitMs()
+            {
+                // Must be longer than a full recovery (release waits up to 10 s). With 5 s the next
+                // detector tick disposed the recovery that was still running, so it never finished.
+                return 30000;
             }
         }
 
@@ -2363,14 +2686,14 @@ public class AppBack extends AppWeb {
         {
             if(timer.get()&&!posSaved&&!mediaIsNullFully())
             {
-                AtomicInteger savedSeek = new AtomicInteger(-1);
+                AtomicLong savedSeek = new AtomicLong(-1);
 
                 mediaGetSeek.started = true;
                 mediaGetSeek.start(() ->
                 {
                     while (savedSeek.get()==-1)
                     {
-                        savedSeek.set(saveSeek((int)mediaPlayer.getCurrentPosition()));
+                        savedSeek.set(mediaPlayer.getCurrentPositionMS());
                         waitMS(1000);
                     }
                     mediaGetSeek.started = false;
@@ -2383,13 +2706,13 @@ public class AppBack extends AppWeb {
                     waitMS(1000);
                     if(timeOut == mediaGetSeek.getSecond())
                     {
-                        savedSeek.set((bufferedPercentage * getSeekMax()) / 100);
+                        savedSeek.set((bufferedPercentage * getSeekMaxMS()) / 100);
                         break;
                     }
                     timeOut++;
                 }
 
-                seekPosition(savedSeek.get());
+                seekPositionMS(savedSeek.get());
                 posSaved = true;
             }
         }
@@ -2422,11 +2745,11 @@ public class AppBack extends AppWeb {
     }
     public static class Sender
     {
-        private final SenderFuncuanality sender;
+        private final SenderFunctionality sender;
 
         public Sender()
         {
-            sender = new SenderFuncuanality();
+            sender = new SenderFunctionality();
         }
 
         public synchronized void onMediaChangingUse(Callable<Boolean> Base, Callable<String> OnError) {
@@ -2455,7 +2778,7 @@ public class AppBack extends AppWeb {
             sender.onResetState();
         }
 
-        private class SenderFuncuanality extends StaticFunctions.ActionWait{
+        private static class SenderFunctionality extends StaticFunctions.ActionWait{
 
             private final StaticFunctions.Starter onFirst = new StaticFunctions.Starter() {
                 @Override
@@ -2468,6 +2791,25 @@ public class AppBack extends AppWeb {
                     onDispose();
                 }
             };
+
+            public final synchronized void currentStopAndResetStateAndUIWait() {
+                disposeOnly();
+                resetStateAndUIWait();
+            }
+
+            public final synchronized void resetStateAndUIWait()
+            {
+                onResetState();
+                Wait.webUIWaitStop();
+            }
+
+            @Override
+            protected synchronized void onSuccessEnd(){}
+
+            @Override
+            protected synchronized void onEnteredInError(){
+                currentStopAndResetStateAndUIWait();
+            }
 
             @Override
             public void onDispose()
@@ -2527,6 +2869,9 @@ public class AppBack extends AppWeb {
         private MediaSourceProviders sourceProvider;
         private String nameOfMedia;
 
+        private int tryLoadCount;
+        private final int MAX_TRY_LOAD_COUNT = 4;
+
         public void mediaSessionStopAndWaitAndIsWorkingStop(){
             reset();
             mediaStopAndWait.mediaSessionStopBase();
@@ -2548,86 +2893,99 @@ public class AppBack extends AppWeb {
             url = null;
             sourceProvider = null;
             nameOfMedia = null;
+            tryLoadCount = 0;
         }
 
         public class MediaStop{
-            final void mediaSessionStopBase(){
 
-                if(mediaIsNull()){
-                    make();
-                    return;
+            private final StaticFunctions.Starter tick = new StaticFunctions.Starter() {
+                private Runnable playListClean;
+                private Generator oldGenerator;
+
+                @Override
+                protected void firstLaunch() {
+                    videoChanger.stop();
+                    errorHandel.posSaved = false;
+                    playListClean = YoutubePlayList.softDispose();
+                    killAll(errorHandel.mediaBuffering, errorHandel.mediaGetSeek);
+
+                    oldGenerator = globalGenerator;
+                    globalGenerator = null;
                 }
 
-                errorHandel.posSaved = false;
-
-                badSoundFixer.run();
-
-                StaticFunctions.Starter tick = new StaticFunctions.Starter() {
-                    private Runnable playListClean;
-                    private Generator oldGenerator;
-
-                    @Override
-                    protected void firstLaunch() {
-                        playListClean = YoutubePlayList.softDispose();
-                        killAll(errorHandel.mediaBuffering, errorHandel.mediaGetSeek);
-
-                        oldGenerator = globalGenerator;
-                        globalGenerator = null;
+                @Override
+                protected void secondLaunches() {
+                    if(oldGenerator != null){
+                        oldGenerator.kill();
+                        oldGenerator = null;
                     }
-
-                    @Override
-                    protected void secondLaunches() {
-                        if(oldGenerator != null){
-                            oldGenerator.kill();
-                            oldGenerator = null;
-                        }
-                        if(playListClean != null)
-                        {
-                            playListClean.run();
-                            playListClean = null;
-                        }
+                    if(playListClean != null)
+                    {
+                        playListClean.run();
+                        playListClean = null;
                     }
-                };
-                tick.run();
+                }
+            };
 
-                PlayerControllerBase oldPlayer = mediaPlayer;
-
-                Runnable onComple = ()->{
+            private final StaticFunctions.Starter onComple = new StaticFunctions.Starter() {
+                @Override
+                protected void firstLaunch() {
                     tick.run();
-                    oldPlayer.release();
+                    mediaPlayer.release();
                     mediaPlayer = null;
                     make();
-                };
+                }
 
-                videoChanger.stop();
+                @Override
+                protected void secondLaunches() {}
+            };
 
-                if(oldPlayer !=null){
-                    cleaningInBackground.addPollingTaskWithTimeOut(
-                            ()->oldPlayer.notClosable(),
-                            tick,
-                            onComple,
-                            onComple,
-                            ()->{
-                                try {
-                                    onComple.run();
-                                } catch (Exception e) {}
-                            },
-                            StaticFunctions.Empty.a,
-                            1500,
-                            20000,
-                            lifo,
-                            lifo,
-                            "mediaSessionStop"
-                    );
+            private final StaticFunctions.StarterWithBoolean checking = new StaticFunctions.StarterWithBoolean(){
+
+                @Override
+                protected Boolean firstLaunch() throws Exception {
+                    tick.run();
+                    return mediaPlayer.notClosable();
+                }
+
+                @Override
+                protected Boolean secondLaunches() throws Exception {
+                    return mediaPlayer.notClosable();
+                }
+            };
+
+
+            final void mediaSessionStopBase(){
+                badSoundFixer.run();
+
+                if(mediaIsNull()){
+                    makeOnMediaIsNull();
                     return;
                 }
 
-                tick.run();
-                mediaPlayer = null;
-                make();
+                onComple.reset();
+                checking.reset();
+                tick.reset();
+
+                cleaningInBackground.addPollingTaskWithTimeOut(checking,
+                        tick,
+                        onComple,
+                        onComple,
+                        onComple,
+                        StaticFunctions.Empty.a,
+                        1500,
+                        20000,
+                        lifo,
+                        lifo,
+                        "mediaSessionStop"
+                );
             }
 
             protected void make(){}
+
+            protected void makeOnMediaIsNull(){
+                make();
+            }
         }
 
         public class WaitAndIsWorkingStop extends MediaStop{
@@ -2639,36 +2997,54 @@ public class AppBack extends AppWeb {
 
         public class OnMediaChanging extends MediaStop{
 
+            private final Runnable onE = ()->{
+                reset();
+                onLoadDataFailFully();
+            };
+
             public void onMediaChanging(String url, MediaSourceProviders sourceProvider, String nameOfMedia) {
                 reset();
-                cleaningInBackground.clear();
+                cleaningInBackground.clear(()->{
+                    MediaStopOrSwitch.this.url = url;
+                    MediaStopOrSwitch.this.sourceProvider = sourceProvider;
+                    MediaStopOrSwitch.this.nameOfMedia = nameOfMedia;
 
-                MediaStopOrSwitch.this.url = url;
-                MediaStopOrSwitch.this.sourceProvider = sourceProvider;
-                MediaStopOrSwitch.this.nameOfMedia = nameOfMedia;
+                    beforeDestroy();
+                    closePanel(
+                            () -> {
+                                SData.resetToDefault();
+                                uiReset();
+                                detectionRecover();
+                            },
+                            () -> mediaSessionStopBase(),
+                            () -> {}
+                    );
+                }, forCleaner);
+            }
 
-                beforeDestroy();
-                closePanel(
-                        () -> {
-                            SData.resetToDefault();
-                            uiReset();
-                            detectionRecover();
-                        },
-                        () -> mediaSessionStopBase(),
-                        () -> {}
-                );
+            @Override
+            protected void makeOnMediaIsNull(){
+                cleaningInBackground.addWithOnTimeOut(()->make(),onE,onE,lifo,"Fail-Load",20000);
             }
 
             @Override
             protected void make(){
                 try {
                     waitMS(100);
-                    if(loadData(url, sourceProvider,nameOfMedia))
-                        mediaSessionStopBase();
+                    if(!loadData(url, sourceProvider,nameOfMedia)){
+                        return;
+                    }
                 }
-                catch (Exception e){
+                catch (Exception e){}
+
+                if(tryLoadCount<MAX_TRY_LOAD_COUNT){
+                    tryLoadCount++;
                     mediaSessionStopBase();
+                    return;
                 }
+
+                reset();
+                onLoadDataFailFully();
             }
         }
     }
@@ -2690,11 +3066,10 @@ public class AppBack extends AppWeb {
             jsonSelectedRes = null;
         }
 
-        public boolean fullUpdate(int wi,int he,String jsRes){
+        public void fullUpdate(int wi,int he,String jsRes){
             width.update(wi);
             height.update(he);
             jsonSelectedRes = jsRes;
-            return true;
         }
 
         private final class JSize{
@@ -2732,429 +3107,4 @@ public class AppBack extends AppWeb {
             this.provider = provider;
         }
     }
-
-    /*protected void Volume()
-    {
-        mediaVolume = (AudioManager) getContext().getSystemService(AUDIO_SERVICE);
-
-        volumePlayerMax = mediaVolume.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
-    }*/
-
-    /*public void ChangeVideoWithoutReturn(int plusOrMinus)
-    {
-        RunInThreadPoolIO((Callable<Boolean>) () -> {
-            ChangeVideo(plusOrMinus);
-            return true;
-        }, () -> {
-            SaveError("NotChanged Video");
-            return true;
-        });
-    }*/
-
-//    public class ChangeVideo {
-//
-//        /**
-//         * Per-run immutable state container.
-//         * Made static to avoid accidental capture of outer instance.
-//         */
-//        public class ChangerData {
-//            public final int plusOrMinus;
-//            public volatile YoutubeGenerator selected;
-//            public int newIndex;
-//            public int currentIndex;
-//            public boolean generate;
-//            public ChangerData(int plusOrMinus) { this.plusOrMinus = plusOrMinus; }
-//        }
-//
-//        private final AtomicBoolean maked = new AtomicBoolean(false);
-//        private Disposable mediaChanger;
-//        private ChangerData data;
-//
-//        /**
-//         * Replace the active changer data and start a run.
-//         * Synchronized to avoid races with Dispose().
-//         */
-//        public synchronized Disposable UpdateChanger(int plusOrMinus) {
-//            DisposeChanger();
-//            data = new ChangerData(plusOrMinus);
-//            // start immediately and return the Disposable so caller can keep a handle if desired
-//            return start(throwable -> OnErrorSave("ChangeVideo-Error", throwable),
-//                    () -> {});
-//        }
-//
-//        public synchronized boolean IsMaked()
-//        {
-//            return maked.get();
-//        }
-//
-//        private boolean Maked()
-//        {
-//            maked.set(true);
-//            return true;
-//        }
-//
-//        private synchronized void DisposeChanger() {
-//            maked.set(false);
-//            if (mediaChanger != null && !mediaChanger.isDisposed()) {
-//                mediaChanger.dispose();
-//            }
-//            mediaChanger = null;
-//        }
-//
-//        private class FlowStopException extends RuntimeException {
-//            FlowStopException(String message) { super(message); }
-//        }
-//
-//        private boolean isCancelled() {
-//            return ((mediaChanger != null && mediaChanger.isDisposed()) || Thread.currentThread().isInterrupted());
-//        }
-//
-//        /**
-//         * Single-run start: runs the 3-step flow once and returns the Disposable.
-//         * The Single payload is ChangerData for clarity.
-//         */
-//        private Disposable start(Consumer<Throwable> onError, Action onComplete) {
-//            if (data == null) {
-//                // nothing to run
-//                return null;
-//            }
-//
-//            mediaChanger = Single.fromCallable(() -> {
-//                        boolean ok = InFirstCheck();
-//                        if (!ok) throw new FlowStopException("InFirstCheck returned false");
-//                        return data; // return the per-attempt state
-//                    })
-//                    // InFirstCheck contains blocking waits -> use computation or IO depending on your DisposableTools mapping.
-//                    .subscribeOn(DisposableTools.computationScheduler())
-//
-//                    .flatMap(ch -> Single.fromCallable(() -> {
-//                        if (ch.generate) {
-//                            try {
-//                                boolean genOk = IfNotGeneratedGenerate();
-//                                if (!genOk) throw new FlowStopException("IfNotGeneratedGenerate returned false");
-//                            } catch (ExtractionException | IOException e) {
-//                                throw e;
-//                            }
-//                        }
-//                        return ch;
-//                    }).subscribeOn(DisposableTools.ioThreadPoolScheduler()))
-//
-//                    .flatMap(ch -> Single.fromCallable(() -> {
-//                        try {
-//                            boolean finalOk = IfNotLoadedAgain();
-//                            if (!finalOk) throw new FlowStopException("IfNotLoadedAgain returned false");
-//                            return true;
-//                        } catch (ExtractionException | IOException e) {
-//                            throw e;
-//                        }
-//                    }).subscribeOn(DisposableTools.computationScheduler()))
-//
-//                    .ignoreElement()
-//                    .subscribe(
-//                            () -> {
-//                                try { if (onComplete != null) onComplete.run(); } catch (Exception ignored) {}
-//                            },
-//                            throwable -> {
-//                                if (throwable instanceof FlowStopException) {
-//                                    try { if (onComplete != null) onComplete.run(); } catch (Exception ignored) {}
-//                                } else {
-//                                    try { if (onError != null) onError.accept(throwable); } catch (Exception ignored) {}
-//                                }
-//                            }
-//                    );
-//
-//            return mediaChanger;
-//        }
-//
-//    /* -------------------------
-//       Original methods with cancellation checks
-//       ------------------------- */
-//
-//        private boolean InFirstCheck() {
-//            if (data == null) return NotLoaded();
-//
-//            ErrorCodeApp.code22 = ErrorCodeApp.code22 + " +";
-//            mediaPlayer.StartLoading();
-//
-//            if (YoutubePlayList.isDisposed() || YoutubePlayList.getTotalVideosCount() == 0) {
-//                return false;
-//            }
-//
-//            data.currentIndex = YoutubePlayList.current;
-//            int totalVideos = YoutubePlayList.getTotalVideosCount();
-//            data.newIndex = data.currentIndex + data.plusOrMinus;
-//
-//            if (data.plusOrMinus == -1 && data.currentIndex == 0) {
-//                data.newIndex = totalVideos - 1;
-//            } else if (data.currentIndex == totalVideos - 1 && data.plusOrMinus == 1) {
-//                data.newIndex = 0;
-//            } else {
-//                boolean shouldLoop = PlaylistLoopOn();
-//                if (data.newIndex < 0) {
-//                    data.newIndex = shouldLoop ? totalVideos - 1 : 0;
-//                } else if (data.newIndex >= totalVideos) {
-//                    data.newIndex = shouldLoop ? 0 : totalVideos - 1;
-//                }
-//            }
-//
-//            if (data.newIndex < 0 || data.newIndex >= totalVideos) {
-//                return NotLoaded();
-//            }
-//
-//            data.selected = YoutubePlayList.GetGenerator(data.newIndex);
-//
-//            if (data.selected == null || !data.selected.IsLoaded()) {
-//                YoutubePlayList.AddSingleElement(data.newIndex);
-//
-//                int maxWaitAttempts = 10;
-//                int waitAttempt = 0;
-//
-//                while (waitAttempt < maxWaitAttempts) {
-//                    if (isCancelled()) return NotLoaded();
-//                    waitMS(300);
-//                    if (isCancelled()) return NotLoaded();
-//
-//                    data.selected = YoutubePlayList.GetGenerator(data.newIndex);
-//                    if (data.selected != null && data.selected.IsLoaded()) {
-//                        break;
-//                    }
-//
-//                    waitAttempt++;
-//
-//                    if (YoutubePlayList.isDisposed()) {
-//                        return NotLoaded();
-//                    }
-//                }
-//
-//                if (data.selected == null || !data.selected.IsLoaded()) {
-//                    try {
-//                        if (YoutubePlayList.streamInfoItem != null && data.newIndex < YoutubePlayList.streamInfoItem.size()) {
-//                            String videoUrl = YoutubePlayList.streamInfoItem.get(data.newIndex).getUrl();
-//                            data.selected = new YoutubeGenerator(
-//                                    videoUrl,
-//                                    YoutubePlayList.videoSettings,
-//                                    YoutubePlayList.listeners,
-//                                    YoutubePlayList.hardware
-//                            );
-//                            data.generate = true;
-//                        } else {
-//                            return NotLoaded();
-//                        }
-//                    } catch (Exception e) {
-//                        OnErrorSave("ChangeVideo", e);
-//                        return NotLoaded();
-//                    }
-//                }
-//            }
-//
-//            return Maked();
-//        }
-//
-//        private boolean IfNotGeneratedGenerate() throws ExtractionException, IOException {
-//            if (data == null) return NotLoaded();
-//            if (data.selected.GenerateLink(5)) {
-//                data.selected.ReLoadContent();
-//                if (YoutubePlayList.GetGenerator(data.newIndex) == null) {
-//                    YoutubePlayList.youtubeGenerators.add(data.selected);
-//                }
-//                return Maked();
-//            }
-//            return NotLoaded();
-//        }
-//
-//        private boolean IfNotLoadedAgain() throws ExtractionException, IOException {
-//            if (data == null) return NotLoaded();
-//            if (data.selected == null || !data.selected.IsLoaded()) {
-//                return NotLoaded();
-//            }
-//
-//            YoutubeGenerator.Size videoSize = data.selected.GetSize();
-//            Panel.updateScreen(videoSize.Width(), videoSize.Height());
-//
-//            YoutubeGenerator oldGenerator = (YoutubeGenerator) globalGenerator;
-//            int oldIndex = YoutubePlayList.current;
-//
-//            YoutubePlayList.current = data.newIndex;
-//            YoutubePlayList.changed = true;
-//
-//            new LoaderForPlayerYoutube(data.selected).UpdateLoaderAndKillerWithYoutubePlayListDispose();
-//
-//            if (oldGenerator != null && oldGenerator != globalGenerator) {
-//                try {
-//                    YoutubePlayList.UpdateToDefault(oldGenerator);
-//                } catch (Exception e) {
-//                    OnErrorSave("ChangeVideo-YoutubePlayList.UpdateToDefault", e);
-//                }
-//            }
-//
-//            globalGenerator.mediaError.started = true;
-//
-//            SData.SetString(SData.Data.SavedUrl, globalGenerator.GetVideoUrl() + "&list=" + YoutubePlayList.youtubePlaylistId());
-//
-//            globalGenerator.MediaErrorRun();
-//
-//            for (int i = 0; i < 5; i++) {
-//                if (isCancelled()) return NotLoaded();
-//                waitMS(200);
-//                if (isCancelled()) return NotLoaded();
-//                if (!globalGenerator.mediaError.started) break;
-//            }
-//
-//            if (mediaPlayer.IsPlayingDynamic(60, 50)) {
-//                SData.SetInt(SData.Data.SavedIndexPlayList, data.currentIndex);
-//            }
-//
-//            PreloadAdjacentVideos(data.newIndex);
-//
-//            Wait.webUIWaitStop();
-//            return Maked();
-//        }
-//    }
-
-    /*public boolean ChangeVideo(int plusOrMinus) throws ExtractionException, IOException {
-        ErrorCodeApp.code22 = ErrorCodeApp.code22 + " +";
-        mediaPlayer.StartLoading();
-        // First, check if playlist is available and has videos
-        if (YoutubePlayList.isDisposed() || YoutubePlayList.getTotalVideosCount() == 0) {
-            return false;
-        }
-
-        int currentIndex = YoutubePlayList.current;
-        int totalVideos = YoutubePlayList.getTotalVideosCount();
-        int newIndex = currentIndex + plusOrMinus;
-
-        // Special handling for -1 (go to end) and overflow (go to start)
-        if (plusOrMinus == -1 && currentIndex == 0) {
-            // If at start and receiving -1, go to end
-            newIndex = totalVideos - 1;
-        } else if (currentIndex == totalVideos - 1 && plusOrMinus == 1) {
-            // If at end and receiving +1, go to start
-            newIndex = 0;
-        } else {
-            // Handle normal wrap-around logic
-            boolean shouldLoop = PlaylistLoopOn();
-            if (newIndex < 0) {
-                newIndex = shouldLoop ? totalVideos - 1 : 0;
-            } else if (newIndex >= totalVideos) {
-                newIndex = shouldLoop ? 0 : totalVideos - 1;
-            }
-        }
-
-        // Ensure index is within bounds
-        if (newIndex < 0 || newIndex >= totalVideos) {
-            return NotLoaded();
-        }
-
-        // Check if the target video is already loaded
-        YoutubeGenerator selected = YoutubePlayList.GetGenerator(newIndex);
-
-        // If not loaded, load it synchronously
-        if (selected == null || !selected.IsLoaded()) {
-            // Load the specific video
-            YoutubePlayList.AddSingleElement(newIndex);
-
-            // Wait for it to load with reasonable timeout
-            int maxWaitAttempts = 10;
-            int waitAttempt = 0;
-
-            while (waitAttempt < maxWaitAttempts) {
-                WaitS(300);
-                selected = YoutubePlayList.GetGenerator(newIndex);
-
-                if (selected != null && selected.IsLoaded()) {
-                    break;
-                }
-
-                waitAttempt++;
-
-                if (YoutubePlayList.isDisposed()) {
-                    return NotLoaded();
-                }
-            }
-
-            // If still not loaded after waiting, try to create it directly
-            if (selected == null || !selected.IsLoaded()) {
-                try {
-                    // Get the URL from the stream info item
-                    if (YoutubePlayList.streamInfoItem != null && newIndex < YoutubePlayList.streamInfoItem.size()) {
-                        String videoUrl = YoutubePlayList.streamInfoItem.get(newIndex).getUrl();
-                        selected = new YoutubeGenerator(
-                                videoUrl,
-                                YoutubePlayList.videoSettings,
-                                YoutubePlayList.listeners,
-                                YoutubePlayList.hardware
-                        );
-
-                        if (selected.GenerateLink(5)) {
-                            selected.ReLoadContent();
-                            // Add to the list if it's not already there
-                            if (YoutubePlayList.GetGenerator(newIndex) == null) {
-                                YoutubePlayList.youtubeGenerators.add(selected);
-                            }
-                        } else {
-                            return NotLoaded();
-                        }
-                    } else {
-                        return NotLoaded();
-                    }
-                } catch (Exception e) {
-                    OnErrorSave("ChangeVideo",e);
-                    return NotLoaded();
-                }
-            }
-        }
-
-        // If we still don't have a valid generator, abort
-        if (selected == null || !selected.IsLoaded()) {
-            return NotLoaded();
-        }
-
-        // Update Panel Size after load new generator
-        YoutubeGenerator.Size videoSize = selected.GetSize();
-        Panel.UpdateScreen(videoSize.Width(),videoSize.Height());
-
-        // Store old generator for cleanup
-        YoutubeGenerator oldGenerator = (YoutubeGenerator) globalGenerator;
-        int oldIndex = YoutubePlayList.current;
-
-        // Update current index in playlist
-        YoutubePlayList.current = newIndex;
-        YoutubePlayList.changed = true;
-
-        // Update media player with new content
-        new LoaderForPlayerYoutube(selected).UpdateLoaderAndKillerWithYoutubePlayListDispose();
-
-        // Update the OLD generator to default state (not the new one)
-        if (oldGenerator != null && oldGenerator != globalGenerator) {
-            try {
-                YoutubePlayList.UpdateToDefault(oldGenerator);
-            } catch (Exception e) {
-                OnErrorSave("ChangeVideo-YoutubePlayList.UpdateToDefault",e);
-                // Handle exception if UpdateToDefault fails
-            }
-        }
-
-        // Handle media errors for the NEW generator
-        globalGenerator.mediaError.started = true;
-
-        SData.SetString(SData.Data.SavedUrl, globalGenerator.GetVideoUrl()+"&list="+YoutubePlayList.youtubePlaylistId());
-        globalGenerator.MediaErrorRun();
-
-        // Wait for error handling with timeout
-        for (int i = 0; i < 5; i++) {
-            WaitS(200);
-            if (!globalGenerator.mediaError.started) break;
-        }
-
-        // Check if playing and update video resolution
-        if(mediaPlayer.IsPlayingDynamic(6, 500))
-        {
-            SData.SetInt(SData.Data.SavedIndexPlayList,currentIndex);
-        }
-
-        // Pre-load adjacent videos for smoother navigation
-        PreloadAdjacentVideos(newIndex);
-
-        return true;
-    }*/
 }

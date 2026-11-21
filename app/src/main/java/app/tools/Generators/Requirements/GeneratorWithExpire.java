@@ -25,13 +25,11 @@ import java.io.IOException;
 
 import app.tools.Players.PlayerController;
 import app.tools.Players.all.PlayerControllerBase;
-import app.tools.SData;
 import app.tools.StaticFunctions;
 
 import app.tools.Players.all.Listeners;
 
 import app.tools.DisposableTools.WaitDisposable;
-import server.web.ErrorCodeApp;
 
 import static app.tools.DisposableTools.killAll;
 import static app.tools.StaticFunctions.onErrorSave;
@@ -69,17 +67,25 @@ public abstract class GeneratorWithExpire extends Generator {
         return new WaitDisposable[] {mediaError,mediaSession};
     }
 
+
+    protected final PlayerControllerBase startPanelBase(boolean DisplayOn, boolean loop, boolean plalistLoop) {
+        PlayerControllerBase m = PlayerController.getPlayer(listeners,loop,plalistLoop,hardware,DisplayOn, isLive(),audioOrBaseStream,videoStream);
+
+        if(m!=null)
+            m.setMaxSeek(getMaxSeekMS());
+
+        return m;
+    }
+
     @Override
     public final PlayerControllerBase startPanel(boolean DisplayOn, boolean loop, boolean plalistLoop) {
         PlayerControllerBase mediaPlayer = null;
 
         try {
-            mediaPlayer = PlayerController.getPlayer(listeners,loop,plalistLoop,hardware,DisplayOn, isLive(),audioOrBaseStream,videoStream);
+            mediaPlayer = startPanelBase(DisplayOn,loop,plalistLoop);
 
             if(mediaPlayer==null)
                 return onErrorLive(DisplayOn,loop,plalistLoop);
-            else
-                mediaPlayer.setMaxSeek(getMaxSeekForPlayer());
         }
         catch (Exception e)
         {

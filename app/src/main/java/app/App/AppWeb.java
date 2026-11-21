@@ -35,6 +35,7 @@ import app.tools.SData;
 import app.tools.StaticFunctions;
 import app.tools.StaticFunctions.ItemWithId;
 import server.tools.MediaProxyServlet;
+import server.web.ErrorCodeApp;
 import server.web.Sources;
 
 import static app.tools.StaticFunctions.onThrows;
@@ -78,8 +79,8 @@ public class AppWeb{
     private String extractorPattern;
     private String extractorExpirePattern;
     private int selectedTable;
-    private int seekMax;
-    private int seekPosition;
+    private long seekMaxMS;
+    private long seekPositionMS;
     private int videoResolutionLiveID;
 
     public AppWeb()
@@ -120,21 +121,6 @@ public class AppWeb{
         return PlayersCollection.values()[indexPlayerEngine];
     }
 
-    public static SavedMedia getSavedMedia(){
-
-        String recoveredData = SData.getString(SData.Data.SavedMedia);
-        if(recoveredData==null||recoveredData.isEmpty())
-            return null;
-
-        String[] data = recoveredData.split(System.lineSeparator());
-        return new SavedMedia(
-                Integer.parseInt(data[0]),
-                data[1],
-                getNameFromData(2,data),
-                SData.getLong(SData.Data.SavedSeek)
-        );
-    }
-
     public static void saveMedia(MediaSourceProviders provider, String url, String name){
         SData.setString(SData.Data.SavedMedia,String.join(System.lineSeparator(),StaticFunctions.objectsToString(provider.id(),url,name)));
     }
@@ -149,20 +135,29 @@ public class AppWeb{
         volumePosition.set((int)(VOLUME_MAX * percent));
     }
 
-    public void seekMax(int value)
+    public void seekMaxMS(long value)
     {
-        seekMax = value;
+        seekMaxMS = value;
     }
     
-    public int getSeekMax(){ return seekMax; }
+    public long getSeekMaxMS(){ return seekMaxMS; }
 
-    public void seekPosition(int value)
-    {
-        seekPosition = value;
+    public int getSeekMaxS(){
+        return (int)seekMaxMS/1000;
     }
-    public int getSeekPosition()
+
+    public void seekPositionMS(long value)
     {
-        return seekPosition;
+        seekPositionMS = value;
+    }
+
+    public long getSeekPositionMS()
+    {
+        return seekPositionMS;
+    }
+
+    public int getSeekPositionS(){
+        return (int)seekPositionMS/1000;
     }
 
     public void videoResolutionLiveID(int VideoResolutionID)
@@ -265,54 +260,6 @@ public class AppWeb{
     public int getSelectedTable()
     {
         return selectedTable;
-    }
-
-    private static String getNameFromData(int startIndex,String[] rawData){
-        if(startIndex==rawData.length-1)
-            return rawData[startIndex];
-
-        List<String> output = new ArrayList<>();
-
-        for(int i = startIndex; i<rawData.length; i++){
-            output.add(rawData[i]);
-        }
-
-        return String.join(System.lineSeparator(),output);
-    }
-
-    public static class SavedMedia
-    {
-        private final int providerId;
-        private final String url;
-        private final String name;
-        private final long seek;
-
-        public SavedMedia(int providerId, String url, String name, long seek)
-        {
-            this.providerId = providerId;
-            this.url = url;
-            this.name = name;
-            this.seek = seek;
-        }
-
-        public String getURL()
-        {
-            return url;
-        }
-
-        public String getName(){
-            return name;
-        }
-
-        public int getProviderID()
-        {
-            return providerId;
-        }
-
-        public long getSeek()
-        {
-            return seek;
-        }
     }
 
     public static class ButtonBoolean
@@ -530,6 +477,69 @@ public class AppWeb{
         public void reset()
         {
             resolutionCorrect.reset();
+        }
+    }
+
+    public static class SavedMedia
+    {
+        private final int providerId;
+        private final String url;
+        private final String name;
+        private final long seekMS;
+
+        public SavedMedia(int providerId, String url, String name, long seekMS)
+        {
+            this.providerId = providerId;
+            this.url = url;
+            this.name = name;
+            this.seekMS = seekMS;
+        }
+
+        public static SavedMedia getSavedMedia(){
+
+            String recoveredData = SData.getString(SData.Data.SavedMedia);
+            if(recoveredData==null||recoveredData.isEmpty())
+                return null;
+
+            String[] data = recoveredData.split(System.lineSeparator());
+            return new SavedMedia(
+                    Integer.parseInt(data[0]),
+                    data[1],
+                    getNameFromData(2,data),
+                    SData.getLong(SData.Data.SavedSeekMS)
+            );
+        }
+
+        public String getURL()
+        {
+            return url;
+        }
+
+        public String getName(){
+            return name;
+        }
+
+        public int getProviderID()
+        {
+            return providerId;
+        }
+
+        public long getSeekMS()
+        {
+            return seekMS;
+        }
+
+        private static String getNameFromData(int startIndex,String[] rawData){
+            if(startIndex==rawData.length-1)
+                return rawData[startIndex];
+
+            List<String> output = new ArrayList<>();
+
+            for(int i = startIndex; i<rawData.length; i++){
+                output.add(rawData[i]);
+            }
+
+            return String.join(System.lineSeparator(),output);
         }
     }
 }

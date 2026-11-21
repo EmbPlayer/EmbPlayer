@@ -94,7 +94,8 @@ public class JettyServer {
                         new File(R.raw.bootstrap_css,"/Bootstrap.css",false),
                         new File(R.raw.bootstrap_js,"/Bootstrap.js",false),
                         new File(R.raw.index,"/index.js",false),
-                        new File(R.raw.indexpagev2,"/",false)
+                        new File(R.raw.indexpagev2,"/main",false),
+                        new File(R.raw.redirector,"/",false)
                         //new File(R.raw.bootstrap_css,"http://192.168.1.150:8081/indexpagev2.html","/"),
                         //new File(R.raw.bootstrap_css,"http://192.168.1.150:8081/index.js","/index.js")
                         //new File(R.raw.indexpage,"https://emplayer.github.io/","/")

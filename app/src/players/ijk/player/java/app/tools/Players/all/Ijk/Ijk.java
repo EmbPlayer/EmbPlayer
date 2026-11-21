@@ -816,7 +816,7 @@ public abstract class Ijk extends Player
                     oldM.pause();
                 }
 
-                cleaned = true;
+                releaseWStop();
                 oldM.release();
             } catch (Exception e) {
                 onErrorSave("IJKPlayer-Release-Error", e);

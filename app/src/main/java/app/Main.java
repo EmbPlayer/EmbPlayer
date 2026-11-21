@@ -41,7 +41,6 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import app.App.AppBack;
 import app.services.BaseServer;
-import app.tools.AndroidOsUpdatesListener;
 import app.tools.DisposableTools;
 import app.tools.QrCodePage;
 import app.tools.SData;
@@ -51,7 +50,7 @@ import io.reactivex.rxjava3.disposables.Disposable;
 
 import static app.tools.DisposableTools.addTask;
 import static app.tools.DisposableTools.addTaskUI;
-import static app.tools.DisposableTools.forServer;
+import static app.tools.DisposableTools.forRestarter;
 import static server.Home.app;
 
 public class Main extends DefaultActivity {
@@ -96,7 +95,7 @@ public class Main extends DefaultActivity {
                 },()->"loaderOnFirst");
 
             return true;
-        },()->"loading_App", forServer);
+        },()->"loading_App", forRestarter);
     }
 
     @Override
@@ -126,7 +125,7 @@ public class Main extends DefaultActivity {
     @Override
     public void onBackPressed()
     {
-        StaticFunctions.kill();
+        StaticFunctions.killAndReset();
     }
 
     @Override
@@ -139,7 +138,7 @@ public class Main extends DefaultActivity {
                 appLoader = addTask(()->{
                     startService();
                     return true;
-                },()->"startServer",forServer);
+                },()->"startServer", forRestarter);
             } else {
                 // Permission denied
                 if (!ActivityCompat.shouldShowRequestPermissionRationale(this, REQUIRED_PERMISSION)) {
@@ -166,7 +165,7 @@ public class Main extends DefaultActivity {
         appLoader = addTask(()->{
             main.startService(new Intent(getContext(), BaseServer.class));
             return true;
-        },()-> "Restarting_Server",forServer);
+        },()-> "Restarting_Server", forRestarter);
     }
 
     public static void startServiceFromDifferentActivityOrHere()
@@ -216,13 +215,6 @@ public class Main extends DefaultActivity {
 
             }
         },()->{
-            if(BaseServer.isHaveHostname()){
-                if(!StaticFunctions.oldBSSID().equals(AndroidOsUpdatesListener.getCurrentBSSID()))
-                    SData.resetToDefault();
-            }
-            else if(!StaticFunctions.oldIP().equals(BaseServer.getIP()))
-                SData.resetToDefault();
-
             qrFirst();
             updateQr();
         });
@@ -429,10 +421,7 @@ public class Main extends DefaultActivity {
             if(AppBack.Panel.check(BasePanel.PanelInfo.Created))
                 return;
 
-            app().mediaReload.tryLoad(()->{
-                app().errorHandel.getSeek();
-                return true;
-            },StaticFunctions.Empty.r);
+            app().mediaReload.recreateWithTask.reloadWithPanel(()->app().errorHandel.getSeek());
 
             /*
             TextView codeOut = main.findViewById(R.id.code);

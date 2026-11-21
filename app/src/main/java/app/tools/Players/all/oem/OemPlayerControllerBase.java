@@ -48,7 +48,7 @@ public abstract class OemPlayerControllerBase extends PlayerControllerBase {
                 if(!secondPlayer)
                     listeners.onErrorListener();
                 else if(OemPlayerControllerBase.this.isPlaying()){
-                    long s = OemPlayerControllerBase.this.getCurrentPosition();
+                    long s = OemPlayerControllerBase.this.getCurrentPositionMS();
                     if(s<media.getDuration()-1500)
                     {
                         s = s-1000;

@@ -19,8 +19,11 @@
 package app.tools.Players.all.ExoIjk;
 
 import androidx.annotation.CallSuper;
+import androidx.annotation.OptIn;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.VideoSize;
+import androidx.media3.common.util.UnstableApi;
+import androidx.media3.datasource.HttpDataSource;
 import app.tools.Players.all.Listeners;
 import app.tools.Players.all.Ijk.IjkPlayerControllerBase;
 import app.tools.SData;
@@ -28,6 +31,21 @@ import app.tools.SData;
 public abstract class ExoIjkPlayerControllerBase extends IjkPlayerControllerBase {
     public ExoIjkPlayerControllerBase(Listeners listeners) {
         super(listeners);
+    }
+
+    /** " HTTP 403 host" when the failure was a bad HTTP status (code 2004), else "". */
+    @OptIn(markerClass = UnstableApi.class)
+    private static String httpStatus(Throwable t)
+    {
+        for (int i = 0; t != null && i < 8; i++, t = t.getCause()) {
+            if (t instanceof HttpDataSource.InvalidResponseCodeException) {
+                HttpDataSource.InvalidResponseCodeException h = (HttpDataSource.InvalidResponseCodeException) t;
+                String host = "";
+                try { host = " " + h.dataSpec.uri.getHost(); } catch (Exception ignore) {}
+                return " HTTP " + h.responseCode + host;
+            }
+        }
+        return "";
     }
 
     public class ExoInner extends Exo
@@ -51,13 +69,15 @@ public abstract class ExoIjkPlayerControllerBase extends IjkPlayerControllerBase
                         errorMsg += "code=" + erro.errorCode + ", ";
                     }
                     errorMsg += erro.getMessage();
+                    errorMsg += httpStatus(erro);
 
-                    SData.setString(SData.Data.SavedListenersErrors,
-                            SData.getString(SData.Data.SavedListenersErrors, "") +
-                                    "[" + errorMsg + "] ");
+                    SData.appendString(SData.Data.SavedListenersErrors, "[" + errorMsg + "] ");
 
                     if(erro.errorCode==2004)
                     {
+                        // Set the flag first: it used to stay false for this error, so the wait loops
+                        // and the freeze detector never saw that the player had failed.
+                        error = true;
                         listeners.onNotLoadedTryAgainToLoad();
                         return;
                     }

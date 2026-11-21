@@ -22,8 +22,12 @@ import android.view.SurfaceHolder;
 
 import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
 
 import androidx.annotation.CallSuper;
+import app.tools.DisposableTools;
 import app.tools.StaticFunctions;
 import io.reactivex.rxjava3.disposables.Disposable;
 import server.tools.MediaProxyServlet;
@@ -40,8 +44,9 @@ public abstract class Player {
     protected String link;
     protected boolean prepared;
     protected boolean error;
-    protected boolean cleaned;
     protected boolean secondPlayer = false;
+
+    private boolean released;
 
     public Player(boolean videoOnly)
     {
@@ -82,6 +87,14 @@ public abstract class Player {
     public final void secondPlayer(boolean yes)
     {
         secondPlayer = yes;
+    }
+
+    protected final void releaseWStop(){
+        released = true;
+    }
+
+    public final boolean isReleased(){
+        return released;
     }
 
     public final boolean isPrepared()
@@ -138,7 +151,7 @@ public abstract class Player {
     public void release()
     {
         pauseBeforeRelease();
-        cleaned = false;
+        released = false;
         resetBase();
     }
 

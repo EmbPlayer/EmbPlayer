@@ -396,7 +396,7 @@ public abstract class Vlc extends Player
                     oldM.pause();
                 }
 
-                cleaned = true;
+                releaseWStop();
 
                 // --- Stop playback ---
                 try { oldM.stop(); } catch (Exception ignored) {
