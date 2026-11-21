@@ -8,7 +8,7 @@ Instead of controlling the app directly on the device, EmbPlayer lets **any devi
 
 **The two roles are simple:**
 - **The Host (Media Player):** Your Android device running EmbPlayer. This is where the video/audio actually plays.
-- **The Remote (Controller):** Any device with a modern web browser (Chrome, Edge, Firefox, Safari, etc.). **No installation needed**—just scan and control.
+- **The Remote (Controller):** Any device with a modern web browser (Chrome, Edge, etc.). **No installation needed**—just scan and control.
 
 ---
 
